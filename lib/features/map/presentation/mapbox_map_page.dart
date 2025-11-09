@@ -35,7 +35,8 @@ class _MapboxMapPageState extends State<MapboxMapPage> {
         return;
       }
 
-      geo.LocationPermission permission = await geo.Geolocator.checkPermission();
+      geo.LocationPermission permission =
+          await geo.Geolocator.checkPermission();
       if (permission == geo.LocationPermission.denied) {
         permission = await geo.Geolocator.requestPermission();
         if (permission == geo.LocationPermission.denied) {
@@ -156,7 +157,10 @@ class _MapboxMapPageState extends State<MapboxMapPage> {
             right: 20,
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.brightYellow,
                   border: Border.all(color: Colors.black, width: 2),
@@ -190,7 +194,10 @@ class _MapboxMapPageState extends State<MapboxMapPage> {
                   );
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.primaryBlue,
                     border: Border.all(color: Colors.black, width: 3),
