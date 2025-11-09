@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/extensions.dart';
-import '../../../core/utils/marker_generator.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/geocoding_service.dart';
 import '../../../core/services/auth_service.dart';
@@ -24,7 +23,7 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> {
-  GoogleMapController? _mapController;
+  MapboxMap? _mapboxController;
   Position? _currentPosition;
   List<Moment> _moments = [];
   String _cityName = 'Loading...';
@@ -40,7 +39,7 @@ class _MapPageState extends State<MapPage> {
     _initializeMap();
     _setupRealtimeSubscription();
   }
-  
+
   void _setupRealtimeSubscription() {
     _realtimeChannel = Supabase.instance.client
         .channel('moments-changes')
@@ -123,7 +122,7 @@ class _MapPageState extends State<MapPage> {
       setState(() {
         _moments = moments;
       });
-      
+
       // Create markers asynchronously after state update
       await _createMarkers();
       setState(() {}); // Trigger rebuild with markers
@@ -148,7 +147,7 @@ class _MapPageState extends State<MapPage> {
           // If moment_images table doesn't exist yet, just use count of 1
           print('Could not fetch moment images: $e');
         }
-        
+
         // Create custom marker bitmap (larger size for better visibility)
         const logicalSize = 180.0; // adjust globally here
         final icon = await MarkerGenerator.createMomentMarker(
@@ -157,8 +156,10 @@ class _MapPageState extends State<MapPage> {
           logicalSize: logicalSize,
           scale: 3.0,
         );
-        final anchorY = MarkerGenerator.recommendedAnchorY(logicalSize: logicalSize);
-        
+        final anchorY = MarkerGenerator.recommendedAnchorY(
+          logicalSize: logicalSize,
+        );
+
         return Marker(
           markerId: MarkerId(moment.id),
           position: LatLng(moment.latitude, moment.longitude),
@@ -343,7 +344,7 @@ class _MapPageState extends State<MapPage> {
             ),
           ),
         );
-        
+
         // Reload moments only if moment was created successfully
         if (result == true && mounted) {
           await _loadMoments();
@@ -359,9 +360,7 @@ class _MapPageState extends State<MapPage> {
   Future<void> _pickMultipleImagesAndNavigate() async {
     try {
       final ImagePicker picker = ImagePicker();
-      final List<XFile> images = await picker.pickMultiImage(
-        imageQuality: 85,
-      );
+      final List<XFile> images = await picker.pickMultiImage(imageQuality: 85);
 
       if (images.isNotEmpty && mounted) {
         // Pass all image paths
@@ -375,7 +374,7 @@ class _MapPageState extends State<MapPage> {
             ),
           ),
         );
-        
+
         // Reload moments only if moment was created successfully
         if (result == true && mounted) {
           await _loadMoments();
@@ -383,9 +382,9 @@ class _MapPageState extends State<MapPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking images: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error picking images: $e')));
       }
     }
   }
@@ -487,54 +486,54 @@ class _MapPageState extends State<MapPage> {
             left: 0,
             right: 0,
             child: Center(
-                child: Transform.rotate(
-                  angle: -0.01,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.brightYellow,
-                      border: Border.all(color: Colors.black, width: 2),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black,
-                          offset: Offset(4, 4),
-                          blurRadius: 0,
+              child: Transform.rotate(
+                angle: -0.01,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.brightYellow,
+                    border: Border.all(color: Colors.black, width: 2),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black,
+                        offset: Offset(4, 4),
+                        blurRadius: 0,
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      // Outline/stroke effect
+                      Text(
+                        _cityName,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2,
+                          foreground: Paint()
+                            ..style = PaintingStyle.stroke
+                            ..strokeWidth = 3
+                            ..color = Colors.black,
                         ),
-                      ],
-                    ),
-                    child: Stack(
-                      children: [
-                        // Outline/stroke effect
-                        Text(
-                          _cityName,
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 2,
-                            foreground: Paint()
-                              ..style = PaintingStyle.stroke
-                              ..strokeWidth = 3
-                              ..color = Colors.black,
-                          ),
+                      ),
+                      // Inner fill (transparent/white for cutout)
+                      Text(
+                        _cityName,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 2,
                         ),
-                        // Inner fill (transparent/white for cutout)
-                        Text(
-                          _cityName,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            letterSpacing: 2,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
+              ),
             ),
           ),
 

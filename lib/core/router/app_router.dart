@@ -37,18 +37,14 @@ class AppRouter {
       GoRoute(
         path: loginRoute,
         name: 'login',
-        pageBuilder: (context, state) => MaterialPage(
-          key: state.pageKey,
-          child: const LoginPage(),
-        ),
+        pageBuilder: (context, state) =>
+            MaterialPage(key: state.pageKey, child: const LoginPage()),
       ),
       GoRoute(
         path: mapRoute,
         name: 'map',
-        pageBuilder: (context, state) => MaterialPage(
-          key: state.pageKey,
-          child: const MapPage(),
-        ),
+        pageBuilder: (context, state) =>
+            MaterialPage(key: state.pageKey, child: const MapPage()),
       ),
       GoRoute(
         path: momentDetailRoute,
@@ -65,11 +61,17 @@ class AppRouter {
         path: addMomentRoute,
         name: 'add-moment',
         pageBuilder: (context, state) {
-          final latitude = double.tryParse(state.uri.queryParameters['lat'] ?? '');
-          final longitude = double.tryParse(state.uri.queryParameters['lng'] ?? '');
+          final latitude = double.tryParse(
+            state.uri.queryParameters['lat'] ?? '',
+          );
+          final longitude = double.tryParse(
+            state.uri.queryParameters['lng'] ?? '',
+          );
           final imagePath = state.uri.queryParameters['imagePath'];
           final imagePathsStr = state.uri.queryParameters['imagePaths'];
-          final imagePaths = imagePathsStr?.split('|||'); // Use ||| as delimiter
+          final imagePaths = imagePathsStr?.split(
+            '|||',
+          ); // Use ||| as delimiter
 
           return MaterialPage(
             key: state.pageKey,
@@ -126,7 +128,9 @@ class AppRouter {
     if (lng != null) queryParams['lng'] = lng.toString();
     if (imagePath != null) queryParams['imagePath'] = imagePath;
     if (imagePaths != null && imagePaths.isNotEmpty) {
-      queryParams['imagePaths'] = imagePaths.join('|||'); // Use ||| as delimiter
+      queryParams['imagePaths'] = imagePaths.join(
+        '|||',
+      ); // Use ||| as delimiter
     }
 
     final uri = Uri(

@@ -48,9 +48,9 @@ class BlurredAppBar extends StatelessWidget implements PreferredSizeWidget {
                     onPressed: onMenuPressed,
                     icon: const Icon(Icons.menu, color: Colors.black),
                   ),
-                  
+
                   const SizedBox(width: 8),
-                  
+
                   // Title (Centered with cutout effect)
                   Expanded(
                     child: Center(
@@ -68,15 +68,15 @@ class BlurredAppBar extends StatelessWidget implements PreferredSizeWidget {
                       ),
                     ),
                   ),
-                  
+
                   // Search Icon
                   IconButton(
                     onPressed: onSearchPressed,
                     icon: const Icon(Icons.search, color: Colors.black),
                   ),
-                  
+
                   const SizedBox(width: 8),
-                  
+
                   // Profile Avatar
                   GestureDetector(
                     onTap: onProfilePressed,

@@ -38,12 +38,12 @@ class _AddMomentPageState extends State<AddMomentPage> {
   @override
   void initState() {
     super.initState();
-    
+
     // Set image if provided
     if (widget.imagePath != null) {
       _imageFile = File(widget.imagePath!);
     }
-    
+
     // Set initial coordinates
     _latitude = widget.initialLatitude;
     _longitude = widget.initialLongitude;
@@ -86,7 +86,8 @@ class _AddMomentPageState extends State<AddMomentPage> {
       setState(() {
         _latitude = position.latitude;
         _longitude = position.longitude;
-        _locationName = '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
+        _locationName =
+            '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
       });
     } catch (e) {
       if (mounted) {
@@ -114,10 +115,14 @@ class _AddMomentPageState extends State<AddMomentPage> {
 
     try {
       final caption = _captionController.text.trim();
-      
+
       await _momentRepository.createMoment(
-        title: caption.isEmpty ? 'Moment at ${_locationName ?? 'Unknown'}' : caption,
-        location: _locationName ?? 'Lat: ${_latitude!.toStringAsFixed(4)}, Lng: ${_longitude!.toStringAsFixed(4)}',
+        title: caption.isEmpty
+            ? 'Moment at ${_locationName ?? 'Unknown'}'
+            : caption,
+        location:
+            _locationName ??
+            'Lat: ${_latitude!.toStringAsFixed(4)}, Lng: ${_longitude!.toStringAsFixed(4)}',
         latitude: _latitude!,
         longitude: _longitude!,
         imageFile: _imageFile,
@@ -144,10 +149,7 @@ class _AddMomentPageState extends State<AddMomentPage> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundBeige,
       appBar: AppBar(
-        title: Text(
-          'NEW MOMENT',
-          style: context.textTheme.headlineSmall,
-        ),
+        title: Text('NEW MOMENT', style: context.textTheme.headlineSmall),
         leading: BouncingButton(
           onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
           child: const Icon(Icons.close),
@@ -205,18 +207,18 @@ class _AddMomentPageState extends State<AddMomentPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(AppTheme.spacing16),
                 decoration: BoxDecoration(
-                  color: _isGettingLocation 
-                    ? Colors.orange.shade50 
-                    : (_latitude != null && _longitude != null)
-                        ? Colors.green.shade50
-                        : Colors.red.shade50,
+                  color: _isGettingLocation
+                      ? Colors.orange.shade50
+                      : (_latitude != null && _longitude != null)
+                      ? Colors.green.shade50
+                      : Colors.red.shade50,
                   borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                   border: Border.all(
-                    color: _isGettingLocation 
-                      ? Colors.orange.shade200 
-                      : (_latitude != null && _longitude != null)
-                          ? Colors.green.shade200
-                          : Colors.red.shade200,
+                    color: _isGettingLocation
+                        ? Colors.orange.shade200
+                        : (_latitude != null && _longitude != null)
+                        ? Colors.green.shade200
+                        : Colors.red.shade200,
                   ),
                 ),
                 child: Row(
@@ -243,18 +245,20 @@ class _AddMomentPageState extends State<AddMomentPage> {
                         _isGettingLocation
                             ? 'Getting your location...'
                             : (_latitude != null && _longitude != null)
-                                ? 'Location: ${_locationName ?? '${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}'}'
-                                : 'Location unavailable',
+                            ? 'Location: ${_locationName ?? '${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}'}'
+                            : 'Location unavailable',
                         style: context.textTheme.bodySmall?.copyWith(
                           color: _isGettingLocation
                               ? Colors.orange.shade800
                               : (_latitude != null && _longitude != null)
-                                  ? Colors.green.shade800
-                                  : Colors.red.shade800,
+                              ? Colors.green.shade800
+                              : Colors.red.shade800,
                         ),
                       ),
                     ),
-                    if (_latitude != null && _longitude != null && !_isGettingLocation)
+                    if (_latitude != null &&
+                        _longitude != null &&
+                        !_isGettingLocation)
                       BouncingButton(
                         onPressed: _getCurrentLocation,
                         child: Icon(
@@ -275,10 +279,16 @@ class _AddMomentPageState extends State<AddMomentPage> {
                 child: BouncingButton(
                   onPressed: _isLoading ? null : _createMoment,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: AppTheme.spacing16),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppTheme.spacing16,
+                    ),
                     decoration: BoxDecoration(
-                      color: _isLoading ? AppTheme.textGray : AppTheme.primaryBlue,
-                      borderRadius: BorderRadius.circular(AppTheme.radiusCircle),
+                      color: _isLoading
+                          ? AppTheme.textGray
+                          : AppTheme.primaryBlue,
+                      borderRadius: BorderRadius.circular(
+                        AppTheme.radiusCircle,
+                      ),
                       boxShadow: _isLoading ? null : AppTheme.buttonShadow,
                     ),
                     child: Center(

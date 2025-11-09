@@ -29,8 +29,10 @@ class AddMomentPageNew extends StatefulWidget {
 }
 
 class _AddMomentPageNewState extends State<AddMomentPageNew> {
-  final _titleController = TextEditingController(); // For "PLACE OF POWER" group title
-  final _captionController = TextEditingController(); // For personal caption like "Midtown Manhattan"
+  final _titleController =
+      TextEditingController(); // For "PLACE OF POWER" group title
+  final _captionController =
+      TextEditingController(); // For personal caption like "Midtown Manhattan"
   final MomentRepository _momentRepository = MomentRepository();
   final AuthService _authService = AuthService();
   final ImagePicker _picker = ImagePicker();
@@ -46,7 +48,7 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
   @override
   void initState() {
     super.initState();
-    
+
     // Set images if provided (handle both single and multiple)
     if (widget.imagePaths != null && widget.imagePaths!.isNotEmpty) {
       print('📸 Adding multiple images: ${widget.imagePaths!.length}');
@@ -57,9 +59,9 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
     } else {
       print('⚠️ No images provided to AddMomentPageNew');
     }
-    
+
     print('🖼️ Total images loaded: ${_imageFiles.length}');
-    
+
     // Set initial coordinates
     _latitude = widget.initialLatitude;
     _longitude = widget.initialLongitude;
@@ -125,7 +127,7 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
       final List<XFile> pickedFiles = await _picker.pickMultiImage(
         imageQuality: 85,
       );
-      
+
       if (pickedFiles.isNotEmpty) {
         setState(() {
           _imageFiles = pickedFiles.map((xFile) => File(xFile.path)).toList();
@@ -145,7 +147,7 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
         source: ImageSource.camera,
         imageQuality: 85,
       );
-      
+
       if (photo != null) {
         setState(() {
           _imageFiles.add(File(photo.path));
@@ -186,7 +188,7 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
     try {
       final title = _titleController.text.trim();
       final caption = _captionController.text.trim();
-      
+
       // Create moment with first image
       final moment = await _momentRepository.createMoment(
         title: title.isEmpty ? 'SUNSET COVE' : title, // Group title
@@ -194,7 +196,9 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
         latitude: _latitude!,
         longitude: _longitude!,
         imageFile: _imageFiles.first,
-        caption: caption.isNotEmpty ? caption : null, // Personal caption like "Midtown Manhattan"
+        caption: caption.isNotEmpty
+            ? caption
+            : null, // Personal caption like "Midtown Manhattan"
         description: caption.isNotEmpty ? caption : null,
       );
 
@@ -234,7 +238,8 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
           icon: const Icon(Icons.arrow_back, color: Colors.black),
         ),
         title: TextField(
-          controller: _titleController, // Changed to title controller for group name
+          controller:
+              _titleController, // Changed to title controller for group name
           style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w900,
@@ -242,7 +247,8 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
             letterSpacing: 1.5,
           ),
           decoration: const InputDecoration(
-            hintText: 'Add a title ie SUNSET COVE', // User types their own title
+            hintText:
+                'Add a title ie SUNSET COVE', // User types their own title
             hintStyle: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w900,
@@ -397,16 +403,17 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
             },
             itemBuilder: (context, index) {
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
                 child: Stack(
                   children: [
                     // Clean white card with simple border
                     Center(
                       child: Container(
                         width: double.infinity,
-                        constraints: const BoxConstraints(
-                          maxWidth: 400,
-                        ),
+                        constraints: const BoxConstraints(maxWidth: 400),
                         child: AspectRatio(
                           aspectRatio: 3 / 4, // Portrait card ratio
                           child: Container(
@@ -428,7 +435,7 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
                         ),
                       ),
                     ),
-                    
+
                     // Simple X button
                     Positioned(
                       top: 8,
@@ -456,7 +463,7 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
             },
           ),
         ),
-        
+
         // Caption BELOW carousel (static - doesn't swipe with images)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -481,7 +488,7 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
             maxLines: 1,
           ),
         ),
-        
+
         // Photo counter
         if (_imageFiles.length > 1)
           Padding(
@@ -522,9 +529,7 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
       ),
       decoration: BoxDecoration(
         color: AppTheme.backgroundBeige,
-        border: const Border(
-          top: BorderSide(color: Colors.black12, width: 1),
-        ),
+        border: const Border(top: BorderSide(color: Colors.black12, width: 1)),
       ),
       child: Row(
         children: [
@@ -550,9 +555,9 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
               child: const Icon(Icons.emoji_emotions_outlined, size: 24),
             ),
           ),
-          
+
           const SizedBox(width: 12),
-          
+
           // Location tag
           if (_locationName != null)
             Container(
@@ -585,9 +590,9 @@ class _AddMomentPageNewState extends State<AddMomentPageNew> {
                 ],
               ),
             ),
-          
+
           const Spacer(),
-          
+
           // Preview button
           SpringButton(
             onTap: _isLoading ? null : _createMoment,

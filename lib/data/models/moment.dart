@@ -101,19 +101,19 @@ class Moment extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        title,
-        location,
-        latitude,
-        longitude,
-        imageUrl,
-        mediaPath,
-        caption,
-        createdAt,
-        timestamp,
-        userId,
-        description,
-      ];
+    id,
+    title,
+    location,
+    latitude,
+    longitude,
+    imageUrl,
+    mediaPath,
+    caption,
+    createdAt,
+    timestamp,
+    userId,
+    description,
+  ];
 
   @override
   String toString() {

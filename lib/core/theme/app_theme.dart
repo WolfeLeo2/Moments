@@ -37,23 +37,15 @@ class AppTheme {
 
   // Neubrutalism Shadows (hard shadows with no blur)
   static List<BoxShadow> get brutalShadow => [
-    const BoxShadow(
-      color: borderBlack,
-      offset: Offset(4, 4),
-      blurRadius: 0,
-    ),
+    const BoxShadow(color: borderBlack, offset: Offset(4, 4), blurRadius: 0),
   ];
 
   static List<BoxShadow> get brutalShadowSmall => [
-    const BoxShadow(
-      color: borderBlack,
-      offset: Offset(3, 3),
-      blurRadius: 0,
-    ),
+    const BoxShadow(color: borderBlack, offset: Offset(3, 3), blurRadius: 0),
   ];
 
   static List<BoxShadow> get cardShadow => brutalShadow;
-  
+
   static List<BoxShadow> get buttonShadow => brutalShadow;
 
   static ThemeData get lightTheme {
@@ -130,7 +122,7 @@ class AppTheme {
         color: textDark,
         letterSpacing: 1.5,
       ),
-      
+
       // Headline styles (For sticker titles)
       headlineLarge: GoogleFonts.rubik(
         fontSize: 32,
@@ -150,7 +142,7 @@ class AppTheme {
         color: textDark,
         letterSpacing: 0.5,
       ),
-      
+
       // Title styles (For buttons and labels)
       titleLarge: GoogleFonts.inter(
         fontSize: 22,
@@ -167,7 +159,7 @@ class AppTheme {
         fontWeight: FontWeight.w700,
         color: textDark,
       ),
-      
+
       // Body styles (For content)
       bodyLarge: GoogleFonts.inter(
         fontSize: 16,
@@ -187,7 +179,7 @@ class AppTheme {
         color: textGray,
         height: 1.5,
       ),
-      
+
       // Label styles (For small text)
       labelLarge: GoogleFonts.inter(
         fontSize: 14,

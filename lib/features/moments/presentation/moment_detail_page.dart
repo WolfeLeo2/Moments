@@ -8,10 +8,7 @@ import '../../../widgets/spring_button.dart';
 class MomentDetailPage extends StatefulWidget {
   final String momentId;
 
-  const MomentDetailPage({
-    super.key,
-    required this.momentId,
-  });
+  const MomentDetailPage({super.key, required this.momentId});
 
   @override
   State<MomentDetailPage> createState() => _MomentDetailPageState();
@@ -99,10 +96,7 @@ class _MomentDetailPageState extends State<MomentDetailPage> {
                       children: [
                         _buildContributorAvatar('User'),
                         const SizedBox(width: AppTheme.spacing8),
-                        Text(
-                          'and others',
-                          style: context.textTheme.bodyMedium,
-                        ),
+                        Text('and others', style: context.textTheme.bodyMedium),
                       ],
                     ),
                   ),
@@ -157,38 +151,50 @@ class _MomentDetailPageState extends State<MomentDetailPage> {
                                               ? Image.network(
                                                   _moment!.imageUrl!,
                                                   fit: BoxFit.cover,
-                                                  errorBuilder: (context, error,
-                                                      stackTrace) {
-                                                    return Container(
-                                                      color: Colors.grey[300],
-                                                      child: const Center(
-                                                        child: Icon(
-                                                          Icons.error,
-                                                          size: 48,
-                                                        ),
-                                                      ),
-                                                    );
-                                                  },
-                                                  loadingBuilder: (context,
-                                                      child, loadingProgress) {
-                                                    if (loadingProgress ==
-                                                        null) {
-                                                      return child;
-                                                    }
-                                                    return Container(
-                                                      color: Colors.grey[300],
-                                                      child: const Center(
-                                                        child:
-                                                            CircularProgressIndicator(),
-                                                      ),
-                                                    );
-                                                  },
+                                                  errorBuilder:
+                                                      (
+                                                        context,
+                                                        error,
+                                                        stackTrace,
+                                                      ) {
+                                                        return Container(
+                                                          color:
+                                                              Colors.grey[300],
+                                                          child: const Center(
+                                                            child: Icon(
+                                                              Icons.error,
+                                                              size: 48,
+                                                            ),
+                                                          ),
+                                                        );
+                                                      },
+                                                  loadingBuilder:
+                                                      (
+                                                        context,
+                                                        child,
+                                                        loadingProgress,
+                                                      ) {
+                                                        if (loadingProgress ==
+                                                            null) {
+                                                          return child;
+                                                        }
+                                                        return Container(
+                                                          color:
+                                                              Colors.grey[300],
+                                                          child: const Center(
+                                                            child:
+                                                                CircularProgressIndicator(),
+                                                          ),
+                                                        );
+                                                      },
                                                 )
                                               : Container(
                                                   color: Colors.grey[300],
                                                   child: const Center(
-                                                    child: Icon(Icons.image,
-                                                        size: 48),
+                                                    child: Icon(
+                                                      Icons.image,
+                                                      size: 48,
+                                                    ),
                                                   ),
                                                 ),
                                         ),
@@ -200,11 +206,11 @@ class _MomentDetailPageState extends State<MomentDetailPage> {
                                       padding: const EdgeInsets.all(16),
                                       child: Text(
                                         _moment?.caption ?? '',
-                                        style:
-                                            context.textTheme.bodyMedium?.copyWith(
-                                          fontFamily: 'Courier',
-                                          fontWeight: FontWeight.w500,
-                                        ),
+                                        style: context.textTheme.bodyMedium
+                                            ?.copyWith(
+                                              fontFamily: 'Courier',
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                         textAlign: TextAlign.center,
                                       ),
                                     ),
@@ -224,7 +230,9 @@ class _MomentDetailPageState extends State<MomentDetailPage> {
                     margin: const EdgeInsets.all(AppTheme.spacing16),
                     decoration: BoxDecoration(
                       color: AppTheme.cardWhite,
-                      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                      borderRadius: BorderRadius.circular(
+                        AppTheme.radiusMedium,
+                      ),
                       border: Border.all(color: Colors.black, width: 3),
                       boxShadow: const [
                         BoxShadow(
@@ -262,9 +270,8 @@ class _MomentDetailPageState extends State<MomentDetailPage> {
                                 Flexible(
                                   child: Text(
                                     _moment?.location ?? 'Unknown',
-                                    style: context.textTheme.bodySmall?.copyWith(
-                                      fontWeight: FontWeight.w900,
-                                    ),
+                                    style: context.textTheme.bodySmall
+                                        ?.copyWith(fontWeight: FontWeight.w900),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -339,11 +346,7 @@ class _MomentDetailPageState extends State<MomentDetailPage> {
         shape: BoxShape.circle,
         border: Border.all(color: Colors.black, width: 2.5),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black,
-            offset: Offset(2, 2),
-            blurRadius: 0,
-          ),
+          BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
         ],
       ),
       child: Center(

@@ -3,6 +3,7 @@
 ## ✅ All Features Implemented
 
 ### 1. ✨ **Custom Map Markers**
+
 - Created `MomentStackMarker` widget for stacked card appearance
 - Shows layered photos with rotation for depth
 - Date stamps on each marker
@@ -10,6 +11,7 @@
 - **Status**: Widget created, ready to integrate with Google Maps custom markers
 
 ### 2. 🌍 **Geocoding for City Names**
+
 - Added `geocoding` package (v3.0.0)
 - Created `GeocodingService` class
 - Methods:
@@ -19,6 +21,7 @@
 - Fallback to coordinates if geocoding fails
 
 ### 3. 📍 **Moment Grouping/Clustering**
+
 - Created `MomentClusteringService` class
 - Groups moments within 150m radius (customizable)
 - Uses Haversine formula for accurate distance calculation
@@ -30,6 +33,7 @@
   - Image URLs array
 
 ### 4. 👥 **Contributors System**
+
 - Database tables created:
   - `moment_contributors` - Many-to-many relationship
   - `profiles` - User avatars and info
@@ -38,6 +42,7 @@
 - RLS policies enabled for security
 
 ### 5. 🎪 **Spring/Bouncy Animations**
+
 - Created `SpringButton` widget
   - Scale animation on tap
   - Smooth spring physics
@@ -55,15 +60,19 @@
 ### 6. 🎨 **Stickers - Where to Get Them**
 
 #### **FREE Resources:**
+
 1. **Figma Community** - https://www.figma.com/community
+
    - Search: "neubrutalism stickers"
    - Export as SVG/PNG
 
 2. **Flaticon** - https://www.flaticon.com/
+
    - Search: "sticker border", "badge", "stamp"
    - Filter: Flat style
 
 3. **Freepik** - https://www.freepik.com/
+
    - Search: "neobrutalism stickers"
    - Free vector stickers
 
@@ -71,12 +80,15 @@
    - Customizable illustrations
 
 #### **Premium Resources:**
+
 - Creative Market - https://creativemarket.com/
 - Gumroad - Search "sticker packs"
 - IconScout - https://iconscout.com/
 
 #### **DIY Approach (RECOMMENDED ✅)**
+
 Use the programmatic widgets I created:
+
 ```dart
 // Date Stamp
 DateStamp(
@@ -105,6 +117,7 @@ StickerCard(
 ```
 
 **Benefits:**
+
 - ✅ No image files needed
 - ✅ Perfect alignment
 - ✅ Scalable to any size
@@ -115,6 +128,7 @@ StickerCard(
 ### 7. 🗄️ **Supabase Database Updates**
 
 #### **New Tables Created:**
+
 ```sql
 -- Moment groups for clustering
 CREATE TABLE moment_groups (
@@ -148,10 +162,12 @@ CREATE TABLE profiles (
 ```
 
 #### **Updated moments table:**
+
 - Added: `title`, `location`, `image_url`, `description`
 - Kept: `caption`, `media_path`, `latitude`, `longitude`
 
 #### **RLS Policies:**
+
 - All tables have RLS enabled
 - Public read access for viewing
 - Authenticated write access
@@ -161,6 +177,7 @@ CREATE TABLE profiles (
 #### **Installed via Google Fonts:**
 
 **Headers/Titles (ALL CAPS):**
+
 ```dart
 GoogleFonts.bebasNeue(
   fontSize: 24,
@@ -168,10 +185,12 @@ GoogleFonts.bebasNeue(
   letterSpacing: 1.5,
 )
 ```
+
 - Used for: App name, city name, moment titles
 - Ultra-bold, condensed, perfect for neubrutalism
 
 **Sticker Labels/Buttons:**
+
 ```dart
 GoogleFonts.rubik(
   fontSize: 14,
@@ -179,20 +198,24 @@ GoogleFonts.rubik(
   letterSpacing: 0.5,
 )
 ```
+
 - Used for: Sticker text, button labels
 - Very heavy weight for that bold look
 
 **Body Text/Content:**
+
 ```dart
 GoogleFonts.inter(
   fontSize: 15,
   fontWeight: FontWeight.w600,
 )
 ```
+
 - Used for: Captions, descriptions, regular text
 - Clean, readable, modern
 
 #### **Alternative Fonts (Also FREE):**
+
 - **Anton** - `GoogleFonts.anton()`
 - **Archivo Black** - `GoogleFonts.archivoBlack()`
 - **Space Grotesk** - `GoogleFonts.spaceGrotesk()`
@@ -200,6 +223,7 @@ GoogleFonts.inter(
 ### 9. 📱 **App Bar Updates**
 
 #### **Blurred Glassmorphism App Bar:**
+
 ```dart
 BlurredAppBar(
   title: 'Moments',  // ✅ CENTERED
@@ -210,6 +234,7 @@ BlurredAppBar(
 ```
 
 **Features:**
+
 - ✅ Title centered in app bar
 - ✅ Blur effect (sigma 10)
 - ✅ Gradient overlay
@@ -221,6 +246,7 @@ BlurredAppBar(
 ## 🎨 Design Elements Summary
 
 ### **Color Palette:**
+
 ```dart
 primaryBlue: #306BFF
 neonPink: #FF006E
@@ -232,18 +258,21 @@ borderBlack: #000000
 ```
 
 ### **Shadows:**
+
 - Hard shadows (no blur)
 - Offset: (4, 4) for large elements
 - Offset: (3, 3) for small elements
 - Always black color
 
 ### **Borders:**
+
 - Thin: 2.0px
 - Medium: 2.5px
 - Thick: 3.0px
 - Always black (#000000)
 
 ### **Border Radius:**
+
 - Small: 8px
 - Medium: 12px
 - Large: 16px
@@ -262,15 +291,18 @@ borderBlack: #000000
 ## 🚀 Next Steps
 
 1. **Integrate Custom Markers on Map:**
+
    - Use `BitmapDescriptor.fromBytes()` to convert widgets to markers
    - Add tap handlers to show moment groups
 
 2. **Load Actual Contributors:**
+
    - Query `profiles` table
    - Display real avatar images
    - Show contributor names
 
 3. **Add More Interactions:**
+
    - Swipe between moments
    - Add reactions/emoji stickers
    - Draw on images
@@ -283,6 +315,7 @@ borderBlack: #000000
 ## 🎉 Result
 
 Your app now has a **fully functional neubrutalism design** with:
+
 - ✅ Bold, thick borders
 - ✅ Hard shadows
 - ✅ Vibrant colors

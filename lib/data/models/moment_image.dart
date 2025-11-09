@@ -45,12 +45,12 @@ class MomentImage extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        momentId,
-        imageUrl,
-        mediaPath,
-        caption,
-        displayOrder,
-        createdAt,
-      ];
+    id,
+    momentId,
+    imageUrl,
+    mediaPath,
+    caption,
+    displayOrder,
+    createdAt,
+  ];
 }

@@ -5,16 +5,19 @@
 ### 1. ❌ Location Shows "Unknown Location" in Kitengela/Athi River
 
 **Problem:**
+
 - Geocoding returning "Unknown Location" despite being in Kitengela/Athi River
 - Issue likely due to incorrect placemark field prioritization for Kenya
 
 **Root Cause:**
+
 - Kenya location data may use different placemark fields than typical US/EU locations
 - Original code only checked `locality` → `subAdministrativeArea` → `administrativeArea`
 - For Kenya, the town/area name might be in `subLocality` first
 
 **Solution Implemented:**
 ✅ Enhanced geocoding service with:
+
 - Added comprehensive debugging output (prints all placemark fields)
 - Reordered field priority: `subLocality` → `locality` → `subAdministrativeArea` → `administrativeArea`
 - Better error logging with emoji indicators
@@ -22,12 +25,14 @@
 **File Modified:** `/lib/core/services/geocoding_service.dart`
 
 **How to Test:**
+
 1. Run the app
 2. Check console logs for "🗺️ Geocoding Debug:" output
 3. Verify which field contains "Kitengela" or "Athi River"
 4. Location should now display correctly
 
 **If Still Not Working:**
+
 - Check console output for available fields
 - The debug logs will show exactly what Google's geocoding returns
 - May need to adjust field priority based on actual data
@@ -37,12 +42,14 @@
 ### 2. ❌ Location Not in a Container + Wrong Text Style
 
 **Problem:**
+
 - Location label was using `StickerLabel` widget without proper container
 - Text didn't have the "cutout" effect from the reference image
 - Not properly styled with neubrutalism theme
 
 **Solution Implemented:**
 ✅ Created custom styled container with:
+
 - Bright yellow background (`AppTheme.brightYellow`)
 - Thick black border (3px)
 - Hard shadow (4px offset, no blur)
@@ -57,6 +64,7 @@
 **File Modified:** `/lib/features/map/presentation/map_page.dart`
 
 **Visual Result:**
+
 ```
 ┌──────────────────┐
 │  KITENGELA       │ ← Yellow container
@@ -69,11 +77,13 @@
 ### 3. ❌ App Bar Title "Moments" Not Centered
 
 **Problem:**
+
 - Title was left-aligned in app bar
 - Didn't have the cutout/outline effect from reference image
 
 **Solution Implemented:**
 ✅ Updated BlurredAppBar widget:
+
 - Wrapped title in `Center()` widget
 - Added **cutout text effect** using Stack:
   - Outer text: Black stroke (3px)
@@ -87,6 +97,7 @@
 
 **Font Identification:**
 The cutout/outline effect in the reference image is likely **Knockout** or **Impact** font style. We're emulating it using:
+
 - Very bold weight (900)
 - Stroke + fill technique
 - Wide letter spacing
@@ -97,6 +108,7 @@ The cutout/outline effect in the reference image is likely **Knockout** or **Imp
 ### 4. ✅ Google Authentication Setup
 
 **Problem:**
+
 - No authentication system
 - Need to display user's Google avatar
 - Email and Google sign-in requested
@@ -105,6 +117,7 @@ The cutout/outline effect in the reference image is likely **Knockout** or **Imp
 ✅ Complete authentication system:
 
 **1. AuthService (`/lib/core/services/auth_service.dart`)**
+
 - Google Sign-In integration with Supabase
 - Email/Password authentication
 - Auto-creates/updates user profile in `profiles` table
@@ -112,6 +125,7 @@ The cutout/outline effect in the reference image is likely **Knockout** or **Imp
 - User metadata access (photo, name, email)
 
 **2. LoginPage (`/lib/features/auth/presentation/login_page.dart`)**
+
 - Neubrutalism design matching app theme
 - Google Sign-In button (primary)
 - Email/Password option (secondary)
@@ -120,19 +134,23 @@ The cutout/outline effect in the reference image is likely **Knockout** or **Imp
 - Spring animations
 
 **3. Router Updates (`/lib/core/router/app_router.dart`)**
+
 - `/login` route added
 - Authentication redirect logic
 - Auto-redirect based on auth state
 
 **4. Map Page Integration**
+
 - Profile avatar in app bar (displays Google photo)
 - Profile dialog with user info
 - Sign out button
 
 **5. Package Added:**
+
 - `google_sign_in: ^6.3.0` ✅ Installed
 
 **Environment Variables Used:**
+
 ```env
 SUPABASE_GOOGLE_WEB_CLIENT_ID=837716303354-icka1slhlp723lekmsumg8ep4n310ni8.apps.googleusercontent.com
 SUPABASE_GOOGLE_ANDROID_CLIENT_ID=837716303354-v1d1sqarke414sa7b80csbipjhdgrptt.apps.googleusercontent.com
@@ -140,6 +158,7 @@ SUPABASE_GOOGLE_ANDROID_CLIENT_ID=837716303354-v1d1sqarke414sa7b80csbipjhdgrptt.
 
 **Next Steps for Full Google Sign-In:**
 ⚠️ **Required Android Configuration:**
+
 1. Get SHA-1 fingerprint: `cd android && ./gradlew signingReport`
 2. Add SHA-1 to Firebase Console
 3. Download updated `google-services.json`
@@ -158,6 +177,7 @@ Which mapping solution would provide better visual aesthetics for the neubrutali
 
 **SHORT TERM (MVP - Current Phase):**
 ✅ **Stay with Google Maps**
+
 - Already integrated and working
 - Faster development
 - Better data coverage for Kenya
@@ -166,6 +186,7 @@ Which mapping solution would provide better visual aesthetics for the neubrutali
 
 **LONG TERM (Pre-Launch):**
 🏆 **Switch to Mapbox**
+
 - **10/10 aesthetic customization** vs Google's 6/10
 - Can match neubrutalism perfectly:
   - Custom colors (bright yellow roads, electric blue water)
@@ -178,6 +199,7 @@ Which mapping solution would provide better visual aesthetics for the neubrutali
 - Better offline support
 
 **Mapbox Style Concept for Moments:**
+
 ```
 Water: Electric blue (#306BFF) with black borders
 Land: Bright beige (#FEF7E6)
@@ -188,6 +210,7 @@ Labels: Bold fonts, black text, white halo
 ```
 
 **Migration Strategy:**
+
 1. **Now:** Continue with Google Maps, build features
 2. **1-2 months:** Create Mapbox style in Mapbox Studio
 3. **Pre-launch:** Migrate to Mapbox for production
@@ -200,21 +223,26 @@ Labels: Bold fonts, black text, white halo
 ## 📋 Files Modified/Created
 
 ### Modified Files:
+
 1. ✅ `/lib/core/services/geocoding_service.dart`
+
    - Enhanced debug logging
    - Reordered placemark field priority for Kenya
 
 2. ✅ `/lib/widgets/blurred_app_bar.dart`
+
    - Centered title
    - Added cutout text effect (stroke + fill)
 
 3. ✅ `/lib/features/map/presentation/map_page.dart`
+
    - Custom styled location container
    - Cutout text effect for city name
    - Profile avatar integration
    - Sign out dialog
 
 4. ✅ `/lib/core/router/app_router.dart`
+
    - Added login route
    - Authentication redirect logic
 
@@ -222,16 +250,21 @@ Labels: Bold fonts, black text, white halo
    - Added `google_sign_in: ^6.3.0`
 
 ### Created Files:
+
 1. ✅ `/lib/core/services/auth_service.dart`
+
    - Complete authentication service
 
 2. ✅ `/lib/features/auth/presentation/login_page.dart`
+
    - Neubrutalism login UI
 
 3. ✅ `AUTHENTICATION_SETUP.md`
+
    - Complete setup guide with troubleshooting
 
 4. ✅ `MAPS_COMPARISON.md`
+
    - Google Maps vs Mapbox comparison
 
 5. ✅ `ISSUE_RESOLUTIONS.md` (this file)
@@ -244,6 +277,7 @@ Labels: Bold fonts, black text, white halo
 ### Before → After
 
 **App Bar:**
+
 ```
 Before: [Menu]  Moments  [Search] [Profile]
 After:  [Menu]   MOMENTS  [Search] [Profile]
@@ -252,6 +286,7 @@ After:  [Menu]   MOMENTS  [Search] [Profile]
 ```
 
 **Location Label:**
+
 ```
 Before: Simple text label, no container
 After:  ┌─────────────┐
@@ -261,6 +296,7 @@ After:  ┌─────────────┐
 ```
 
 **Profile Avatar:**
+
 ```
 Before: Generic icon
 After:  Google profile photo from authenticated account
@@ -271,18 +307,21 @@ After:  Google profile photo from authenticated account
 ## 🧪 Testing Checklist
 
 ### Geocoding Fix:
+
 - [ ] Run app
 - [ ] Check console for "🗺️ Geocoding Debug:" logs
 - [ ] Verify city name displays correctly
 - [ ] Test in different Kenya locations
 
 ### Text Cutout Effect:
+
 - [ ] Verify app bar "MOMENTS" is centered
 - [ ] Check for outline/hollow text effect
 - [ ] Verify location label has cutout effect
 - [ ] Check yellow container has brutal border/shadow
 
 ### Authentication:
+
 - [ ] App starts on login page
 - [ ] Click "CONTINUE WITH GOOGLE"
 - [ ] Sign in with Google account
@@ -293,6 +332,7 @@ After:  Google profile photo from authenticated account
 - [ ] Verify redirect back to login
 
 ### Android Setup (Required for Google Sign-In):
+
 - [ ] Run `cd android && ./gradlew signingReport`
 - [ ] Copy SHA-1 fingerprint
 - [ ] Add to Firebase Console
@@ -305,18 +345,21 @@ After:  Google profile photo from authenticated account
 ## 🚀 Next Development Steps
 
 ### Immediate:
+
 1. Test geocoding in Kitengela
 2. Verify cutout text effects render correctly
 3. Complete Android Google Sign-In setup (SHA-1)
 4. Test authentication flow end-to-end
 
 ### Short-term:
+
 1. Add Google logo asset for login button
 2. Create profile editing page
 3. Add more robust error handling
 4. Implement forgot password flow
 
 ### Long-term:
+
 1. Research Mapbox Studio
 2. Design custom neubrutalism map style
 3. Plan Mapbox migration
@@ -327,6 +370,7 @@ After:  Google profile photo from authenticated account
 ## 💡 Technical Notes
 
 ### Cutout Text Effect Technique:
+
 ```dart
 Stack(
   children: [
@@ -350,6 +394,7 @@ Stack(
 ```
 
 ### Geocoding Field Priority for Kenya:
+
 ```dart
 placemark.subLocality →     // "Kitengela", "Athi River"
 placemark.locality →        // Larger city
@@ -358,6 +403,7 @@ placemark.administrativeArea  // State/province
 ```
 
 ### Authentication Flow:
+
 ```
 App Launch → Check auth state
   ├─ Not signed in → Login page

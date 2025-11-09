@@ -5,7 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class AuthService {
   final SupabaseClient _supabase = Supabase.instance.client;
   late final GoogleSignIn _googleSignIn;
-  
+
   AuthService() {
     // Initialize Google Sign In with web client ID
     final webClientId = dotenv.env['SUPABASE_GOOGLE_WEB_CLIENT_ID'];
@@ -38,13 +38,14 @@ class AuthService {
     try {
       // Trigger Google Sign In flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      
+
       if (googleUser == null) {
         throw Exception('Google Sign In was cancelled');
       }
 
       // Get Google Auth credentials
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final String? idToken = googleAuth.idToken;
       final String? accessToken = googleAuth.accessToken;
 
@@ -91,7 +92,11 @@ class AuthService {
   }
 
   /// Sign up with email and password
-  Future<AuthResponse> signUpWithEmail(String email, String password, {String? displayName}) async {
+  Future<AuthResponse> signUpWithEmail(
+    String email,
+    String password, {
+    String? displayName,
+  }) async {
     try {
       final response = await _supabase.auth.signUp(
         email: email,
@@ -117,7 +122,7 @@ class AuthService {
       if (await _googleSignIn.isSignedIn()) {
         await _googleSignIn.signOut();
       }
-      
+
       // Sign out from Supabase
       await _supabase.auth.signOut();
     } catch (e) {
@@ -132,8 +137,12 @@ class AuthService {
       final profileData = {
         'id': user.id,
         'username': user.email?.split('@').first ?? 'user',
-        'display_name': user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? user.email,
-        'avatar_url': user.userMetadata?['avatar_url'] ?? user.userMetadata?['picture'],
+        'display_name':
+            user.userMetadata?['full_name'] ??
+            user.userMetadata?['name'] ??
+            user.email,
+        'avatar_url':
+            user.userMetadata?['avatar_url'] ?? user.userMetadata?['picture'],
         'updated_at': DateTime.now().toIso8601String(),
       };
 

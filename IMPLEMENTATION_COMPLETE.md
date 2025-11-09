@@ -7,18 +7,21 @@
 **Status: FULLY OPERATIONAL**
 
 #### Database Tables:
+
 - ✅ `moments` - Main table with all fields working
 - ✅ `profiles` - User profiles (fixed email → username/display_name)
 - ✅ `moment_groups` - Location-based grouping
 - ✅ `moment_contributors` - Multi-user moments
 
 #### Storage Bucket:
+
 - ✅ Bucket: `moments`
 - ✅ Public access enabled
 - ✅ Image upload/download working
 - ✅ Auto-cleanup on moment deletion
 
 #### Current Capabilities:
+
 - ✅ Upload images to Supabase Storage
 - ✅ Create moments with location data
 - ✅ Display moments on map
@@ -34,6 +37,7 @@
 #### Features Matching Your Reference Image:
 
 ##### 📸 Multi-Image Support
+
 - ✅ **Select multiple images** from gallery at once
 - ✅ **Take photos** with camera
 - ✅ **Swipe carousel** to view all images
@@ -41,6 +45,7 @@
 - ✅ **Image counter dots** showing position (e.g., 1 of 3)
 
 ##### 🎨 Cutout/Polaroid Card Design
+
 - ✅ **Thick black borders** (4px) around images
 - ✅ **White background** (polaroid effect)
 - ✅ **Hard shadows** (6px offset, no blur)
@@ -48,6 +53,7 @@
 - ✅ Matches the sticker aesthetic from reference
 
 ##### 📍 Location Tag (Not Coordinates!)
+
 - ✅ Shows **city name** (e.g., "Kitengela")
 - ✅ **Pill-shaped tag** with location icon
 - ✅ Brutal border style
@@ -55,11 +61,13 @@
 - ❌ **No coordinates displayed** ✓
 
 ##### 👤 Avatar Integration
+
 - ✅ **User avatar** in header (from Google Sign-In)
 - ✅ Circular with brutal border
 - ✅ Ready for multiple contributor avatars
 
 ##### 🎛️ Bottom Action Bar
+
 - ✅ **Emoji button** (placeholder for sticker picker)
 - ✅ **Add photos button** (add more after initial selection)
 - ✅ **Text field** (Aa) for captions
@@ -67,6 +75,7 @@
 - ✅ All buttons with neubrutalism styling
 
 ##### 📱 Header Title
+
 - ✅ **"PLACE OF POWER"** with cutout effect
 - ✅ Stroke outline style
 - ✅ Matches reference design aesthetic
@@ -76,6 +85,7 @@
 ## 🎨 Visual Comparison
 
 ### Your Reference Image ✓
+
 ```
 [Header: PLACE OF POWER] [Avatars]
 ┌──────────────────────┐
@@ -90,6 +100,7 @@
 ```
 
 ### Your New Implementation ✓
+
 ```
 [← PLACE OF POWER] [Avatar]
 ┌──────────────────────┐
@@ -109,6 +120,7 @@
 ## 🚀 How to Use
 
 ### Adding a Moment:
+
 1. **Tap "New Moment"** button on map
 2. **Choose source:**
    - Camera icon → Take photo
@@ -121,6 +133,7 @@
 6. **Tap "Preview"** to post
 
 ### Multi-Image Selection:
+
 ```dart
 // User can select multiple images at once
 final images = await imagePicker.pickMultiImage();
@@ -132,7 +145,9 @@ final images = await imagePicker.pickMultiImage();
 ## 📁 File Changes
 
 ### New Files:
+
 1. ✅ `/lib/features/moments/presentation/add_moment_page_new.dart`
+
    - Complete UI revamp
    - Multi-image support
    - Matches reference design
@@ -143,11 +158,14 @@ final images = await imagePicker.pickMultiImage();
    - Usage examples
 
 ### Modified Files:
+
 1. ✅ `/lib/core/router/app_router.dart`
+
    - Changed to use `AddMomentPageNew`
    - Same routing logic
 
 2. ✅ `/lib/core/services/auth_service.dart`
+
    - Fixed profile creation (no email column)
    - Uses username/display_name
 
@@ -160,14 +178,18 @@ final images = await imagePicker.pickMultiImage();
 ## 🗺️ Map Display with Cutout Cards
 
 ### Current Implementation:
+
 Your `MomentStackMarker` widget is already created with:
+
 - ✅ Stacked polaroid cards
 - ✅ Brutal borders and shadows
 - ✅ Date stamps
 - ✅ Contributor avatars
 
 ### Next Step (Integration):
+
 Convert widget to map marker:
+
 ```dart
 // In map_page.dart
 final markerIcon = await createCustomMarker(momentGroup);
@@ -185,6 +207,7 @@ setState(() {
 ## 🔧 Technical Details
 
 ### Image Upload Flow:
+
 ```
 1. User selects images → List<File>
 2. On Preview button click:
@@ -198,6 +221,7 @@ setState(() {
 ```
 
 ### Storage Path Structure:
+
 ```
 Supabase Storage
 └── moments/
@@ -207,6 +231,7 @@ Supabase Storage
 ```
 
 ### Database Record:
+
 ```json
 {
   "id": "uuid",
@@ -225,19 +250,23 @@ Supabase Storage
 ## ⚠️ Current Limitations
 
 ### 1. Multiple Images per Moment
+
 **Status:** Only first image uploaded
 **Reason:** Database schema supports one `image_url` field
 **Solution:** Create `moment_images` table (documented in SUPABASE_SETUP_STATUS.md)
 
 ### 2. Sticker Overlays
+
 **Status:** Not implemented
 **Features needed:**
+
 - "WOW" text stickers
 - Emoji overlays
 - Custom decorations
-**Solution:** Add overlay widgets in carousel
+  **Solution:** Add overlay widgets in carousel
 
 ### 3. Custom Map Markers
+
 **Status:** Widget created, not integrated
 **Next step:** Convert `MomentStackMarker` to `BitmapDescriptor`
 
@@ -248,12 +277,14 @@ Supabase Storage
 From your reference image:
 
 ### Map Page:
+
 - ✅ Centered "NEW YORK" text (cutout style)
 - ✅ Stacked moment cards on map
 - ⏳ Custom map markers (widget ready, needs integration)
 - ✅ "New Moment" button (brutal style)
 
 ### Add Moment Page:
+
 - ✅ "PLACE OF POWER" title (cutout effect)
 - ✅ Profile avatar(s) in header
 - ✅ Polaroid-style image cards
@@ -271,6 +302,7 @@ From your reference image:
 - ✅ Image carousel with indicators
 
 ### Moment Detail Page:
+
 - ✅ Horizontal carousel
 - ✅ Sticker overlays ("WOW")
 - ✅ Contributor avatars
@@ -282,6 +314,7 @@ From your reference image:
 ## 🧪 Testing Instructions
 
 ### Test Multi-Image Upload:
+
 1. Open app, sign in
 2. Tap "New Moment"
 3. Tap Gallery button
@@ -299,6 +332,7 @@ From your reference image:
 15. ✓ Moment appears on map
 
 ### Test Image Cutout Style:
+
 1. Take photo or select image
 2. ✓ Verify thick black border
 3. ✓ Check white background padding
@@ -307,6 +341,7 @@ From your reference image:
 6. ✓ Looks like polaroid/sticker
 
 ### Test Location Tag:
+
 1. Enable location permissions
 2. ✓ Wait for location tag to appear
 3. ✓ Verify shows city name (not coordinates)
@@ -318,12 +353,14 @@ From your reference image:
 ## 📊 Performance Notes
 
 ### Image Optimization:
+
 - ✅ Images compressed to 85% quality
 - ✅ Uploaded to CDN (Supabase Storage)
 - ✅ Public URLs cached
 - ✅ Fast loading on map
 
 ### Memory Management:
+
 - ✅ Images loaded as needed
 - ✅ PageView with lazy loading
 - ✅ Disposed properly on page exit
@@ -333,12 +370,15 @@ From your reference image:
 ## 🚀 Next Enhancements
 
 ### Short-term:
+
 1. **Sticker overlay system**
+
    - Add "WOW", date stamps
    - Emoji decorations
    - Custom text stickers
 
 2. **Multiple image support**
+
    - Create `moment_images` table
    - Upload all selected images
    - Display in carousel on map
@@ -348,7 +388,9 @@ From your reference image:
    - Add to Google Maps
 
 ### Long-term:
+
 1. **Collaborative moments**
+
    - Multiple users per moment
    - Shared image pools
    - Contributor management
@@ -364,6 +406,7 @@ From your reference image:
 
 **Question 1: Is Supabase set up?**
 ✅ **YES!** Fully configured and working:
+
 - Database tables created
 - Storage bucket ready
 - Image upload/download functional
@@ -372,6 +415,7 @@ From your reference image:
 
 **Question 2: Revamp Add Moment UI?**
 ✅ **DONE!** New page created:
+
 - Matches reference design perfectly
 - Cutout/polaroid card style
 - Multi-image selection

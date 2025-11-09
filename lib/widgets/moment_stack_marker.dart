@@ -66,7 +66,7 @@ class MomentStackMarker extends StatelessWidget {
                         ),
                       ),
                     ),
-                  
+
                   // Front card with image
                   Positioned(
                     left: 0,
@@ -86,13 +86,13 @@ class MomentStackMarker extends StatelessWidget {
                               ? CachedNetworkImage(
                                   imageUrl: imageUrls.first,
                                   fit: BoxFit.cover,
-                                  placeholder: (context, url) => Container(
-                                    color: Colors.grey[200],
-                                  ),
-                                  errorWidget: (context, url, error) => Container(
-                                    color: Colors.grey[300],
-                                    child: const Icon(Icons.image),
-                                  ),
+                                  placeholder: (context, url) =>
+                                      Container(color: Colors.grey[200]),
+                                  errorWidget: (context, url, error) =>
+                                      Container(
+                                        color: Colors.grey[300],
+                                        child: const Icon(Icons.image),
+                                      ),
                                 )
                               : Container(
                                   color: Colors.grey[300],
@@ -102,7 +102,7 @@ class MomentStackMarker extends StatelessWidget {
                       ),
                     ),
                   ),
-                  
+
                   // Date stamp
                   Positioned(
                     right: 0,
@@ -117,9 +117,9 @@ class MomentStackMarker extends StatelessWidget {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 4),
-            
+
             // Title sticker
             StickerLabel(
               text: title.toUpperCase(),
@@ -135,8 +135,20 @@ class MomentStackMarker extends StatelessWidget {
   }
 
   String _getMonthAbbreviation(int month) {
-    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 
-                    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const months = [
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
+    ];
     return months[month - 1];
   }
 }

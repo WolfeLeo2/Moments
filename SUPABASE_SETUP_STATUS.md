@@ -3,23 +3,28 @@
 ## ✅ Supabase Status
 
 ### 1. **Initialization** ✅
+
 - Supabase is properly initialized in `main.dart`
 - Environment variables loaded from `.env` file
 - Connection established via `SupabaseConfig`
 
 ### 2. **Database Tables** ✅
+
 All required tables exist:
+
 - ✅ `moments` - Stores moment data with images
 - ✅ `profiles` - User profile information
 - ✅ `moment_groups` - Grouped moments by location
 - ✅ `moment_contributors` - Multiple users per moment
 
 ### 3. **Storage Bucket** ✅
+
 - ✅ Bucket name: `moments`
 - ✅ Public access: `true`
 - ✅ Ready for image uploads
 
 ### 4. **Moments Table Schema** ✅
+
 ```sql
 id: uuid (PRIMARY KEY)
 user_id: uuid (NOT NULL)
@@ -43,6 +48,7 @@ description: text
 ### ✅ Implemented Features
 
 1. **Multiple Image Selection**
+
    - ✅ Pick multiple images from gallery at once
    - ✅ Take photos with camera
    - ✅ Swipe through images with PageView
@@ -50,6 +56,7 @@ description: text
    - ✅ Image counter indicators
 
 2. **UI Matching Reference Design**
+
    - ✅ Cutout sticker-style image borders
    - ✅ Black thick borders (4px)
    - ✅ Hard shadows (6px offset, no blur)
@@ -57,12 +64,14 @@ description: text
    - ✅ Slight rotation for playful look
 
 3. **Location Tag Display**
+
    - ✅ Shows city name (not coordinates)
    - ✅ Pill-shaped tag with location icon
    - ✅ Brutal border style matching design
    - ✅ Positioned below images
 
 4. **Profile Avatar Integration**
+
    - ✅ Shows current user's Google avatar in header
    - ✅ Ready for multiple contributor avatars
    - ✅ Circular with brutal border
@@ -74,9 +83,11 @@ description: text
    - ✅ Preview/Post button
 
 ### File Created:
+
 `/lib/features/moments/presentation/add_moment_page_new.dart`
 
 ### Router Updated:
+
 Changed from `AddMomentPage` to `AddMomentPageNew` in `app_router.dart`
 
 ---
@@ -84,6 +95,7 @@ Changed from `AddMomentPage` to `AddMomentPageNew` in `app_router.dart`
 ## 🖼️ Image Upload Flow
 
 ### Current Implementation:
+
 ```dart
 1. User selects/takes photos
 2. Images stored locally as File objects
@@ -94,6 +106,7 @@ Changed from `AddMomentPage` to `AddMomentPageNew` in `app_router.dart`
 ```
 
 ### Supabase Storage Path Structure:
+
 ```
 moments/
   └── {user_id}/
@@ -106,7 +119,9 @@ moments/
 ## 🎯 Next Steps for Full Multi-Image Support
 
 ### 1. Update Database Schema
+
 Add a `moment_images` table:
+
 ```sql
 CREATE TABLE moment_images (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -118,7 +133,9 @@ CREATE TABLE moment_images (
 ```
 
 ### 2. Update MomentRepository
+
 Add method to upload multiple images:
+
 ```dart
 Future<List<String>> uploadImages(
   List<File> images,
@@ -135,7 +152,9 @@ Future<List<String>> uploadImages(
 ```
 
 ### 3. Update Moment Model
+
 Add `images` field:
+
 ```dart
 class Moment {
   final String id;
@@ -151,12 +170,14 @@ class Moment {
 ### Implementation Strategy:
 
 1. **Custom Marker Widget** (Already created: `MomentStackMarker`)
+
    - Stacked polaroid-style images
    - Brutal borders and shadows
    - Rotated for playful effect
    - Avatar badges for contributors
 
 2. **Convert Widget to Marker Icon:**
+
 ```dart
 Future<BitmapDescriptor> createCustomMarker(MomentGroup group) async {
   // Render MomentStackMarker widget
@@ -167,6 +188,7 @@ Future<BitmapDescriptor> createCustomMarker(MomentGroup group) async {
 ```
 
 3. **Show Contributor Avatars:**
+
 ```dart
 // On marker widget
 Row(
@@ -184,6 +206,7 @@ Row(
 ## 🔧 Storage Bucket Policies
 
 ### Current Setup:
+
 - Bucket: `moments`
 - Public: `true`
 - Anyone can view uploaded images
@@ -215,6 +238,7 @@ USING (bucket_id = 'moments' AND auth.uid()::text = (storage.foldername(name))[1
 ## 📱 Usage Examples
 
 ### Upload Single Image:
+
 ```dart
 final momentRepo = MomentRepository();
 await momentRepo.createMoment(
@@ -227,6 +251,7 @@ await momentRepo.createMoment(
 ```
 
 ### Upload Multiple Images (Future):
+
 ```dart
 await momentRepo.createMomentWithMultipleImages(
   title: 'Adventure',
@@ -242,6 +267,7 @@ await momentRepo.createMomentWithMultipleImages(
 ## ✨ UI Features Matching Reference
 
 ### Reference Design Elements:
+
 1. ✅ **Polaroid-style image cards** - White border, thick black outline
 2. ✅ **Stacked/rotated images** - Playful, dynamic look
 3. ✅ **WOW sticker** - Text overlays on images
@@ -251,6 +277,7 @@ await momentRepo.createMomentWithMultipleImages(
 7. ✅ **Bottom action bar** - Emoji, text, photo buttons
 
 ### Implemented in AddMomentPageNew:
+
 - ✅ Cutout/brutal image borders
 - ✅ PageView carousel for multiple images
 - ✅ Location tag (no coordinates shown)
@@ -263,10 +290,12 @@ await momentRepo.createMomentWithMultipleImages(
 ## 🐛 Known Limitations
 
 1. **Multiple images**: Currently only uploads first image
+
    - Need to create `moment_images` table
    - Update repository to handle multiple uploads
 
 2. **Stickers/Overlays**: Not yet implemented
+
    - "WOW", date stamps, etc.
    - Will need custom overlay widgets
 

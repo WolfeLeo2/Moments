@@ -12,9 +12,10 @@ class MomentRepository {
   // Get all moments
   Future<List<Moment>> getMoments() async {
     try {
-      final response = await SupabaseConfig.momentsTable
-          .select()
-          .order('created_at', ascending: false);
+      final response = await SupabaseConfig.momentsTable.select().order(
+        'created_at',
+        ascending: false,
+      );
 
       return (response as List)
           .map((json) => Moment.fromJson(json as Map<String, dynamic>))
@@ -78,12 +79,12 @@ class MomentRepository {
       }
 
       final momentData = {
-        'user_id': userId,  // Add user_id for RLS policy
+        'user_id': userId, // Add user_id for RLS policy
         'title': title,
         'location': location,
         'latitude': latitude,
         'longitude': longitude,
-        'media_path': mediaPath,  // Required field
+        'media_path': mediaPath, // Required field
         'image_url': imageUrl,
         'caption': caption, // Personal caption like "Midtown Manhattan"
         'description': description,
@@ -141,11 +142,10 @@ class MomentRepository {
   }) async {
     try {
       // Using Supabase PostGIS functions for geospatial queries
-      final response = await SupabaseConfig.client.rpc('get_moments_nearby', params: {
-        'lat': latitude,
-        'lng': longitude,
-        'radius_km': radiusKm,
-      });
+      final response = await SupabaseConfig.client.rpc(
+        'get_moments_nearby',
+        params: {'lat': latitude, 'lng': longitude, 'radius_km': radiusKm},
+      );
 
       return (response as List)
           .map((json) => Moment.fromJson(json as Map<String, dynamic>))
@@ -225,7 +225,8 @@ class MomentRepository {
     final dLat = _degreesToRadians(lat2 - lat1);
     final dLng = _degreesToRadians(lng2 - lng1);
 
-    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
         math.cos(_degreesToRadians(lat1)) *
             math.cos(_degreesToRadians(lat2)) *
             math.sin(dLng / 2) *
@@ -240,7 +241,7 @@ class MomentRepository {
   }
 
   // ==================== MOMENT IMAGES METHODS ====================
-  
+
   /// Upload multiple images for a moment
   Future<List<MomentImage>> uploadMomentImages({
     required String momentId,
@@ -257,11 +258,13 @@ class MomentRepository {
 
       for (int i = 0; i < imageFiles.length; i++) {
         final imageFile = imageFiles[i];
-        final caption = captions != null && i < captions.length ? captions[i] : null;
+        final caption = captions != null && i < captions.length
+            ? captions[i]
+            : null;
 
         // Upload image to storage
         final imageUrl = await _uploadImage(imageFile);
-        
+
         // Extract media_path from URL
         final uri = Uri.parse(imageUrl);
         final pathSegments = uri.pathSegments;
@@ -337,4 +340,3 @@ class MomentRepository {
     }
   }
 }
-

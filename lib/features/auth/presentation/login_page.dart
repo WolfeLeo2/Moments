@@ -80,7 +80,9 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to ${_isSignUp ? 'sign up' : 'sign in'}: ${e.toString()}'),
+            content: Text(
+              'Failed to ${_isSignUp ? 'sign up' : 'sign in'}: ${e.toString()}',
+            ),
             backgroundColor: AppTheme.neonPink,
           ),
         );
@@ -105,7 +107,10 @@ class _LoginPageState extends State<LoginPage> {
               children: [
                 // App Logo/Title
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.primaryBlue,
                     border: Border.all(color: Colors.black, width: 3),
@@ -144,7 +149,7 @@ class _LoginPageState extends State<LoginPage> {
                     ],
                   ),
                 ),
-                
+
                 const SizedBox(height: 48),
 
                 // Email/Password Fields (if needed)
@@ -162,7 +167,7 @@ class _LoginPageState extends State<LoginPage> {
                     isPassword: true,
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Email Sign In Button
                   SpringButton(
                     onTap: _isLoading ? null : _signInWithEmail,
@@ -182,7 +187,9 @@ class _LoginPageState extends State<LoginPage> {
                         ],
                       ),
                       child: Text(
-                        _isLoading ? 'LOADING...' : (_isSignUp ? 'SIGN UP' : 'SIGN IN'),
+                        _isLoading
+                            ? 'LOADING...'
+                            : (_isSignUp ? 'SIGN UP' : 'SIGN IN'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: Colors.white,
@@ -193,7 +200,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 16),
                 ],
 
@@ -242,7 +249,9 @@ class _LoginPageState extends State<LoginPage> {
                     setState(() => _isSignUp = !_isSignUp);
                   },
                   child: Text(
-                    _isSignUp ? 'Already have an account? Sign In' : 'Don\'t have an account? Sign Up',
+                    _isSignUp
+                        ? 'Already have an account? Sign In'
+                        : 'Don\'t have an account? Sign Up',
                     style: const TextStyle(
                       color: AppTheme.primaryBlue,
                       fontWeight: FontWeight.w700,
@@ -270,11 +279,7 @@ class _LoginPageState extends State<LoginPage> {
         border: Border.all(color: Colors.black, width: 2.5),
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black,
-            offset: Offset(3, 3),
-            blurRadius: 0,
-          ),
+          BoxShadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
         ],
       ),
       child: TextField(
@@ -284,7 +289,10 @@ class _LoginPageState extends State<LoginPage> {
           hintText: hintText,
           prefixIcon: Icon(icon, color: Colors.black),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
         ),
       ),
     );

@@ -7,6 +7,7 @@
 While Mapbox offers superior aesthetics and customization, Google Maps is better for your current stage due to faster implementation, lower complexity, and no billing setup required for development.
 
 **Consider switching to Mapbox later** when you need:
+
 - Custom branded map styles
 - Advanced offline capabilities
 - Better visual design control
@@ -19,6 +20,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ### 🎨 **Map Aesthetics & Customization**
 
 #### Google Maps
+
 - ❌ Limited visual customization
 - ⚠️ Basic styling with JSON (colors, labels)
 - ❌ Google branding visible (logo, attribution)
@@ -27,6 +29,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 - **Score: 6/10** - Professional but generic
 
 #### Mapbox
+
 - ✅ **Extensive visual control** - Total design freedom
 - ✅ **Mapbox Studio** - Visual map editor, no code
 - ✅ **Custom styles** - Match your neubrutalism theme perfectly
@@ -42,6 +45,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ### 💰 **Cost & Pricing**
 
 #### Google Maps
+
 - ✅ **$200/month free credit** (covers ~28,000 map loads)
 - ✅ No credit card required for testing
 - ⚠️ $7 per 1,000 map loads after free tier
@@ -49,10 +53,12 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 - ✅ Pay-as-you-go (no subscription)
 
 **Estimated cost for 10,000 users:**
+
 - ~300,000 monthly map loads
 - ~$1,960/month (after $200 credit)
 
 #### Mapbox
+
 - ✅ **50,000 free map loads/month** (permanent)
 - ✅ No credit card for development
 - ✅ $5 per 1,000 loads after free tier
@@ -60,6 +66,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 - ✅ Better scaling economics
 
 **Estimated cost for 10,000 users:**
+
 - ~300,000 monthly map loads
 - ~$1,250/month (after free tier)
 
@@ -70,6 +77,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ### 🛠️ **Developer Experience**
 
 #### Google Maps
+
 - ✅ **Excellent Flutter package** (`google_maps_flutter`)
 - ✅ Maintained by Google
 - ✅ Extensive documentation
@@ -81,6 +89,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 **Setup time:** ~30 minutes (already done!)
 
 #### Mapbox
+
 - ✅ Good Flutter package (`mapbox_maps_flutter`)
 - ⚠️ Smaller community than Google Maps
 - ✅ Powerful SDK with advanced features
@@ -98,6 +107,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ### 🎯 **Features for Moments App**
 
 #### Google Maps
+
 - ✅ Custom markers (with widgets)
 - ✅ Clustering (with plugins)
 - ✅ Geocoding
@@ -108,6 +118,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 - ✅ Street view available
 
 #### Mapbox
+
 - ✅ Custom markers (full control)
 - ✅ Built-in clustering
 - ✅ Geocoding (included)
@@ -129,6 +140,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ### 🚀 **Performance**
 
 #### Google Maps
+
 - ✅ Excellent performance
 - ✅ Optimized for Android/iOS
 - ✅ Fast tile loading
@@ -137,6 +149,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 - ✅ Good memory management
 
 #### Mapbox
+
 - ✅ Excellent performance
 - ✅ **Vector tiles = smaller data**
 - ✅ Faster tile loading
@@ -152,6 +165,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ### 🌍 **Data & Coverage**
 
 #### Google Maps
+
 - ✅ **Best global coverage**
 - ✅ Most POI data (businesses, landmarks)
 - ✅ Frequent updates
@@ -160,6 +174,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 - ✅ Better for urban areas
 
 #### Mapbox
+
 - ✅ Good global coverage
 - ⚠️ Less POI data than Google
 - ✅ OpenStreetMap data (community-driven)
@@ -175,6 +190,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ## 🎨 Aesthetic Samples for Moments
 
 ### Google Maps Style
+
 ```
 - Clean, minimal
 - Soft colors
@@ -189,6 +205,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ```
 
 ### Mapbox Style (Neubrutalism Theme)
+
 ```
 - FULL customization:
   ✅ Bright yellow roads (#FBFF12)
@@ -203,6 +220,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ```
 
 **Example Mapbox Style for Moments:**
+
 - Water: Electric blue with black borders
 - Land: Bright beige/yellow
 - Parks: Vibrant green
@@ -215,20 +233,23 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ## ⚖️ **Final Verdict**
 
 ### Scorecard
-| Category | Google Maps | Mapbox |
-|----------|-------------|--------|
-| Aesthetics | 6/10 | **10/10** ✅ |
-| Cost (Scale) | 7/10 | **9/10** ✅ |
-| Developer Experience | **10/10** ✅ | 7/10 |
-| Features | 8/10 | **9/10** ✅ |
-| Performance | 9/10 | **9.5/10** ✅ |
-| Data Coverage | **10/10** ✅ | 7/10 |
-| **TOTAL** | **50/60** | **51.5/60** |
+
+| Category             | Google Maps  | Mapbox        |
+| -------------------- | ------------ | ------------- |
+| Aesthetics           | 6/10         | **10/10** ✅  |
+| Cost (Scale)         | 7/10         | **9/10** ✅   |
+| Developer Experience | **10/10** ✅ | 7/10          |
+| Features             | 8/10         | **9/10** ✅   |
+| Performance          | 9/10         | **9.5/10** ✅ |
+| Data Coverage        | **10/10** ✅ | 7/10          |
+| **TOTAL**            | **50/60**    | **51.5/60**   |
 
 ### Recommendation by Stage
 
 #### **Phase 1: MVP (Current) - Use Google Maps**
+
 **Reasons:**
+
 - ✅ Already integrated
 - ✅ Faster development
 - ✅ Better for testing in Kenya (good data)
@@ -240,7 +261,9 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ---
 
 #### **Phase 2: Beta/Production - Switch to Mapbox**
+
 **Reasons:**
+
 - ✅ **Match neubrutalism aesthetic perfectly**
 - ✅ Better user experience (custom design)
 - ✅ Lower costs at scale
@@ -254,23 +277,27 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ## 🚀 Migration Strategy (Google Maps → Mapbox)
 
 ### Step 1: Keep Google Maps
+
 - Continue development with current setup
 - Focus on features and functionality
 - Test with real users
 
 ### Step 2: Prepare Mapbox
+
 - Create Mapbox account
 - Design custom style in Mapbox Studio
 - Match neubrutalism theme
 - Test in development
 
 ### Step 3: Parallel Implementation
+
 - Keep both packages installed
 - Feature flag for switching
 - A/B test with users
 - Compare performance
 
 ### Step 4: Switch
+
 - Migrate to Mapbox
 - Remove Google Maps dependency
 - Deploy to production
@@ -282,6 +309,7 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ## 🎨 Mapbox Style Recommendations
 
 ### Neubrutalism Map Theme
+
 ```json
 {
   "water": "#306BFF",
@@ -313,11 +341,13 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ## 📚 Resources
 
 ### Google Maps
+
 - [Flutter Package](https://pub.dev/packages/google_maps_flutter)
 - [Styling JSON Reference](https://mapstyle.withgoogle.com/)
 - [Pricing Calculator](https://mapsplatformtransition.withgoogle.com/calculator)
 
 ### Mapbox
+
 - [Flutter Package](https://pub.dev/packages/mapbox_maps_flutter)
 - [Mapbox Studio](https://studio.mapbox.com/)
 - [Pricing](https://www.mapbox.com/pricing)
@@ -329,16 +359,19 @@ While Mapbox offers superior aesthetics and customization, Google Maps is better
 ## 🎯 Action Items
 
 ### Immediate (Stay with Google Maps)
+
 - ✅ Continue building features
 - ✅ Test with current users
 - ✅ Gather feedback on map UX
 
 ### Short-term (1-2 months)
+
 - [ ] Create Mapbox account
 - [ ] Design neubrutalism style in Mapbox Studio
 - [ ] Test Mapbox in development branch
 
 ### Long-term (Pre-launch)
+
 - [ ] Implement Mapbox integration
 - [ ] A/B test both solutions
 - [ ] Migrate to Mapbox for production

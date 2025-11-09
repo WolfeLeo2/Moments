@@ -21,7 +21,10 @@ class MarkerGenerator {
     final double totalHeight = baseSize + padding * 2;
 
     final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, totalWidth, totalHeight));
+    final canvas = Canvas(
+      recorder,
+      Rect.fromLTWH(0, 0, totalWidth, totalHeight),
+    );
 
     // Background (white card with border + shadow offset style)
     final cardRect = RRect.fromRectAndRadius(
@@ -48,8 +51,13 @@ class MarkerGenerator {
     canvas.drawRRect(cardRect, borderPaint);
 
     // Image (cover)
-  final inset = logicalSize * 0.02; // ~3.2 at 160
-  final imageRect = Rect.fromLTWH(padding + inset, padding + inset, baseSize - inset * 2, baseSize - inset * 2);
+    final inset = logicalSize * 0.02; // ~3.2 at 160
+    final imageRect = Rect.fromLTWH(
+      padding + inset,
+      padding + inset,
+      baseSize - inset * 2,
+      baseSize - inset * 2,
+    );
     if (image != null) {
       paintImage(
         canvas: canvas,
@@ -65,10 +73,7 @@ class MarkerGenerator {
         placeholderPaint,
       );
       final iconPainter = TextPainter(
-        text: const TextSpan(
-          text: '🖼️',
-          style: TextStyle(fontSize: 28),
-        ),
+        text: const TextSpan(text: '🖼️', style: TextStyle(fontSize: 28)),
         textDirection: TextDirection.ltr,
       )..layout();
       iconPainter.paint(
@@ -119,7 +124,7 @@ class MarkerGenerator {
         canvas,
         Offset(
           badgeRect.center.dx - tp.width / 2,
-            badgeRect.center.dy - tp.height / 2,
+          badgeRect.center.dy - tp.height / 2,
         ),
       );
     }
@@ -140,15 +145,20 @@ class MarkerGenerator {
       final completer = Completer<ImageInfo>();
       final stream = networkImage.resolve(const ImageConfiguration());
       ImageStreamListener? listener;
-      listener = ImageStreamListener((ImageInfo info, bool _) {
-        completer.complete(info);
-        stream.removeListener(listener!);
-      }, onError: (error, stack) {
-        if (!completer.isCompleted) completer.completeError(error, stack);
-        stream.removeListener(listener!);
-      });
+      listener = ImageStreamListener(
+        (ImageInfo info, bool _) {
+          completer.complete(info);
+          stream.removeListener(listener!);
+        },
+        onError: (error, stack) {
+          if (!completer.isCompleted) completer.completeError(error, stack);
+          stream.removeListener(listener!);
+        },
+      );
       stream.addListener(listener);
-      final imageInfo = await completer.future.timeout(const Duration(seconds: 5));
+      final imageInfo = await completer.future.timeout(
+        const Duration(seconds: 5),
+      );
       return imageInfo.image;
     } catch (_) {
       return null; // Fallback to placeholder
@@ -164,17 +174,32 @@ class MarkerGenerator {
   }) async {
     final img = await _loadNetworkImage(imageUrl);
     try {
-      return await _drawMarker(count: count, image: img, logicalSize: logicalSize, scale: scale);
+      return await _drawMarker(
+        count: count,
+        image: img,
+        logicalSize: logicalSize,
+        scale: scale,
+      );
     } catch (e, st) {
       debugPrint('Marker drawing failed, falling back. Error: $e\n$st');
       // Fallback: simple circle marker
       final fallbackSize = logicalSize * scale;
       final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, fallbackSize, fallbackSize));
+      final canvas = Canvas(
+        recorder,
+        Rect.fromLTWH(0, 0, fallbackSize, fallbackSize),
+      );
       final paint = Paint()..color = const Color(0xFF222222);
-      canvas.drawCircle(Offset(fallbackSize / 2, fallbackSize / 2), fallbackSize / 2 - 4, paint);
+      canvas.drawCircle(
+        Offset(fallbackSize / 2, fallbackSize / 2),
+        fallbackSize / 2 - 4,
+        paint,
+      );
       final picture = recorder.endRecording();
-      final img2 = await picture.toImage(fallbackSize.toInt(), fallbackSize.toInt());
+      final img2 = await picture.toImage(
+        fallbackSize.toInt(),
+        fallbackSize.toInt(),
+      );
       final bytes = await img2.toByteData(format: ui.ImageByteFormat.png);
       return BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
     }

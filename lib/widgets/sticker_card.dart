@@ -28,10 +28,7 @@ class StickerCard extends StatelessWidget {
         padding: padding,
         decoration: BoxDecoration(
           color: backgroundColor,
-          border: Border.all(
-            color: borderColor,
-            width: borderWidth,
-          ),
+          border: Border.all(color: borderColor, width: borderWidth),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
@@ -126,11 +123,7 @@ class DateStamp extends StatelessWidget {
           border: Border.all(color: Colors.black, width: 2.5),
           borderRadius: BorderRadius.circular(8),
           boxShadow: const [
-            BoxShadow(
-              color: Colors.black,
-              offset: Offset(3, 3),
-              blurRadius: 0,
-            ),
+            BoxShadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
           ],
         ),
         child: Column(

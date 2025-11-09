@@ -5,7 +5,7 @@ class SpringButton extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   final double scaleFactor;
-  
+
   const SpringButton({
     super.key,
     required this.child,
@@ -17,7 +17,8 @@ class SpringButton extends StatefulWidget {
   State<SpringButton> createState() => _SpringButtonState();
 }
 
-class _SpringButtonState extends State<SpringButton> with SingleTickerProviderStateMixin {
+class _SpringButtonState extends State<SpringButton>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
 
@@ -32,12 +33,7 @@ class _SpringButtonState extends State<SpringButton> with SingleTickerProviderSt
     _scaleAnimation = Tween<double>(
       begin: 1.0,
       end: widget.scaleFactor,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeInOut,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -65,10 +61,7 @@ class _SpringButtonState extends State<SpringButton> with SingleTickerProviderSt
       onTapDown: _onTapDown,
       onTapUp: _onTapUp,
       onTapCancel: _onTapCancel,
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: widget.child,
-      ),
+      child: ScaleTransition(scale: _scaleAnimation, child: widget.child),
     );
   }
 }
@@ -77,7 +70,7 @@ class _SpringButtonState extends State<SpringButton> with SingleTickerProviderSt
 class StickerPopIn extends StatefulWidget {
   final Widget child;
   final Duration delay;
-  
+
   const StickerPopIn({
     super.key,
     required this.child,
@@ -88,7 +81,8 @@ class StickerPopIn extends StatefulWidget {
   State<StickerPopIn> createState() => _StickerPopInState();
 }
 
-class _StickerPopInState extends State<StickerPopIn> with SingleTickerProviderStateMixin {
+class _StickerPopInState extends State<StickerPopIn>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _rotationAnimation;
@@ -104,22 +98,12 @@ class _StickerPopInState extends State<StickerPopIn> with SingleTickerProviderSt
     _scaleAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.elasticOut,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
 
     _rotationAnimation = Tween<double>(
       begin: -0.5,
       end: 0.0,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOut,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     Future.delayed(widget.delay, () {
       if (mounted) {
