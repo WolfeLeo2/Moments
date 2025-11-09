@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart' as geo;
+import 'package:image_picker/image_picker.dart' as picker;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/constants.dart';
@@ -14,6 +14,7 @@ import '../../../data/repositories/moment_repository.dart';
 import '../../../widgets/blurred_app_bar.dart';
 import '../../../widgets/spring_button.dart';
 import '../../moments/presentation/add_moment_page_new.dart';
+import '../utils/moment_stack_generator.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -24,14 +25,16 @@ class MapPage extends StatefulWidget {
 
 class _MapPageState extends State<MapPage> {
   MapboxMap? _mapboxController;
-  Position? _currentPosition;
+  geo.Position? _currentPosition;
   List<Moment> _moments = [];
   String _cityName = 'Loading...';
   bool _isLoading = true;
   final MomentRepository _momentRepository = MomentRepository();
   final AuthService _authService = AuthService();
-  Set<Marker> _markers = {};
+  Set<int> _momentAnnotationIds = {}; // Track added annotations
   RealtimeChannel? _realtimeChannel;
+
+  PointAnnotationManager? _pointAnnotationManager;
 
   @override
   void initState() {
@@ -91,27 +94,27 @@ class _MapPageState extends State<MapPage> {
 
   Future<void> _getCurrentLocation() async {
     bool serviceEnabled;
-    LocationPermission permission;
+    geo.LocationPermission permission;
 
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      throw Exception(AppConstants.locationServiceDisabled);
+      return;
     }
 
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        throw Exception(AppConstants.locationPermissionDenied);
+    permission = await geo.Geolocator.checkPermission();
+    if (permission == geo.LocationPermission.denied) {
+      permission = await geo.Geolocator.requestPermission();
+      if (permission == geo.LocationPermission.denied) {
+        return;
       }
     }
 
-    if (permission == LocationPermission.deniedForever) {
-      throw Exception(AppConstants.locationPermissionDenied);
+    if (permission == geo.LocationPermission.deniedForever) {
+      return;
     }
 
-    _currentPosition = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+    _currentPosition = await geo.Geolocator.getCurrentPosition(
+      desiredAccuracy: geo.LocationAccuracy.high,
     );
   }
 
@@ -124,7 +127,7 @@ class _MapPageState extends State<MapPage> {
       });
 
       // Create markers asynchronously after state update
-      await _createMarkers();
+      await _createAnnotations();
       setState(() {}); // Trigger rebuild with markers
     } catch (e, stackTrace) {
       print('Error loading moments: $e');
@@ -135,73 +138,216 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
-  Future<void> _createMarkers() async {
-    final momentMarkers = await Future.wait(
-      _moments.map((moment) async {
-        // Get the count of images for this moment (with error handling)
-        int imageCount = 1;
-        try {
-          final images = await _momentRepository.getMomentImages(moment.id);
-          imageCount = images.length > 0 ? images.length : 1;
-        } catch (e) {
-          // If moment_images table doesn't exist yet, just use count of 1
-          print('Could not fetch moment images: $e');
+  Future<void> _createAnnotations() async {
+    if (_mapboxController == null || _moments.isEmpty) {
+      print('Cannot create annotations: controller null or no moments');
+      return;
+    }
+
+    try {
+      // Create point annotation manager if not exists
+      _pointAnnotationManager ??= await _mapboxController!.annotations
+          .createPointAnnotationManager();
+
+      // Clear existing annotations
+      if (_momentAnnotationIds.isNotEmpty) {
+        await _pointAnnotationManager!.deleteAll();
+        _momentAnnotationIds.clear();
+      }
+
+      // Group moments by location (with tolerance for nearby locations)
+      final locationGroups = _groupMomentsByLocation(_moments);
+
+      // Create stacked annotations for each location group
+      final pointAnnotationOptionsList = <PointAnnotationOptions>[];
+
+      for (final locationGroup in locationGroups) {
+        final moments = locationGroup['moments'] as List<Moment>;
+        final lat = locationGroup['lat'] as double;
+        final lng = locationGroup['lng'] as double;
+
+        // Generate custom stacked marker
+        final stackedMarkerBytes =
+            await MomentStackGenerator.generateStackedMomentMarker(
+              moments: moments,
+              size: 100.0,
+            );
+
+        // Create annotation with custom image
+        final pointAnnotationOptions = PointAnnotationOptions(
+          geometry: Point(coordinates: Position(lng, lat)),
+          iconSize: 1.0,
+          image: stackedMarkerBytes,
+        );
+
+        pointAnnotationOptionsList.add(pointAnnotationOptions);
+      }
+
+      // Create all annotations
+      final annotations = await _pointAnnotationManager!.createMulti(
+        pointAnnotationOptionsList,
+      );
+
+      // Store annotation IDs for future reference
+      for (int i = 0; i < annotations.length; i++) {
+        _momentAnnotationIds.add(i);
+      }
+
+      // Add tap event listener
+      _pointAnnotationManager!.tapEvents(
+        onTap: (annotation) {
+          // Find the location group associated with this annotation
+          final index = annotations.indexOf(annotation);
+          if (index >= 0 && index < locationGroups.length) {
+            final moments = locationGroups[index]['moments'] as List<Moment>;
+            _onStackedMarkerTapped(moments);
+          }
+        },
+      );
+
+      print('Created ${annotations.length} stacked moment annotations');
+    } catch (e, stackTrace) {
+      print('Error creating annotations: $e');
+      print('Stack trace: $stackTrace');
+    }
+  }
+
+  List<Map<String, dynamic>> _groupMomentsByLocation(List<Moment> moments) {
+    final groups = <Map<String, dynamic>>[];
+    const double toleranceInDegrees = 0.001; // ~100 meters
+
+    for (final moment in moments) {
+      bool addedToGroup = false;
+
+      // Try to find an existing group within tolerance
+      for (final group in groups) {
+        final groupLat = group['lat'] as double;
+        final groupLng = group['lng'] as double;
+
+        final distance = _calculateDistance(
+          moment.latitude,
+          moment.longitude,
+          groupLat,
+          groupLng,
+        );
+
+        if (distance < toleranceInDegrees) {
+          (group['moments'] as List<Moment>).add(moment);
+          addedToGroup = true;
+          break;
         }
+      }
 
-        // Create custom marker bitmap (larger size for better visibility)
-        const logicalSize = 180.0; // adjust globally here
-        final icon = await MarkerGenerator.createMomentMarker(
-          imageUrl: moment.imageUrl ?? '',
-          count: imageCount,
-          logicalSize: logicalSize,
-          scale: 3.0,
-        );
-        final anchorY = MarkerGenerator.recommendedAnchorY(
-          logicalSize: logicalSize,
-        );
+      // Create new group if not added to existing one
+      if (!addedToGroup) {
+        groups.add({
+          'lat': moment.latitude,
+          'lng': moment.longitude,
+          'moments': [moment],
+        });
+      }
+    }
 
-        return Marker(
-          markerId: MarkerId(moment.id),
-          position: LatLng(moment.latitude, moment.longitude),
-          onTap: () => _onMarkerTapped(moment),
-          icon: icon,
-          anchor: Offset(0.5, anchorY), // anchor computed from size/padding
-        );
-      }),
-    );
+    return groups;
+  }
 
-    _markers = momentMarkers.toSet();
+  double _calculateDistance(
+    double lat1,
+    double lng1,
+    double lat2,
+    double lng2,
+  ) {
+    return ((lat1 - lat2).abs() + (lng1 - lng2).abs());
+  }
 
-    // Add current location marker if available
-    if (_currentPosition != null) {
-      _markers.add(
-        Marker(
-          markerId: const MarkerId('current_location'),
-          position: LatLng(
-            _currentPosition!.latitude,
-            _currentPosition!.longitude,
+  void _onStackedMarkerTapped(List<Moment> moments) {
+    if (moments.length == 1) {
+      // Single moment - navigate to detail page
+      _onMarkerTapped(moments.first);
+    } else {
+      // Multiple moments - show selection dialog
+      _showMomentSelectionDialog(moments);
+    }
+  }
+
+  void _showMomentSelectionDialog(List<Moment> moments) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${moments.length} Moments at this location'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: ListView.builder(
+            itemCount: moments.length,
+            itemBuilder: (context, index) {
+              final moment = moments[index];
+              return ListTile(
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    width: 50,
+                    height: 50,
+                    child: moment.imageUrl?.isNotEmpty == true
+                        ? Image.network(
+                            moment.imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: AppTheme.primaryBlue.withOpacity(0.3),
+                                child: const Icon(
+                                  Icons.image,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            },
+                          )
+                        : Container(
+                            color: AppTheme.primaryBlue.withOpacity(0.3),
+                            child: const Icon(Icons.image, color: Colors.grey),
+                          ),
+                  ),
+                ),
+                title: Text(moment.title),
+                subtitle: Text(moment.location),
+                onTap: () {
+                  Navigator.pop(context);
+                  _onMarkerTapped(moment);
+                },
+              );
+            },
           ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _enableLocationDisplay() async {
+    if (_mapboxController == null) return;
+
+    try {
+      await _mapboxController!.location.updateSettings(
+        LocationComponentSettings(
+          enabled: true,
+          pulsingEnabled: true,
+          showAccuracyRing: false,
+          puckBearingEnabled: false,
         ),
       );
+      print('Location component enabled');
+    } catch (e) {
+      print('Error enabling location component: $e');
     }
   }
 
   void _onMarkerTapped(Moment moment) {
     AppRouter.goToMomentDetail(context, moment.id);
-  }
-
-  void _onMapCreated(GoogleMapController controller) {
-    _mapController = controller;
-
-    if (_currentPosition != null) {
-      _mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(
-          LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-          AppConstants.defaultMapZoom,
-        ),
-      );
-    }
   }
 
   void _onAddMomentPressed() {
@@ -233,7 +379,7 @@ class _MapPageState extends State<MapPage> {
                       child: SpringButton(
                         onTap: () {
                           Navigator.of(context).pop();
-                          _pickImageAndNavigate(ImageSource.camera);
+                          _pickImageAndNavigate(picker.ImageSource.camera);
                         },
                         child: Container(
                           padding: const EdgeInsets.all(AppTheme.spacing16),
@@ -324,10 +470,10 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-  Future<void> _pickImageAndNavigate(ImageSource source) async {
+  Future<void> _pickImageAndNavigate(picker.ImageSource source) async {
     try {
-      final ImagePicker imagePicker = ImagePicker();
-      final XFile? image = await imagePicker.pickImage(
+      final picker.ImagePicker imagePicker = picker.ImagePicker();
+      final picker.XFile? image = await imagePicker.pickImage(
         source: source,
         imageQuality: AppConstants.imageQuality,
         maxWidth: AppConstants.maxImageWidth,
@@ -359,8 +505,10 @@ class _MapPageState extends State<MapPage> {
 
   Future<void> _pickMultipleImagesAndNavigate() async {
     try {
-      final ImagePicker picker = ImagePicker();
-      final List<XFile> images = await picker.pickMultiImage(imageQuality: 85);
+      final picker.ImagePicker pickerInstance = picker.ImagePicker();
+      final List<picker.XFile> images = await pickerInstance.pickMultiImage(
+        imageQuality: 85,
+      );
 
       if (images.isNotEmpty && mounted) {
         // Pass all image paths
@@ -457,27 +605,34 @@ class _MapPageState extends State<MapPage> {
       ),
       body: Stack(
         children: [
-          // Google Map
-          GoogleMap(
-            onMapCreated: _onMapCreated,
-            initialCameraPosition: CameraPosition(
-              target: _currentPosition != null
-                  ? LatLng(
-                      _currentPosition!.latitude,
-                      _currentPosition!.longitude,
-                    )
-                  : const LatLng(37.7749, -122.4194), // Default to SF
-              zoom: AppConstants.defaultMapZoom,
-            ),
-            markers: _markers,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false, // We'll add custom button
-            zoomControlsEnabled: false,
-            mapToolbarEnabled: false,
-            minMaxZoomPreference: const MinMaxZoomPreference(
-              AppConstants.minMapZoom,
-              AppConstants.maxMapZoom,
-            ),
+          // Mapbox Map
+          MapWidget(
+            key: const ValueKey("mapWidget"),
+            styleUri: MapboxStyles.STANDARD,
+            androidHostingMode: AndroidPlatformViewHostingMode.TLHC_VD,
+            textureView:
+                true, // Use texture view with TLHC for better performance
+            cameraOptions: _currentPosition != null
+                ? CameraOptions(
+                    center: Point(
+                      coordinates: Position(
+                        _currentPosition!.longitude,
+                        _currentPosition!.latitude,
+                      ),
+                    ),
+                    zoom: 14.0,
+                  )
+                : null,
+            onMapCreated: (MapboxMap mapboxMap) {
+              _mapboxController = mapboxMap;
+              print('Mapbox Map Created Successfully!');
+
+              // Enable location component (blue dot)
+              _enableLocationDisplay();
+
+              // Load moments and create annotations after map is ready
+              _loadMoments();
+            },
           ),
 
           // City/Area name sticker (below app bar, with container)
