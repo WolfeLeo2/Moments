@@ -1,0 +1,324 @@
+import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/extensions.dart';
+import '../../../core/router/app_router.dart';
+import '../../../data/models/moment.dart';
+import '../../../data/repositories/moment_repository.dart';
+import '../../../widgets/bouncing_button.dart';
+
+class MomentDetailPage extends StatefulWidget {
+  final String momentId;
+
+  const MomentDetailPage({
+    super.key,
+    required this.momentId,
+  });
+
+  @override
+  State<MomentDetailPage> createState() => _MomentDetailPageState();
+}
+
+class _MomentDetailPageState extends State<MomentDetailPage> {
+  final MomentRepository _momentRepository = MomentRepository();
+  Moment? _moment;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMoment();
+  }
+
+  Future<void> _loadMoment() async {
+    try {
+      final moment = await _momentRepository.getMomentById(widget.momentId);
+      setState(() {
+        _moment = moment;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        context.showErrorSnackBar('Failed to load moment');
+      }
+    }
+  }
+
+  void _showPreview() {
+    if (_moment?.imageUrl != null) {
+      showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: InteractiveViewer(
+            child: CachedNetworkImage(
+              imageUrl: _moment!.imageUrl!,
+              fit: BoxFit.contain,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: AppTheme.backgroundBeige,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: AppTheme.primaryBlue,
+          ),
+        ),
+      );
+    }
+
+    if (_moment == null) {
+      return Scaffold(
+        backgroundColor: AppTheme.backgroundBeige,
+        appBar: AppBar(
+          backgroundColor: AppTheme.backgroundBeige,
+          leading: IconButton(
+            onPressed: () => AppRouter.goToMap(context),
+            icon: const Icon(Icons.arrow_back),
+          ),
+        ),
+        body: const Center(
+          child: Text('Moment not found'),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundBeige,
+      body: CustomScrollView(
+        slivers: [
+          // App Bar with Hero Image
+          SliverAppBar(
+            expandedHeight: context.screenHeight * 0.6,
+            pinned: true,
+            backgroundColor: AppTheme.backgroundBeige,
+            leading: BouncingButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Container(
+                margin: const EdgeInsets.all(AppTheme.spacing8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  shape: BoxShape.circle,
+                  boxShadow: AppTheme.cardShadow,
+                ),
+                child: const Icon(
+                  Icons.arrow_back,
+                  color: AppTheme.textDark,
+                ),
+              ),
+            ),
+            flexibleSpace: FlexibleSpaceBar(
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Hero Image
+                  if (_moment!.imageUrl != null)
+                    Hero(
+                      tag: 'moment-${_moment!.id}',
+                      child: CachedNetworkImage(
+                        imageUrl: _moment!.imageUrl!,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                            child: Icon(Icons.broken_image, size: 64),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      color: Colors.grey.shade200,
+                      child: const Center(
+                        child: Icon(Icons.image, size: 64),
+                      ),
+                    ),
+
+                  // Gradient Overlay
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.7),
+                        ],
+                        stops: const [0.6, 1.0],
+                      ),
+                    ),
+                  ),
+
+                  // Title Overlay
+                  Positioned(
+                    bottom: AppTheme.spacing24,
+                    left: AppTheme.spacing24,
+                    right: AppTheme.spacing24,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _moment!.title.toUpperCase(),
+                          style: context.textTheme.headlineLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black.withOpacity(0.8),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: AppTheme.spacing8),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.location_on,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              const SizedBox(width: AppTheme.spacing4),
+                              Expanded(
+                                child: Text(
+                                  _moment!.location,
+                                  style: context.textTheme.bodyLarge?.copyWith(
+                                    color: Colors.white,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black.withOpacity(0.8),
+                                        blurRadius: 4,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Content
+          SliverToBoxAdapter(
+            child: Container(
+              decoration: const BoxDecoration(
+                color: AppTheme.backgroundBeige,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(AppTheme.radiusLarge),
+                  topRight: Radius.circular(AppTheme.radiusLarge),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(AppTheme.spacing24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Date and Stats
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppTheme.spacing12,
+                            vertical: AppTheme.spacing8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.cardWhite,
+                            borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+                            boxShadow: AppTheme.cardShadow,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.schedule,
+                                size: 16,
+                                color: AppTheme.textGray,
+                              ),
+                              const SizedBox(width: AppTheme.spacing4),
+                              Text(
+                                _moment!.createdAt.formattedDate,
+                                style: context.textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        if (_moment!.imageUrl != null)
+                          BouncingButton(
+                            onPressed: _showPreview,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppTheme.spacing16,
+                                vertical: AppTheme.spacing12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryBlue,
+                                borderRadius: BorderRadius.circular(AppTheme.radiusCircle),
+                                boxShadow: AppTheme.buttonShadow,
+                              ),
+                              child: Text(
+                                'Preview',
+                                style: context.textTheme.titleSmall?.copyWith(
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: AppTheme.spacing24),
+
+                    // Description
+                    if (_moment!.description != null && _moment!.description!.isNotEmpty) ...[
+                      Text(
+                        'About this moment',
+                        style: context.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: AppTheme.spacing12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(AppTheme.spacing16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardWhite,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                          boxShadow: AppTheme.cardShadow,
+                        ),
+                        child: Text(
+                          _moment!.description!,
+                          style: context.textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+
+                    // Add some bottom spacing
+                    const SizedBox(height: AppTheme.spacing48),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
