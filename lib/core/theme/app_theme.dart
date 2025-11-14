@@ -8,7 +8,7 @@ class AppTheme {
   static const Color brightYellow = Color(0xFFFBFF12);
   static const Color electricPurple = Color(0xFF8338EC);
   static const Color vibrantGreen = Color(0xFF06FFA5);
-  static const Color backgroundBeige = Color(0xFFFAF8F6);
+  static const Color backgroundBeige = Color.fromARGB(255, 249, 240, 230);
   static const Color cardWhite = Color(0xFFFFFFFF);
   static const Color textDark = Color(0xFF000000);
   static const Color textGray = Color(0xFF718096);

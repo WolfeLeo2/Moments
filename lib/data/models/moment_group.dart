@@ -1,24 +1,35 @@
 import 'package:equatable/equatable.dart';
 import 'moment.dart';
 
+/// Shared location group where multiple users can contribute moments
+/// This can be used for both local grouping (UI) and database-backed shared groups
 class MomentGroup extends Equatable {
   final String id;
-  final String title;
-  final List<Moment> moments;
-  final double centerLatitude;
-  final double centerLongitude;
+  final String placeName;
+  final List<Moment> moments; // For UI grouping
+  final double latitude;
+  final double longitude;
+  final String? createdBy;
+  final bool isPublic; // If true, anyone can contribute
   final DateTime createdAt;
   final DateTime updatedAt;
 
   const MomentGroup({
     required this.id,
-    required this.title,
+    required this.placeName,
     required this.moments,
-    required this.centerLatitude,
-    required this.centerLongitude,
+    required this.latitude,
+    required this.longitude,
+    this.createdBy,
+    this.isPublic = false,
     required this.createdAt,
     required this.updatedAt,
   });
+
+  // Legacy getters for backward compatibility
+  String get title => placeName;
+  double get centerLatitude => latitude;
+  double get centerLongitude => longitude;
 
   int get momentCount => moments.length;
 
@@ -69,11 +80,65 @@ class MomentGroup extends Equatable {
   @override
   List<Object?> get props => [
     id,
-    title,
+    placeName,
     moments,
-    centerLatitude,
-    centerLongitude,
+    latitude,
+    longitude,
+    createdBy,
+    isPublic,
     createdAt,
     updatedAt,
   ];
+
+  // Factory from database JSON (for server-side groups)
+  factory MomentGroup.fromJson(Map<String, dynamic> json) {
+    return MomentGroup(
+      id: json['id'] as String,
+      placeName: json['place_name'] as String,
+      moments: [], // Will be populated separately
+      latitude: (json['latitude'] as num).toDouble(),
+      longitude: (json['longitude'] as num).toDouble(),
+      createdBy: json['created_by'] as String?,
+      isPublic: json['is_public'] as bool? ?? false,
+      createdAt: DateTime.parse(json['created_at'] as String),
+      updatedAt: DateTime.parse(json['updated_at'] as String),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'place_name': placeName,
+      'latitude': latitude,
+      'longitude': longitude,
+      'created_by': createdBy,
+      'is_public': isPublic,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+    };
+  }
+
+  MomentGroup copyWith({
+    String? id,
+    String? placeName,
+    List<Moment>? moments,
+    double? latitude,
+    double? longitude,
+    String? createdBy,
+    bool? isPublic,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return MomentGroup(
+      id: id ?? this.id,
+      placeName: placeName ?? this.placeName,
+      moments: moments ?? this.moments,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      createdBy: createdBy ?? this.createdBy,
+      isPublic: isPublic ?? this.isPublic,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }

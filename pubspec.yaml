@@ -35,9 +35,10 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # Backend & Data
-  supabase_flutter: ^2.5.6
+  supabase_flutter: ^2.10.3
   brick_offline_first_with_supabase: ^2.1.0
   google_sign_in: ^6.2.1
+  crypto: ^3.0.3
 
   # Maps & Location
   mapbox_maps_flutter: ^2.12.0
@@ -45,22 +46,34 @@ dependencies:
   geolocator: ^10.1.0
   geocoding: ^3.0.0
 
+  # UI Components
+  carousel_slider: ^5.0.0
+
   # Image handling
   cached_network_image: ^3.3.1
   image_picker: ^1.0.7
+  http: ^1.2.0
+  path_provider: ^2.1.4
   card_swiper: ^3.0.1
 
   # Animations
   flutter_animate: ^4.5.0
   spring: ^2.0.2
+  motor: ^1.0.1
+  animations: ^2.1.0
 
   # UI & Fonts
   google_fonts: ^6.2.1
   simple_icons: ^14.6.1
-  hugeicons: ^1.1.1
+  lucide_icons_flutter: ^3.1.6
 
   # Navigation
   go_router: ^14.1.4
+
+  # State Management
+  riverpod: ^2.6.1
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.3.5
 
   # Environment
   flutter_dotenv: ^5.1.0
@@ -69,17 +82,17 @@ dependencies:
   equatable: ^2.0.5
   uuid: ^4.4.0
   image_picker_platform_interface: ^2.11.1
+  avatar_stack: ^3.0.0
+  flutter_map: ^8.2.2
+  share_plus: ^10.1.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  riverpod_generator: ^2.3.14
+  build_runner: ^2.4.11
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

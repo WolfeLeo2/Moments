@@ -13,6 +13,7 @@ class Moment extends Equatable {
   final DateTime timestamp;
   final String? userId;
   final String? description;
+  final String? placeGroupId; // Reference to place group
 
   const Moment({
     required this.id,
@@ -27,6 +28,7 @@ class Moment extends Equatable {
     required this.timestamp,
     this.userId,
     this.description,
+    this.placeGroupId,
   });
 
   factory Moment.fromJson(Map<String, dynamic> json) {
@@ -43,6 +45,7 @@ class Moment extends Equatable {
       timestamp: DateTime.parse(json['timestamp'] as String),
       userId: json['user_id'] as String?,
       description: json['description'] as String?,
+      placeGroupId: json['place_group_id'] as String?,
     );
   }
 
@@ -60,6 +63,7 @@ class Moment extends Equatable {
       'timestamp': timestamp.toIso8601String(),
       'user_id': userId,
       'description': description,
+      'place_group_id': placeGroupId,
     };
   }
 
@@ -82,6 +86,7 @@ class Moment extends Equatable {
     DateTime? timestamp,
     String? userId,
     String? description,
+    String? placeGroupId,
   }) {
     return Moment(
       id: id ?? this.id,
@@ -96,6 +101,7 @@ class Moment extends Equatable {
       timestamp: timestamp ?? this.timestamp,
       userId: userId ?? this.userId,
       description: description ?? this.description,
+      placeGroupId: placeGroupId ?? this.placeGroupId,
     );
   }
 
@@ -113,6 +119,7 @@ class Moment extends Equatable {
     timestamp,
     userId,
     description,
+    placeGroupId,
   ];
 
   @override

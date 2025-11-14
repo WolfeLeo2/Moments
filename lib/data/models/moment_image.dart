@@ -3,8 +3,8 @@ import 'package:equatable/equatable.dart';
 class MomentImage extends Equatable {
   final String id;
   final String momentId;
-  final String imageUrl;
-  final String mediaPath;
+  final String? imageUrl; // Nullable for backward compatibility
+  final String mediaPath; // Required for new approach
   final String? caption;
   final int displayOrder;
   final DateTime createdAt;
@@ -12,7 +12,7 @@ class MomentImage extends Equatable {
   const MomentImage({
     required this.id,
     required this.momentId,
-    required this.imageUrl,
+    this.imageUrl,
     required this.mediaPath,
     this.caption,
     required this.displayOrder,
@@ -23,7 +23,7 @@ class MomentImage extends Equatable {
     return MomentImage(
       id: json['id'] as String,
       momentId: json['moment_id'] as String,
-      imageUrl: json['image_url'] as String,
+      imageUrl: json['image_url'] as String?,
       mediaPath: json['media_path'] as String,
       caption: json['caption'] as String?,
       displayOrder: json['display_order'] as int? ?? 0,

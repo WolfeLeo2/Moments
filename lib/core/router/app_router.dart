@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../features/map/presentation/map_page.dart';
+import '../../features/map/presentation/map_page_flutter_map.dart';
 import '../../features/moments/presentation/moment_detail_page.dart';
 import '../../features/moments/presentation/add_moment_page_new.dart';
 import '../../features/auth/presentation/login_page.dart';

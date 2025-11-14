@@ -40,6 +40,7 @@ class MomentMarkerWidget extends StatelessWidget {
                     topRight: Radius.circular(AppTheme.radiusMedium),
                   ),
                   child: CachedNetworkImage(
+                    filterQuality: FilterQuality.high,
                     imageUrl: moment.imageUrl!,
                     fit: BoxFit.cover,
                     width: double.infinity,

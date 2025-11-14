@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
@@ -26,7 +27,7 @@ void main() async {
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
+      statusBarColor: Color.fromARGB(255, 0, 0, 0),
       statusBarIconBrightness: Brightness.dark,
       systemNavigationBarColor: AppTheme.backgroundBeige,
       systemNavigationBarIconBrightness: Brightness.dark,
@@ -41,11 +42,13 @@ class MomentsApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Moments',
-      theme: AppTheme.lightTheme,
-      routerConfig: AppRouter.router,
-      debugShowCheckedModeBanner: false,
+    return ProviderScope(
+      child: MaterialApp.router(
+        title: 'Moments',
+        theme: AppTheme.lightTheme,
+        routerConfig: AppRouter.router,
+        debugShowCheckedModeBanner: false,
+      ),
     );
   }
 }

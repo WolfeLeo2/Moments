@@ -134,6 +134,13 @@ class AuthService {
   /// Create or update user profile in profiles table
   Future<void> _createOrUpdateProfile(User user) async {
     try {
+      // First check if profile exists
+      final existingProfile = await _supabase
+          .from('profiles')
+          .select('invite_code')
+          .eq('id', user.id)
+          .maybeSingle();
+
       final profileData = {
         'id': user.id,
         'username': user.email?.split('@').first ?? 'user',
@@ -145,6 +152,13 @@ class AuthService {
             user.userMetadata?['avatar_url'] ?? user.userMetadata?['picture'],
         'updated_at': DateTime.now().toIso8601String(),
       };
+
+      // Only generate invite_code if profile doesn't exist or doesn't have one
+      if (existingProfile == null || existingProfile['invite_code'] == null) {
+        // Call the database function to generate invite code
+        final result = await _supabase.rpc('generate_invite_code');
+        profileData['invite_code'] = result as String;
+      }
 
       await _supabase.from('profiles').upsert(profileData);
       print('✅ Profile created/updated for user: ${user.email}');
