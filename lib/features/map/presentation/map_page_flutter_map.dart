@@ -18,6 +18,7 @@ import '../../moments/presentation/moment_details_page.dart';
 import '../../social/presentation/friends_page.dart';
 import '../widgets/stacked_moment_marker.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 class MapPage extends ConsumerStatefulWidget {
   const MapPage({super.key});
@@ -176,20 +177,32 @@ class _MapPageState extends ConsumerState<MapPage> {
   void _showImageSourceDialog() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppTheme.cardWhite,
-      shape: const RoundedRectangleBorder(
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedSuperellipseBorder(
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(AppTheme.radiusLarge),
           topRight: Radius.circular(AppTheme.radiusLarge),
         ),
       ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(AppTheme.spacing24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+      builder: (context)=> Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        child: Material(
+          borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+          elevation: 8,
+          child: Container(
+            decoration: ShapeDecoration(
+              color: AppTheme.cardWhite,
+              shape: RoundedSuperellipseBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+                side: BorderSide(
+                color: Colors.black, width: AppTheme.borderMedium),
+            ),  
+            ),
+              padding: const EdgeInsets.all(AppTheme.spacing24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 Text('Add a Moment', style: context.textTheme.titleLarge),
                 const SizedBox(height: AppTheme.spacing24),
                 Row(
@@ -218,8 +231,8 @@ class _MapPageState extends ConsumerState<MapPage> {
                           ),
                           child: Column(
                             children: [
-                              const Icon(
-                                Icons.camera_alt,
+                              const HugeIcon(
+                                icon: HugeIcons.strokeRoundedCamera01,
                                 size: 32,
                                 color: Colors.white,
                               ),
@@ -261,8 +274,8 @@ class _MapPageState extends ConsumerState<MapPage> {
                           ),
                           child: Column(
                             children: [
-                              const Icon(
-                                Icons.photo_library,
+                              const HugeIcon(
+                                icon: HugeIcons.strokeRoundedImage02,
                                 size: 32,
                                 color: Colors.black,
                               ),
@@ -284,9 +297,9 @@ class _MapPageState extends ConsumerState<MapPage> {
               ],
             ),
           ),
-        );
-      },
-    );
+          )
+      )
+      );
   }
 
   Future<void> _pickImageAndNavigate(picker.ImageSource source) async {
@@ -616,8 +629,8 @@ class _MapPageState extends ConsumerState<MapPage> {
                               border: Border.all(color: Colors.black, width: 1),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
-                              Icons.add,
+                            child: const HugeIcon(
+                              icon: HugeIcons.strokeRoundedAdd01,
                               color: AppTheme.primaryBlue,
                               size: 20,
                             ),

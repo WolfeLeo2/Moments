@@ -244,7 +244,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white, width: 8),
+          border: Border.all(color: Colors.white, width: 6),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.15),

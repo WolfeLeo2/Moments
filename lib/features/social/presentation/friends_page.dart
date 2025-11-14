@@ -8,8 +8,8 @@ import '../../../core/utils/extensions.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/friendship.dart';
 import '../../../data/models/profile.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
-
+import 'package:hugeicons/hugeicons.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 /// Page for managing friends and friend requests
 class FriendsPage extends ConsumerStatefulWidget {
   const FriendsPage({super.key});
@@ -110,186 +110,192 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
   void _showInviteBottomSheet(String inviteCode) {
     showModalBottomSheet(
       context: context,
+      useSafeArea: true,
       isScrollControlled: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: AppTheme.backgroundBeige,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: const Border(
-            top: BorderSide(color: Colors.black, width: 3),
-            left: BorderSide(color: Colors.black, width: 3),
-            right: BorderSide(color: Colors.black, width: 3),
-          ),
-        ),
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          left: 24,
-          right: 24,
-          top: 8,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Handle bar
-            Center(
-              child: Container(
-                width: 48,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(3),
-                ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        child: Material(
+          borderRadius: BorderRadius.circular(24),
+          elevation: 8,
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppTheme.backgroundBeige,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.black, width: 3),
               ),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              left: 24,
+              right: 24,
+              top: 8,
             ),
-            const SizedBox(height: 24),
-
-            // Title
-            const Text(
-              'Invite Friends',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-                color: Colors.black87,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Share your code to connect',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // Invite code card
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.black, width: 3),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black,
-                    offset: Offset(4, 4),
-                    blurRadius: 0,
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    'YOUR CODE',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey[600],
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    inviteCode,
-                    style: const TextStyle(
-                      fontSize: 42,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 8,
-                      fontFamily: 'monospace',
-                      color: AppTheme.primaryBlue,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Action buttons
-            Row(
+            child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _copyInviteCode(inviteCode),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.black, width: 2.5),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black,
-                            offset: Offset(3, 3),
-                            blurRadius: 0,
-                          ),
-                        ],
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            LucideIcons.copy500,
-                            size: 20,
-                            color: Colors.black87,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Copy',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
+                // Handle bar
+                Center(
+                  child: Container(
+                    width: 48,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(3),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _shareInviteCode(inviteCode),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryBlue,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.black, width: 2.5),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black,
-                            offset: Offset(3, 3),
-                            blurRadius: 0,
-                          ),
-                        ],
+                const SizedBox(height: 24),
+
+                // Title
+                const Text(
+                  'Invite Friends',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.black87,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Share your code to connect',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // Invite code card
+                
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.black, width: 3),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black,
+                        offset: Offset(4, 4),
+                        blurRadius: 0,
                       ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            LucideIcons.share500,
-                            size: 20,
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'YOUR CODE',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey[600],
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        inviteCode,
+                        style: const TextStyle(
+                          fontSize: 42,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 8,
+                          fontFamily: 'monospace',
+                          color: AppTheme.primaryBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                ),
+                const SizedBox(height: 20),
+
+                // Action buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _copyInviteCode(inviteCode),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
                             color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.black, width: 2.5),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black,
+                                offset: Offset(3, 3),
+                                blurRadius: 0,
+                              ),
+                            ],
                           ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Share',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              HugeIcon(
+                                icon: HugeIcons.strokeRoundedCopy01,
+                                size: 20,
+                                color: Colors.black87,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Copy',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _shareInviteCode(inviteCode),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryBlue,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.black, width: 2.5),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black,
+                                offset: Offset(3, 3),
+                                blurRadius: 0,
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              HugeIcon(
+                                icon: HugeIcons.strokeRoundedShare01,
+                                size: 20,
+                                color: Colors.white,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Share',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
               ],
             ),
             const SizedBox(height: 24),
@@ -355,8 +361,8 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                       color: AppTheme.primaryBlue,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(
-                      LucideIcons.arrowRight500,
+                    child: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedArrowRight02,
                       color: Colors.white,
                       size: 20,
                     ),
@@ -376,6 +382,9 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
           ],
         ),
       ),
+      ),
+      )
+      )
     );
   }
 
@@ -391,8 +400,10 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
         preferredSize: const Size.fromHeight(140),
         child: AppBar(
           backgroundColor: AppTheme.backgroundBeige,
-          leading: Icon(LucideIcons.arrowLeft500),
-          leadingWidth: 60,
+            leading: IconButton(
+            icon: HugeIcon(icon: HugeIcons.strokeRoundedArrowLeft02, size: 32),
+            onPressed: () => Navigator.of(context).pop(),
+            ),
           elevation: 0,
           flexibleSpace: SafeArea(
             child: Column(
@@ -454,8 +465,8 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                                   child: const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(
-                                        LucideIcons.userPlus500,
+                                      HugeIcon(
+                                        icon: HugeIcons.strokeRoundedUserAdd02,
                                         color: Colors.white,
                                         size: 18,
                                       ),
@@ -484,20 +495,25 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Container(
                     height: 48,
-                    decoration: BoxDecoration(
+                    decoration: ShapeDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
+                      shape: RoundedSuperellipseBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
                         color: Colors.black,
                         width: AppTheme.borderThin,
                       ),
-                      boxShadow: AppTheme.brutalShadowSmall,
+                      ),
+                      shadows: AppTheme.brutalShadowSmall,
                     ),
                     child: TabBar(
                       controller: _tabController,
-                      indicator: BoxDecoration(
+                      indicatorPadding: const EdgeInsets.symmetric(horizontal: -5),
+                      indicator: ShapeDecoration(
                         color: AppTheme.primaryBlue,
-                        borderRadius: BorderRadius.circular(10),
+                        shape: RoundedSuperellipseBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
                       ),
                       labelColor: Colors.white,
                       unselectedLabelColor: Colors.grey[700],
@@ -516,7 +532,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(LucideIcons.users500, size: 16),
+                                const HugeIcon(icon: HugeIcons.strokeRoundedUserMultiple, size: 16),
                                 const SizedBox(width: 6),
                                 Text('Friends (${friends.length})'),
                               ],
@@ -530,7 +546,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(LucideIcons.mail500, size: 16),
+                                const HugeIcon(icon: HugeIcons.strokeRoundedMail01, size: 16),
                                 const SizedBox(width: 6),
                                 Text('Requests (${requests.length})'),
                               ],
@@ -566,35 +582,13 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryBlue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppTheme.primaryBlue.withOpacity(0.3),
-                        width: 2,
-                      ),
+                    SvgPicture.asset(
+                    'assets/svg/friends_empty.svg',
+                    width: MediaQuery.of(context).size.width * 0.8,
+                    height: MediaQuery.of(context).size.width * 0.8,
                     ),
-                    child: Icon(
-                      LucideIcons.users500,
-                      size: 40,
-                      color: AppTheme.primaryBlue,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'No friends yet',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
                   Text(
                     'Invite friends to start sharing\nmoments together',
                     textAlign: TextAlign.center,
@@ -647,8 +641,8 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                     width: 2,
                   ),
                 ),
-                child: Icon(
-                  LucideIcons.badgeAlert500,
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedAlertSquare,
                   size: 40,
                   color: Colors.red[400],
                 ),
@@ -680,30 +674,16 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
       data: (requests) {
         if (requests.isEmpty) {
           return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.grey[100],
-                  ),
-                  child: Icon(
-                    LucideIcons.mailOpen500,
-                    size: 48,
-                    color: Colors.grey[400],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'No pending requests',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
+                SvgPicture.asset(
+                    'assets/svg/requests_empty.svg',
+                    width: MediaQuery.of(context).size.width * 0.8,
+                    height: MediaQuery.of(context).size.width * 0.8,
+                    ),
                 const SizedBox(height: 8),
                 Text(
                   'When friends send you requests,\nthey\'ll appear here',
@@ -716,6 +696,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                 ),
               ],
             ),
+            )
           );
         }
         return ListView.builder(
@@ -742,7 +723,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(LucideIcons.badgeAlert500, size: 48, color: Colors.grey[400]),
+            HugeIcon(icon: HugeIcons.strokeRoundedAlertSquare, size: 48, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
               'Failed to load requests',
@@ -924,8 +905,8 @@ class _RequestCardState extends ConsumerState<_RequestCard>
                             ? NetworkImage(profile.avatarUrl!)
                             : null,
                         child: profile.avatarUrl == null
-                            ? Icon(
-                                LucideIcons.user500,
+                            ? HugeIcon(
+                                icon: HugeIcons.strokeRoundedUser,
                                 size: 28,
                                 color: Colors.grey[400],
                               )
@@ -971,7 +952,7 @@ class _RequestCardState extends ConsumerState<_RequestCard>
                     // Reject button
                     Expanded(
                       child: _ActionButton(
-                        icon: LucideIcons.x500,
+                        icon: HugeIcons.strokeRoundedMultiplicationSign,
                         label: 'Decline',
                         onPressed: _isRejecting ? null : _handleReject,
                         isLoading: _isRejecting,
@@ -982,7 +963,7 @@ class _RequestCardState extends ConsumerState<_RequestCard>
                     // Accept button
                     Expanded(
                       child: _ActionButton(
-                        icon: LucideIcons.check500,
+                        icon: HugeIcons.strokeRoundedTick01,
                         label: 'Accept',
                         onPressed: _isAccepting ? null : _handleAccept,
                         isLoading: _isAccepting,
@@ -1009,7 +990,7 @@ class _RequestCardState extends ConsumerState<_RequestCard>
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Icon(LucideIcons.badgeAlert500, color: Colors.red[400], size: 24),
+          HugeIcon(icon: HugeIcons.strokeRoundedAlertSquare, color: Colors.red[400], size: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -1126,8 +1107,8 @@ class _FriendCardState extends State<_FriendCard>
                                 ? NetworkImage(widget.friend.avatarUrl!)
                                 : null,
                             child: widget.friend.avatarUrl == null
-                                ? Icon(
-                                    LucideIcons.user500,
+                                ? HugeIcon(
+                                    icon: HugeIcons.strokeRoundedUser,
                                     size: 32,
                                     color: Colors.grey[400],
                                   )
@@ -1214,8 +1195,8 @@ class _FriendCardState extends State<_FriendCard>
                         width: 1.5,
                       ),
                     ),
-                    child: Icon(
-                      LucideIcons.messageCircle500,
+                    child: HugeIcon(
+                      icon: HugeIcons.strokeRoundedMessage01,
                       size: 20,
                       color: AppTheme.primaryBlue,
                     ),
@@ -1286,7 +1267,7 @@ class _FriendCardSkeleton extends StatelessWidget {
 
 /// Action button for requests
 class _ActionButton extends StatefulWidget {
-  final IconData icon;
+  final dynamic icon;
   final String label;
   final VoidCallback? onPressed;
   final bool isLoading;
@@ -1382,7 +1363,7 @@ class _ActionButtonState extends State<_ActionButton>
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(widget.icon, size: 18, color: textColor),
+                        HugeIcon(icon: widget.icon, size: 18, color: textColor),
                         const SizedBox(width: 8),
                         Text(
                           widget.label,

@@ -8,6 +8,7 @@ import '../../../core/services/signed_url_cache.dart';
 import '../../../widgets/cached_image.dart';
 import 'dart:math' as math;
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/theme/app_theme.dart';
 
 /// Details page showing moments in a carousel with spring animations
 class MomentDetailsPage extends StatefulWidget {
@@ -268,7 +269,7 @@ class _MomentDetailsPageState extends State<MomentDetailsPage>
         MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 251, 241, 231),
+      backgroundColor: AppTheme.backgroundBeige,
       body: SafeArea(
         child: Column(
           children: [
@@ -423,7 +424,7 @@ class _MomentDetailsPageState extends State<MomentDetailsPage>
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
                                       color: Colors.white,
-                                      width: 12,
+                                      width: 6,
                                     ),
                                     boxShadow: [
                                       BoxShadow(
