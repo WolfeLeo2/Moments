@@ -401,7 +401,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
         child: AppBar(
           backgroundColor: AppTheme.backgroundBeige,
             leading: IconButton(
-            icon: HugeIcon(icon: HugeIcons.strokeRoundedArrowLeft02, size: 32),
+            icon: SvgPicture.asset('assets/icons/Left arrow.svg', width: 34, height: 34),
             onPressed: () => Navigator.of(context).pop(),
             ),
           elevation: 0,
@@ -410,7 +410,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
               children: [
                 // Header section
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(50, 16, 16, 12),
+                  padding: const EdgeInsets.fromLTRB(50, 10, 10, 10),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -430,13 +430,13 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                                 height: 1.1,
                               ),
                             ),
-                            SizedBox(height: 4),
+                            SizedBox(height: 0),
                             Text(
                               'Stay connected',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
-                                color: Colors.grey,
+                                color: Colors.black54,
                               ),
                             ),
                           ],
@@ -492,7 +492,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                 ),
                 // Tab Bar
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: Container(
                     height: 48,
                     decoration: ShapeDecoration(

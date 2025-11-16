@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:image_picker/image_picker.dart' as picker;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:spring/spring.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/router/app_router.dart';
@@ -16,6 +17,7 @@ import '../../../widgets/spring_button.dart';
 import '../../moments/presentation/add_moment_page_new.dart';
 import '../../moments/presentation/moment_details_page.dart';
 import '../../social/presentation/friends_page.dart';
+import '../../profile/profile_page.dart';
 import '../widgets/stacked_moment_marker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -88,6 +90,11 @@ class _MapPageState extends ConsumerState<MapPage> {
 
       if (mounted) {
         setState(() => _currentPosition = position);
+        // Auto-center map to user's location
+        _mapController.move(
+          LatLng(position.latitude, position.longitude),
+          14.0,
+        );
       }
     } catch (e) {
       print('Error getting location: $e');
@@ -170,137 +177,9 @@ class _MapPageState extends ConsumerState<MapPage> {
         });
   }
 
-  Future<void> _onAddMomentPressed() async {
-    _showImageSourceDialog();
-  }
+  // Removed - replaced with AnimatedFAB widget
 
-  void _showImageSourceDialog() {
-    showModalBottomSheet(
-      context: context,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      shape: const RoundedSuperellipseBorder(
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(AppTheme.radiusLarge),
-          topRight: Radius.circular(AppTheme.radiusLarge),
-        ),
-      ),
-      builder: (context)=> Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-        child: Material(
-          borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-          elevation: 8,
-          child: Container(
-            decoration: ShapeDecoration(
-              color: AppTheme.cardWhite,
-              shape: RoundedSuperellipseBorder(
-                borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-                side: BorderSide(
-                color: Colors.black, width: AppTheme.borderMedium),
-            ),  
-            ),
-              padding: const EdgeInsets.all(AppTheme.spacing24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                Text('Add a Moment', style: context.textTheme.titleLarge),
-                const SizedBox(height: AppTheme.spacing24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: SpringButton(
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          _pickImageAndNavigate(picker.ImageSource.camera);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(AppTheme.spacing16),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryBlue,
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusMedium,
-                            ),
-                            border: Border.all(color: Colors.black, width: 2.5),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black,
-                                offset: Offset(4, 4),
-                                blurRadius: 0,
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              const HugeIcon(
-                                icon: HugeIcons.strokeRoundedCamera01,
-                                size: 32,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(height: AppTheme.spacing8),
-                              Text(
-                                'Camera',
-                                style: context.textTheme.titleSmall?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppTheme.spacing16),
-                    Expanded(
-                      child: SpringButton(
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          _pickMultipleImagesAndNavigate();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(AppTheme.spacing16),
-                          decoration: BoxDecoration(
-                            color: AppTheme.brightYellow,
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusMedium,
-                            ),
-                            border: Border.all(color: Colors.black, width: 2.5),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black,
-                                offset: Offset(4, 4),
-                                blurRadius: 0,
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              const HugeIcon(
-                                icon: HugeIcons.strokeRoundedImage02,
-                                size: 32,
-                                color: Colors.black,
-                              ),
-                              const SizedBox(height: AppTheme.spacing8),
-                              Text(
-                                'Gallery',
-                                style: context.textTheme.titleSmall?.copyWith(
-                                  color: Colors.black,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          )
-      )
-      );
-  }
+  // Removed - replaced with AnimatedFAB widget
 
   Future<void> _pickImageAndNavigate(picker.ImageSource source) async {
     if (_currentPosition == null) {
@@ -408,53 +287,16 @@ class _MapPageState extends ConsumerState<MapPage> {
           appBar: BlurredAppBar(
             title: 'Moments',
             profileImageUrl: _authService.currentUserPhotoUrl,
-            onMenuPressed: () {},
-            onSearchPressed: () {},
             onFriendsPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const FriendsPage()),
               );
             },
-            onProfilePressed: () async {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text(_authService.currentUserDisplayName ?? 'Profile'),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_authService.currentUserPhotoUrl != null)
-                        CircleAvatar(
-                          radius: 40,
-                          backgroundImage: NetworkImage(
-                            _authService.currentUserPhotoUrl!,
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-                      Text(_authService.currentUserEmail ?? ''),
-                    ],
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Close'),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        await _authService.signOut();
-                        if (context.mounted) {
-                          Navigator.pop(context);
-                          AppRouter.router.go('/login');
-                        }
-                      },
-                      child: const Text(
-                        'Sign Out',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ],
-                ),
+            onProfilePressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfilePage()),
               );
             },
           ),
@@ -593,61 +435,16 @@ class _MapPageState extends ConsumerState<MapPage> {
                 ),
               ),
 
-              // New Moment FAB
+              // Animated FAB
               Positioned(
                 bottom: AppTheme.spacing32,
                 left: 0,
                 right: 0,
                 child: Center(
-                  child: SpringButton(
-                    onTap: _onAddMomentPressed,
-                    scaleFactor: 0.92,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryBlue,
-                        border: Border.all(color: Colors.black, width: 2.5),
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black,
-                            offset: Offset(4, 4),
-                            blurRadius: 0,
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              border: Border.all(color: Colors.black, width: 1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const HugeIcon(
-                              icon: HugeIcons.strokeRoundedAdd01,
-                              color: AppTheme.primaryBlue,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          const Text(
-                            'New Moment',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  child: _AnimatedFAB(
+                    onCameraTap: () =>
+                        _pickImageAndNavigate(picker.ImageSource.camera),
+                    onGalleryTap: _pickMultipleImagesAndNavigate,
                   ),
                 ),
               ),
@@ -683,6 +480,306 @@ class _MapPageState extends ConsumerState<MapPage> {
           ),
         );
       },
+    );
+  }
+}
+
+// Animated FAB Widget with Motor animations
+class _AnimatedFAB extends StatefulWidget {
+  final VoidCallback onCameraTap;
+  final VoidCallback onGalleryTap;
+
+  const _AnimatedFAB({required this.onCameraTap, required this.onGalleryTap});
+
+  @override
+  State<_AnimatedFAB> createState() => _AnimatedFABState();
+}
+
+class _AnimatedFABState extends State<_AnimatedFAB>
+    with SingleTickerProviderStateMixin {
+  bool _isExpanded = false;
+  late final AnimationController _controller;
+  late final Animation<double> _heightAnimation;
+  late final Animation<double> _widthAnimation;
+  late final Animation<double> _opacityAnimation;
+
+  // FAB dimensions - grow both width and height
+  static const double _collapsedHeight = 60.0;
+  static const double _expandedHeight =
+      72.0; // Proportional height for 2 buttons
+  static const double _collapsedWidth = 190.0; // Stable width for resting FAB
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+
+    // Height animation
+    _heightAnimation =
+        Tween<double>(begin: _collapsedHeight, end: _expandedHeight).animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: Curves.easeInOutCubicEmphasized,
+          ),
+        );
+
+    // Width animation (grow from stable collapsed width to expanded width)
+    _widthAnimation =
+        Tween<double>(
+          begin: _collapsedWidth,
+          end: 320.0, // Wide enough for camera + gallery + close
+        ).animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: Curves.easeInOutCubicEmphasized,
+          ),
+        );
+
+    // Opacity animation for text fade
+    _opacityAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _toggleExpansion() {
+    setState(() {
+      _isExpanded = !_isExpanded;
+      if (_isExpanded) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    });
+  }
+
+  void _handleCameraTap() {
+    _toggleExpansion();
+    Future.delayed(const Duration(milliseconds: 300), widget.onCameraTap);
+  }
+
+  void _handleGalleryTap() {
+    _toggleExpansion();
+    Future.delayed(const Duration(milliseconds: 300), widget.onGalleryTap);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        // Switch content only after width has grown past a threshold to avoid cramped layout
+        final showExpanded =
+            _isExpanded && _widthAnimation.value >= (_collapsedWidth + 40);
+
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: _collapsedWidth,
+              maxWidth: _widthAnimation.value,
+            ),
+            child: SpringButton(
+              onTap: _toggleExpansion,
+              scaleFactor: 0.92,
+              child: Container(
+                width: _widthAnimation.value,
+                height: _heightAnimation.value,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryBlue,
+                  border: Border.all(color: Colors.black, width: 2.5),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black,
+                      offset: Offset(4, 4),
+                      blurRadius: 0,
+                    ),
+                  ],
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 150),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  child: showExpanded
+                      ? _buildExpandedContent()
+                      : _buildCollapsedContent(),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCollapsedContent() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Colors.black, width: 1),
+              shape: BoxShape.circle,
+            ),
+            child: const HugeIcon(
+              icon: HugeIcons.strokeRoundedAdd01,
+              color: AppTheme.primaryBlue,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          AnimatedBuilder(
+            animation: _opacityAnimation,
+            builder: (context, child) {
+              return Opacity(
+                opacity: _opacityAnimation.value,
+                child: const Text(
+                  'New Moment',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExpandedContent() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Camera Button
+          SpringButton(
+            onTap: _handleCameraTap,
+            scaleFactor: 0.95,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: Colors.black, width: 2),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black,
+                    offset: Offset(2, 2),
+                    blurRadius: 0,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const HugeIcon(
+                    icon: HugeIcons.strokeRoundedCamera01,
+                    size: 18,
+                    color: AppTheme.primaryBlue,
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Camera',
+                    style: TextStyle(
+                      color: AppTheme.primaryBlue,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // Gallery Button
+          SpringButton(
+            onTap: _handleGalleryTap,
+            scaleFactor: 0.95,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppTheme.brightYellow,
+                border: Border.all(color: Colors.black, width: 2),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black,
+                    offset: Offset(2, 2),
+                    blurRadius: 0,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const HugeIcon(
+                    icon: HugeIcons.strokeRoundedImage02,
+                    size: 18,
+                    color: Colors.black,
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Gallery',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // Close button (X) - static, no animation
+          SpringButton(
+            onTap: _toggleExpansion,
+            scaleFactor: 0.9,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 1,
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: const HugeIcon(
+                icon: HugeIcons.strokeRoundedCancel01,
+                color: Colors.white,
+                size: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
