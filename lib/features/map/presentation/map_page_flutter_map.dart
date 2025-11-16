@@ -4,10 +4,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:image_picker/image_picker.dart' as picker;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:spring/spring.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
-import '../../../core/router/app_router.dart';
 import '../../../core/services/geocoding_service.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/providers/moments_providers.dart';
@@ -21,6 +19,7 @@ import '../../profile/profile_page.dart';
 import '../widgets/stacked_moment_marker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class MapPage extends ConsumerStatefulWidget {
   const MapPage({super.key});
@@ -506,8 +505,8 @@ class _AnimatedFABState extends State<_AnimatedFAB>
   // FAB dimensions - grow both width and height
   static const double _collapsedHeight = 60.0;
   static const double _expandedHeight =
-      72.0; // Proportional height for 2 buttons
-  static const double _collapsedWidth = 190.0; // Stable width for resting FAB
+      80.0; // Proportional height for 2 buttons
+  static const double _collapsedWidth = 198.0; // Stable width for resting FAB
 
   @override
   void initState() {
@@ -590,7 +589,7 @@ class _AnimatedFABState extends State<_AnimatedFAB>
             ),
             child: SpringButton(
               onTap: _toggleExpansion,
-              scaleFactor: 0.92,
+              scaleFactor: 0.95,
               child: Container(
                 width: _widthAnimation.value,
                 height: _heightAnimation.value,
@@ -624,12 +623,12 @@ class _AnimatedFABState extends State<_AnimatedFAB>
 
   Widget _buildCollapsedContent() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: const EdgeInsets.all(4),
+            padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border.all(color: Colors.black, width: 1),
@@ -641,7 +640,7 @@ class _AnimatedFABState extends State<_AnimatedFAB>
               size: 20,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           AnimatedBuilder(
             animation: _opacityAnimation,
             builder: (context, child) {
@@ -652,7 +651,7 @@ class _AnimatedFABState extends State<_AnimatedFAB>
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
-                    fontSize: 16,
+                    fontSize: 16.5,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -676,7 +675,7 @@ class _AnimatedFABState extends State<_AnimatedFAB>
             onTap: _handleCameraTap,
             scaleFactor: 0.95,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border.all(color: Colors.black, width: 2),
@@ -694,7 +693,7 @@ class _AnimatedFABState extends State<_AnimatedFAB>
                 children: [
                   const HugeIcon(
                     icon: HugeIcons.strokeRoundedCamera01,
-                    size: 18,
+                    size: 20,
                     color: AppTheme.primaryBlue,
                   ),
                   const SizedBox(width: 6),
@@ -703,7 +702,7 @@ class _AnimatedFABState extends State<_AnimatedFAB>
                     style: TextStyle(
                       color: AppTheme.primaryBlue,
                       fontWeight: FontWeight.w900,
-                      fontSize: 13,
+                      fontSize: 14,
                       letterSpacing: 0.3,
                     ),
                   ),
@@ -719,7 +718,7 @@ class _AnimatedFABState extends State<_AnimatedFAB>
             onTap: _handleGalleryTap,
             scaleFactor: 0.95,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: AppTheme.brightYellow,
                 border: Border.all(color: Colors.black, width: 2),
@@ -737,7 +736,7 @@ class _AnimatedFABState extends State<_AnimatedFAB>
                 children: [
                   const HugeIcon(
                     icon: HugeIcons.strokeRoundedImage02,
-                    size: 18,
+                    size: 20,
                     color: Colors.black,
                   ),
                   const SizedBox(width: 6),
@@ -746,7 +745,7 @@ class _AnimatedFABState extends State<_AnimatedFAB>
                     style: TextStyle(
                       color: Colors.black,
                       fontWeight: FontWeight.w900,
-                      fontSize: 13,
+                      fontSize: 14,
                       letterSpacing: 0.3,
                     ),
                   ),
@@ -755,26 +754,19 @@ class _AnimatedFABState extends State<_AnimatedFAB>
             ),
           ),
 
-          const SizedBox(width: 8),
+          const SizedBox(width: 5),
 
           // Close button (X) - static, no animation
           SpringButton(
             onTap: _toggleExpansion,
             scaleFactor: 0.9,
             child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
-                  width: 1,
-                ),
-                shape: BoxShape.circle,
-              ),
-              child: const HugeIcon(
-                icon: HugeIcons.strokeRoundedCancel01,
-                color: Colors.white,
-                size: 16,
+              padding: const EdgeInsets.all(0),
+              child: SvgPicture.asset(
+                'assets/icons/Close.svg',
+                width: 36,
+                height: 36,
+                allowDrawingOutsideViewBox: true,
               ),
             ),
           ),
