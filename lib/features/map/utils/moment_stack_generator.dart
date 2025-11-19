@@ -196,7 +196,7 @@ class MomentStackGenerator {
     final paint = Paint()
       ..shader = ui.Gradient.linear(imageRect.topLeft, imageRect.bottomRight, [
         AppTheme.primaryBlue.withOpacity(0.3),
-        AppTheme.primaryBlue.withOpacity(0.1),
+        AppTheme.neonPink.withOpacity(0.1),
       ]);
     canvas.drawRect(imageRect, paint);
 

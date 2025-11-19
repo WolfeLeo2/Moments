@@ -12,7 +12,7 @@ import '../../../core/providers/moments_providers.dart';
 import '../../../data/models/moment.dart';
 import '../../../widgets/blurred_app_bar.dart';
 import '../../../widgets/spring_button.dart';
-import '../../moments/presentation/add_moment_page_new.dart';
+import '../../moments/presentation/add_moment_page.dart';
 import '../../moments/presentation/moment_details_page.dart';
 import '../../social/presentation/friends_page.dart';
 import '../../profile/profile_page.dart';
@@ -396,13 +396,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                         color: AppTheme.brightYellow,
                         border: Border.all(color: Colors.black, width: 2),
                         borderRadius: BorderRadius.circular(12),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black,
-                            offset: Offset(4, 4),
-                            blurRadius: 0,
-                          ),
-                        ],
+                        boxShadow: AppTheme.brutalShadow,
                       ),
                       child: Stack(
                         children: [
@@ -415,7 +409,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                               foreground: Paint()
                                 ..style = PaintingStyle.stroke
                                 ..strokeWidth = 3
-                                ..color = Colors.black,
+                                ..color = AppTheme.borderBlack,
                             ),
                           ),
                           Text(

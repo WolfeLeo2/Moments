@@ -65,9 +65,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
 
   Future<void> _acceptRequest(String friendshipId) async {
     try {
-      await ref
-          .read(friendRequestProvider.notifier)
-          .acceptRequest(friendshipId);
+      await ref.read(friendRequestProvider.notifier).acceptRequest(friendshipId);
       if (mounted) {
         context.showSuccessSnackBar('Friend request accepted!');
         invalidateFriendsCache(ref);
@@ -81,9 +79,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
 
   Future<void> _rejectRequest(String friendshipId) async {
     try {
-      await ref
-          .read(friendRequestProvider.notifier)
-          .rejectRequest(friendshipId);
+      await ref.read(friendRequestProvider.notifier).rejectRequest(friendshipId);
       if (mounted) {
         context.showSuccessSnackBar('Friend request rejected');
         invalidateFriendsCache(ref);
@@ -400,10 +396,16 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
         preferredSize: const Size.fromHeight(140),
         child: AppBar(
           backgroundColor: AppTheme.backgroundBeige,
-            leading: IconButton(
-            icon: SvgPicture.asset('assets/icons/Left arrow.svg', width: 34, height: 34),
-            onPressed: () => Navigator.of(context).pop(),
+          leading: IconButton(
+            icon: SvgPicture.asset(
+              'assets/icons/Left arrow.svg',
+              width: 34,
+              height: 34,
             ),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
           elevation: 0,
           flexibleSpace: SafeArea(
             child: Column(
@@ -492,7 +494,10 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                 ),
                 // Tab Bar
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   child: Container(
                     height: 48,
                     decoration: ShapeDecoration(
@@ -500,15 +505,17 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                       shape: RoundedSuperellipseBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(
-                        color: Colors.black,
-                        width: AppTheme.borderThin,
-                      ),
+                          color: Colors.black,
+                          width: AppTheme.borderThin,
+                        ),
                       ),
                       shadows: AppTheme.brutalShadowSmall,
                     ),
                     child: TabBar(
                       controller: _tabController,
-                      indicatorPadding: const EdgeInsets.symmetric(horizontal: -5),
+                      indicatorPadding: const EdgeInsets.symmetric(
+                        horizontal: -5,
+                      ),
                       indicator: ShapeDecoration(
                         color: AppTheme.primaryBlue,
                         shape: RoundedSuperellipseBorder(
@@ -532,7 +539,10 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const HugeIcon(icon: HugeIcons.strokeRoundedUserMultiple, size: 16),
+                                const HugeIcon(
+                                  icon: HugeIcons.strokeRoundedUserMultiple,
+                                  size: 16,
+                                ),
                                 const SizedBox(width: 6),
                                 Text('Friends (${friends.length})'),
                               ],
@@ -546,7 +556,10 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const HugeIcon(icon: HugeIcons.strokeRoundedMail01, size: 16),
+                                const HugeIcon(
+                                  icon: HugeIcons.strokeRoundedMail01,
+                                  size: 16,
+                                ),
                                 const SizedBox(width: 6),
                                 Text('Requests (${requests.length})'),
                               ],
@@ -584,11 +597,11 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                    SvgPicture.asset(
+                  SvgPicture.asset(
                     'assets/svg/friends_empty.svg',
                     width: MediaQuery.of(context).size.width * 0.8,
                     height: MediaQuery.of(context).size.width * 0.8,
-                    ),
+                  ),
                   Text(
                     'Invite friends to start sharing\nmoments together',
                     textAlign: TextAlign.center,
@@ -660,7 +673,10 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
               Text(
                 error.toString().replaceAll('Exception: ', ''),
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                ),
               ),
             ],
           ),
@@ -676,27 +692,27 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                SvgPicture.asset(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  SvgPicture.asset(
                     'assets/svg/requests_empty.svg',
                     width: MediaQuery.of(context).size.width * 0.8,
                     height: MediaQuery.of(context).size.width * 0.8,
-                    ),
-                const SizedBox(height: 8),
-                Text(
-                  'When friends send you requests,\nthey\'ll appear here',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                    height: 1.5,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Text(
+                    'When friends send you requests,\nthey\'ll appear here',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            )
           );
         }
         return ListView.builder(
@@ -723,7 +739,11 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            HugeIcon(icon: HugeIcons.strokeRoundedAlertSquare, size: 48, color: Colors.grey[400]),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedAlertSquare,
+              size: 48,
+              color: Colors.grey[400],
+            ),
             const SizedBox(height: 16),
             Text(
               'Failed to load requests',
@@ -818,22 +838,21 @@ class _RequestCardState extends ConsumerState<_RequestCard>
 
   @override
   Widget build(BuildContext context) {
+    // Fetch the profile of the person who SENT the request (userId)
+    // NOT the friend_id (which is the current user receiving the request)
     final profileAsync = widget.ref.watch(
-      friendProfileProvider(widget.request.friendId),
+      friendProfileProvider(widget.request.userId),
     );
 
     return ScaleTransition(
-      scale: Tween<double>(
-        begin: 1.0,
-        end: 0.95,
-      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
+      scale: Tween<double>(begin: 1.0, end: 0.95).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+      ),
       child: FadeTransition(
         opacity: _fadeAnimation,
         child: SlideTransition(
           position: Tween<Offset>(begin: Offset.zero, end: const Offset(0, 0.5))
-              .animate(
-                CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-              ),
+              .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
           child: Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: profileAsync.when(
@@ -855,18 +874,17 @@ class _RequestCardState extends ConsumerState<_RequestCard>
   Widget _buildRequestCard(Profile profile) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.white, Colors.grey[50] ?? Colors.white],
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black12, width: 1),
-        boxShadow: [
+        border: Border.all(
+          color: Colors.black,
+          width: AppTheme.borderMedium,
+        ),
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: Colors.black,
+            offset: Offset(4, 4),
+            blurRadius: 0,
           ),
         ],
       ),
@@ -882,35 +900,44 @@ class _RequestCardState extends ConsumerState<_RequestCard>
                 // Profile section
                 Row(
                   children: [
-                    // Avatar with subtle border
+                    // Avatar with brutal gradient ring
                     Container(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.black.withOpacity(0.08),
-                          width: 2,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            AppTheme.primaryBlue,
+                            AppTheme.electricPurple,
+                          ],
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
+                            color: AppTheme.primaryBlue.withOpacity(0.4),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
                           ),
                         ],
                       ),
+                      padding: const EdgeInsets.all(3),
                       child: CircleAvatar(
                         radius: 28,
-                        backgroundColor: Colors.grey[200],
-                        backgroundImage: profile.avatarUrl != null
-                            ? NetworkImage(profile.avatarUrl!)
-                            : null,
-                        child: profile.avatarUrl == null
-                            ? HugeIcon(
-                                icon: HugeIcons.strokeRoundedUser,
-                                size: 28,
-                                color: Colors.grey[400],
-                              )
-                            : null,
+                        backgroundColor: Colors.white,
+                        child: CircleAvatar(
+                          radius: 26,
+                          backgroundColor: Colors.grey[200],
+                          backgroundImage: profile.avatarUrl != null
+                              ? NetworkImage(profile.avatarUrl!)
+                              : null,
+                          child: profile.avatarUrl == null
+                              ? HugeIcon(
+                                  icon: HugeIcons.strokeRoundedUser,
+                                  size: 28,
+                                  color: Colors.grey[400],
+                                )
+                              : null,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -985,16 +1012,30 @@ class _RequestCardState extends ConsumerState<_RequestCard>
       decoration: BoxDecoration(
         color: Colors.red[50],
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.red[200] ?? Colors.red, width: 1),
+        border: Border.all(
+          color: Colors.black,
+          width: AppTheme.borderMedium,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black,
+            offset: Offset(3, 3),
+            blurRadius: 0,
+          ),
+        ],
       ),
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          HugeIcon(icon: HugeIcons.strokeRoundedAlertSquare, color: Colors.red[400], size: 24),
+          HugeIcon(
+            icon: HugeIcons.strokeRoundedAlertSquare,
+            color: Colors.red[400],
+            size: 24,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Failed to load profile',
+              'Failed to load request sender',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.red[700],
@@ -1018,8 +1059,7 @@ class _FriendCard extends StatefulWidget {
   State<_FriendCard> createState() => _FriendCardState();
 }
 
-class _FriendCardState extends State<_FriendCard>
-    with SingleTickerProviderStateMixin {
+class _FriendCardState extends State<_FriendCard> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   bool _isHovered = false;
 
@@ -1055,7 +1095,10 @@ class _FriendCardState extends State<_FriendCard>
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Colors.white, Colors.grey[50] ?? Colors.white],
+                colors: [
+                  Colors.white,
+                  Colors.grey[50] ?? Colors.white,
+                ],
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
@@ -1126,7 +1169,10 @@ class _FriendCardState extends State<_FriendCard>
                           decoration: BoxDecoration(
                             color: AppTheme.vibrantGreen,
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 2,
+                            ),
                             boxShadow: [
                               BoxShadow(
                                 color: AppTheme.vibrantGreen.withOpacity(0.6),
@@ -1167,8 +1213,7 @@ class _FriendCardState extends State<_FriendCard>
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (widget.friend.bio != null &&
-                            widget.friend.bio!.isNotEmpty) ...[
+                        if (widget.friend.bio != null && widget.friend.bio!.isNotEmpty) ...[
                           const SizedBox(height: 6),
                           Text(
                             widget.friend.bio!,
@@ -1320,7 +1365,9 @@ class _ActionButtonState extends State<_ActionButton>
   @override
   Widget build(BuildContext context) {
     final isPrimary = widget.variant == 'primary';
-    final bgColor = isPrimary ? Colors.black87 : Colors.grey[200];
+    final bgColor = isPrimary
+        ? Colors.black87
+        : Colors.grey[200];
     final textColor = isPrimary ? Colors.white : Colors.black87;
 
     return GestureDetector(
@@ -1395,7 +1442,17 @@ class _RequestCardSkeleton extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.grey[100],
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey[200] ?? Colors.grey, width: 1),
+          border: Border.all(
+            color: Colors.black,
+            width: AppTheme.borderMedium,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black,
+              offset: Offset(4, 4),
+              blurRadius: 0,
+            ),
+          ],
         ),
         padding: const EdgeInsets.all(16),
         child: Column(

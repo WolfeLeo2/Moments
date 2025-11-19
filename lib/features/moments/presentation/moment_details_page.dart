@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:motor/motor.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -289,9 +290,10 @@ class _MomentDetailsPageState extends State<MomentDetailsPage>
                       child: Row(
                         children: [
                           IconButton(
-                            icon: const Icon(
-                              Icons.arrow_back,
-                              color: Colors.black,
+                            icon: SvgPicture.asset(
+                              'assets/icons/Left arrow.svg',
+                              width: 34,
+                              height: 34,
                             ),
                             onPressed: () => Navigator.pop(context),
                           ),

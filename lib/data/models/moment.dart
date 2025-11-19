@@ -14,6 +14,8 @@ class Moment extends Equatable {
   final String? userId;
   final String? description;
   final String? placeGroupId; // Reference to place group
+  final bool isLocked; // Prevents auto-contributions from friends
+  final bool isPrivate; // Completely private, only visible to owner
 
   const Moment({
     required this.id,
@@ -29,6 +31,8 @@ class Moment extends Equatable {
     this.userId,
     this.description,
     this.placeGroupId,
+    this.isLocked = false,
+    this.isPrivate = false,
   });
 
   factory Moment.fromJson(Map<String, dynamic> json) {
@@ -46,6 +50,8 @@ class Moment extends Equatable {
       userId: json['user_id'] as String?,
       description: json['description'] as String?,
       placeGroupId: json['place_group_id'] as String?,
+      isLocked: json['is_locked'] as bool? ?? false,
+      isPrivate: json['is_private'] as bool? ?? false,
     );
   }
 
@@ -64,6 +70,8 @@ class Moment extends Equatable {
       'user_id': userId,
       'description': description,
       'place_group_id': placeGroupId,
+      'is_locked': isLocked,
+      'is_private': isPrivate,
     };
   }
 
@@ -87,6 +95,8 @@ class Moment extends Equatable {
     String? userId,
     String? description,
     String? placeGroupId,
+    bool? isLocked,
+    bool? isPrivate,
   }) {
     return Moment(
       id: id ?? this.id,
@@ -102,6 +112,8 @@ class Moment extends Equatable {
       userId: userId ?? this.userId,
       description: description ?? this.description,
       placeGroupId: placeGroupId ?? this.placeGroupId,
+      isLocked: isLocked ?? this.isLocked,
+      isPrivate: isPrivate ?? this.isPrivate,
     );
   }
 
@@ -120,6 +132,8 @@ class Moment extends Equatable {
     userId,
     description,
     placeGroupId,
+    isLocked,
+    isPrivate,
   ];
 
   @override
