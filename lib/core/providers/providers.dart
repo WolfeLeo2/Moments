@@ -67,9 +67,12 @@ class AddFriendNotifier extends StateNotifier<AsyncValue<void>> {
 
   Future<void> sendFriendRequest(String inviteCode) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(
+    final result = await AsyncValue.guard(
       () => _socialRepo.sendFriendRequest(inviteCode),
     );
+    if (mounted) {
+      state = result;
+    }
   }
 }
 

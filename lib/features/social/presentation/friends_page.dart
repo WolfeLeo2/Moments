@@ -10,6 +10,7 @@ import '../../../data/models/friendship.dart';
 import '../../../data/models/profile.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
 /// Page for managing friends and friend requests
 class FriendsPage extends ConsumerStatefulWidget {
   const FriendsPage({super.key});
@@ -65,7 +66,9 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
 
   Future<void> _acceptRequest(String friendshipId) async {
     try {
-      await ref.read(friendRequestProvider.notifier).acceptRequest(friendshipId);
+      await ref
+          .read(friendRequestProvider.notifier)
+          .acceptRequest(friendshipId);
       if (mounted) {
         context.showSuccessSnackBar('Friend request accepted!');
         invalidateFriendsCache(ref);
@@ -79,7 +82,9 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
 
   Future<void> _rejectRequest(String friendshipId) async {
     try {
-      await ref.read(friendRequestProvider.notifier).rejectRequest(friendshipId);
+      await ref
+          .read(friendRequestProvider.notifier)
+          .rejectRequest(friendshipId);
       if (mounted) {
         context.showSuccessSnackBar('Friend request rejected');
         invalidateFriendsCache(ref);
@@ -120,7 +125,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
               color: AppTheme.backgroundBeige,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: Colors.black, width: 3),
-              ),
+            ),
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewInsets.bottom + 24,
               left: 24,
@@ -128,259 +133,272 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
               top: 8,
             ),
             child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Handle bar
-                Center(
-                  child: Container(
-                    width: 48,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(3),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Handle bar
+                  Center(
+                    child: Container(
+                      width: 48,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-                // Title
-                const Text(
-                  'Invite Friends',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.black87,
-                    letterSpacing: -0.5,
+                  // Title
+                  const Text(
+                    'Invite Friends',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black87,
+                      letterSpacing: -0.5,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Share your code to connect',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[600],
+                  const SizedBox(height: 8),
+                  Text(
+                    'Share your code to connect',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[600],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
-                // Invite code card
-                
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.black, width: 3),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black,
-                        offset: Offset(4, 4),
-                        blurRadius: 0,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'YOUR CODE',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey[600],
-                          letterSpacing: 1.5,
+                  // Invite code card
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.black, width: 3),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black,
+                          offset: Offset(4, 4),
+                          blurRadius: 0,
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        inviteCode,
-                        style: const TextStyle(
-                          fontSize: 42,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 8,
-                          fontFamily: 'monospace',
-                          color: AppTheme.primaryBlue,
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                ),
-                const SizedBox(height: 20),
-
-                // Action buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => _copyInviteCode(inviteCode),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.black, width: 2.5),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black,
-                                offset: Offset(3, 3),
-                                blurRadius: 0,
-                              ),
-                            ],
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          'YOUR CODE',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey[600],
+                            letterSpacing: 1.5,
                           ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              HugeIcon(
-                                icon: HugeIcons.strokeRoundedCopy01,
-                                size: 20,
-                                color: Colors.black87,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          inviteCode,
+                          style: const TextStyle(
+                            fontSize: 42,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 8,
+                            fontFamily: 'monospace',
+                            color: AppTheme.primaryBlue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => _copyInviteCode(inviteCode),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.black,
+                                width: 2.5,
                               ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Copy',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black,
+                                  offset: Offset(3, 3),
+                                  blurRadius: 0,
+                                ),
+                              ],
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                HugeIcon(
+                                  icon: HugeIcons.strokeRoundedCopy01,
+                                  size: 20,
                                   color: Colors.black87,
                                 ),
-                              ),
-                            ],
+                                SizedBox(width: 8),
+                                Text(
+                                  'Copy',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => _shareInviteCode(inviteCode),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryBlue,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.black, width: 2.5),
-                            boxShadow: const [
-                              BoxShadow(
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => _shareInviteCode(inviteCode),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryBlue,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
                                 color: Colors.black,
-                                offset: Offset(3, 3),
-                                blurRadius: 0,
+                                width: 2.5,
                               ),
-                            ],
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              HugeIcon(
-                                icon: HugeIcons.strokeRoundedShare01,
-                                size: 20,
-                                color: Colors.white,
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Share',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black,
+                                  offset: Offset(3, 3),
+                                  blurRadius: 0,
+                                ),
+                              ],
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                HugeIcon(
+                                  icon: HugeIcons.strokeRoundedShare01,
+                                  size: 20,
                                   color: Colors.white,
                                 ),
-                              ),
-                            ],
+                                SizedBox(width: 8),
+                                Text(
+                                  'Share',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Divider
-            Container(
-              height: 2,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(1),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Add friend section
-            Text(
-              'Add a Friend',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey[700],
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _inviteCodeController,
-              textCapitalization: TextCapitalization.characters,
-              maxLength: 6,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 4,
-              ),
-              decoration: InputDecoration(
-                hintText: 'ENTER CODE',
-                hintStyle: TextStyle(color: Colors.grey[400], letterSpacing: 2),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.black, width: 2.5),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.black, width: 2.5),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                    color: AppTheme.primaryBlue,
-                    width: 3,
+                    ],
                   ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 18,
-                ),
-                suffixIcon: IconButton(
-                  icon: Container(
-                    padding: const EdgeInsets.all(8),
+                  const SizedBox(height: 24),
+
+                  // Divider
+                  Container(
+                    height: 2,
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryBlue,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const HugeIcon(
-                      icon: HugeIcons.strokeRoundedArrowRight02,
-                      color: Colors.white,
-                      size: 20,
+                      color: Colors.black.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(1),
                     ),
                   ),
-                  onPressed: () {
-                    _sendFriendRequest();
-                    Navigator.pop(context);
-                  },
-                ),
+                  const SizedBox(height: 24),
+
+                  // Add friend section
+                  Text(
+                    'Add a Friend',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey[700],
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _inviteCodeController,
+                    textCapitalization: TextCapitalization.characters,
+                    maxLength: 6,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 4,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'ENTER CODE',
+                      hintStyle: TextStyle(
+                        color: Colors.grey[400],
+                        letterSpacing: 2,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Colors.black,
+                          width: 2.5,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Colors.black,
+                          width: 2.5,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppTheme.primaryBlue,
+                          width: 3,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 18,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryBlue,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const HugeIcon(
+                            icon: HugeIcons.strokeRoundedArrowRight02,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        onPressed: () {
+                          _sendFriendRequest();
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ),
+                    onSubmitted: (_) {
+                      _sendFriendRequest();
+                      Navigator.pop(context);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                ],
               ),
-              onSubmitted: (_) {
-                _sendFriendRequest();
-                Navigator.pop(context);
-              },
             ),
-            const SizedBox(height: 8),
-          ],
+          ),
         ),
       ),
-      ),
-      )
-      )
     );
   }
 
@@ -647,10 +665,10 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: Colors.red.withOpacity(0.3),
+                    color: Colors.red.withValues(alpha: 0.3),
                     width: 2,
                   ),
                 ),
@@ -673,10 +691,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
               Text(
                 error.toString().replaceAll('Exception: ', ''),
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
               ),
             ],
           ),
@@ -845,14 +860,17 @@ class _RequestCardState extends ConsumerState<_RequestCard>
     );
 
     return ScaleTransition(
-      scale: Tween<double>(begin: 1.0, end: 0.95).animate(
-        CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-      ),
+      scale: Tween<double>(
+        begin: 1.0,
+        end: 0.95,
+      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
       child: FadeTransition(
         opacity: _fadeAnimation,
         child: SlideTransition(
           position: Tween<Offset>(begin: Offset.zero, end: const Offset(0, 0.5))
-              .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
+              .animate(
+                CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+              ),
           child: Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: profileAsync.when(
@@ -876,16 +894,9 @@ class _RequestCardState extends ConsumerState<_RequestCard>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.black,
-          width: AppTheme.borderMedium,
-        ),
+        border: Border.all(color: Colors.black, width: AppTheme.borderMedium),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black,
-            offset: Offset(4, 4),
-            blurRadius: 0,
-          ),
+          BoxShadow(color: Colors.black, offset: Offset(4, 4), blurRadius: 0),
         ],
       ),
       child: Material(
@@ -914,7 +925,7 @@ class _RequestCardState extends ConsumerState<_RequestCard>
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.primaryBlue.withOpacity(0.4),
+                            color: AppTheme.primaryBlue.withValues(alpha: 0.4),
                             blurRadius: 16,
                             offset: const Offset(0, 4),
                           ),
@@ -1012,16 +1023,9 @@ class _RequestCardState extends ConsumerState<_RequestCard>
       decoration: BoxDecoration(
         color: Colors.red[50],
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.black,
-          width: AppTheme.borderMedium,
-        ),
+        border: Border.all(color: Colors.black, width: AppTheme.borderMedium),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black,
-            offset: Offset(3, 3),
-            blurRadius: 0,
-          ),
+          BoxShadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
         ],
       ),
       padding: const EdgeInsets.all(16),
@@ -1059,7 +1063,8 @@ class _FriendCard extends StatefulWidget {
   State<_FriendCard> createState() => _FriendCardState();
 }
 
-class _FriendCardState extends State<_FriendCard> with SingleTickerProviderStateMixin {
+class _FriendCardState extends State<_FriendCard>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   bool _isHovered = false;
 
@@ -1095,10 +1100,7 @@ class _FriendCardState extends State<_FriendCard> with SingleTickerProviderState
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Colors.white,
-                  Colors.grey[50] ?? Colors.white,
-                ],
+                colors: [Colors.white, Colors.grey[50] ?? Colors.white],
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
@@ -1133,7 +1135,9 @@ class _FriendCardState extends State<_FriendCard> with SingleTickerProviderState
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: AppTheme.primaryBlue.withOpacity(0.4),
+                              color: AppTheme.primaryBlue.withValues(
+                                alpha: 0.4,
+                              ),
                               blurRadius: 16,
                               offset: const Offset(0, 4),
                             ),
@@ -1169,13 +1173,12 @@ class _FriendCardState extends State<_FriendCard> with SingleTickerProviderState
                           decoration: BoxDecoration(
                             color: AppTheme.vibrantGreen,
                             shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-                              width: 2,
-                            ),
+                            border: Border.all(color: Colors.white, width: 2),
                             boxShadow: [
                               BoxShadow(
-                                color: AppTheme.vibrantGreen.withOpacity(0.6),
+                                color: AppTheme.vibrantGreen.withValues(
+                                  alpha: 0.6,
+                                ),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
@@ -1213,7 +1216,8 @@ class _FriendCardState extends State<_FriendCard> with SingleTickerProviderState
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (widget.friend.bio != null && widget.friend.bio!.isNotEmpty) ...[
+                        if (widget.friend.bio != null &&
+                            widget.friend.bio!.isNotEmpty) ...[
                           const SizedBox(height: 6),
                           Text(
                             widget.friend.bio!,
@@ -1233,10 +1237,10 @@ class _FriendCardState extends State<_FriendCard> with SingleTickerProviderState
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryBlue.withOpacity(0.1),
+                      color: AppTheme.primaryBlue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: AppTheme.primaryBlue.withOpacity(0.3),
+                        color: AppTheme.primaryBlue.withValues(alpha: 0.3),
                         width: 1.5,
                       ),
                     ),
@@ -1365,9 +1369,7 @@ class _ActionButtonState extends State<_ActionButton>
   @override
   Widget build(BuildContext context) {
     final isPrimary = widget.variant == 'primary';
-    final bgColor = isPrimary
-        ? Colors.black87
-        : Colors.grey[200];
+    final bgColor = isPrimary ? Colors.black87 : Colors.grey[200];
     final textColor = isPrimary ? Colors.white : Colors.black87;
 
     return GestureDetector(
@@ -1385,12 +1387,12 @@ class _ActionButtonState extends State<_ActionButton>
               color: bgColor,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha: 0.08),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withValues(alpha: 0.08),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -1442,16 +1444,9 @@ class _RequestCardSkeleton extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.grey[100],
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.black,
-            width: AppTheme.borderMedium,
-          ),
+          border: Border.all(color: Colors.black, width: AppTheme.borderMedium),
           boxShadow: const [
-            BoxShadow(
-              color: Colors.black,
-              offset: Offset(4, 4),
-              blurRadius: 0,
-            ),
+            BoxShadow(color: Colors.black, offset: Offset(4, 4), blurRadius: 0),
           ],
         ),
         padding: const EdgeInsets.all(16),

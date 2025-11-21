@@ -13,7 +13,7 @@ class Moment extends Equatable {
   final DateTime timestamp;
   final String? userId;
   final String? description;
-  final String? placeGroupId; // Reference to place group
+  final String? momentGroupId; // Reference to moment group
   final bool isLocked; // Prevents auto-contributions from friends
   final bool isPrivate; // Completely private, only visible to owner
 
@@ -30,7 +30,7 @@ class Moment extends Equatable {
     required this.timestamp,
     this.userId,
     this.description,
-    this.placeGroupId,
+    this.momentGroupId,
     this.isLocked = false,
     this.isPrivate = false,
   });
@@ -49,7 +49,7 @@ class Moment extends Equatable {
       timestamp: DateTime.parse(json['timestamp'] as String),
       userId: json['user_id'] as String?,
       description: json['description'] as String?,
-      placeGroupId: json['place_group_id'] as String?,
+      momentGroupId: json['moment_group_id'] as String?,
       isLocked: json['is_locked'] as bool? ?? false,
       isPrivate: json['is_private'] as bool? ?? false,
     );
@@ -69,7 +69,7 @@ class Moment extends Equatable {
       'timestamp': timestamp.toIso8601String(),
       'user_id': userId,
       'description': description,
-      'place_group_id': placeGroupId,
+      'moment_group_id': momentGroupId,
       'is_locked': isLocked,
       'is_private': isPrivate,
     };
@@ -94,7 +94,7 @@ class Moment extends Equatable {
     DateTime? timestamp,
     String? userId,
     String? description,
-    String? placeGroupId,
+    String? momentGroupId,
     bool? isLocked,
     bool? isPrivate,
   }) {
@@ -111,7 +111,7 @@ class Moment extends Equatable {
       timestamp: timestamp ?? this.timestamp,
       userId: userId ?? this.userId,
       description: description ?? this.description,
-      placeGroupId: placeGroupId ?? this.placeGroupId,
+      momentGroupId: momentGroupId ?? this.momentGroupId,
       isLocked: isLocked ?? this.isLocked,
       isPrivate: isPrivate ?? this.isPrivate,
     );
@@ -131,7 +131,7 @@ class Moment extends Equatable {
     timestamp,
     userId,
     description,
-    placeGroupId,
+    momentGroupId,
     isLocked,
     isPrivate,
   ];

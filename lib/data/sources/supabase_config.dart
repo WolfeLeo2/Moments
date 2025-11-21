@@ -13,12 +13,15 @@ class SupabaseConfig {
     final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
 
     if (supabaseUrl == null || supabaseAnonKey == null) {
-      throw Exception('Supabase URL and Anon Key must be provided in .env file');
+      throw Exception(
+        'Supabase URL and Anon Key must be provided in .env file',
+      );
     }
 
     await Supabase.initialize(
       url: supabaseUrl,
       anonKey: supabaseAnonKey,
+      authOptions: const FlutterAuthClientOptions(autoRefreshToken: true),
       debug: false,
     );
 
@@ -29,7 +32,8 @@ class SupabaseConfig {
   static String get momentsBucketName => 'moments';
 
   // Helper methods
-  static SupabaseQueryBuilder get momentsTable => _client.from(momentsTableName);
+  static SupabaseQueryBuilder get momentsTable =>
+      _client.from(momentsTableName);
   static SupabaseStorageClient get storage => _client.storage;
   static StorageFileApi get momentsBucket => storage.from(momentsBucketName);
 }

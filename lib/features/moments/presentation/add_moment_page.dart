@@ -1,12 +1,16 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:moments/core/utils/extensions.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/constants.dart';
-import '../../../core/services/auth_service.dart';
 import '../../../widgets/spring_button.dart';
 import '../providers/add_moment_notifier.dart';
 import '../providers/add_moment_state.dart';
+import 'package:carousel_slider/carousel_slider.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class AddMomentPage extends ConsumerStatefulWidget {
   final double? initialLatitude;
@@ -29,8 +33,6 @@ class AddMomentPage extends ConsumerStatefulWidget {
 class _AddMomentPageState extends ConsumerState<AddMomentPage> {
   final _titleController = TextEditingController();
   final _captionController = TextEditingController();
-  final AuthService _authService = AuthService();
-  int _currentImageIndex = 0;
 
   @override
   void initState() {
@@ -81,66 +83,420 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
       }
     });
 
+    // Listen for group selection to update title
+    ref.listen<AddMomentState>(addMomentProvider, (previous, next) {
+      if (next.selectedGroupId != previous?.selectedGroupId) {
+        if (next.selectedGroupId != null) {
+          final group = next.nearbyGroups.firstWhere(
+            (g) => g.id == next.selectedGroupId,
+            orElse: () => next.nearbyGroups.first,
+          );
+          _titleController.text = group.title;
+        }
+      }
+    });
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundBeige,
       appBar: AppBar(
         backgroundColor: AppTheme.backgroundBeige,
         elevation: 0,
+        scrolledUnderElevation: 0.5,
+        centerTitle: false,
         leading: IconButton(
           onPressed: state.status == AddMomentStatus.loading
               ? null
               : () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: SvgPicture.asset(
+            'assets/icons/Left arrow.svg',
+            width: 34,
+            height: 34,
+          ),
         ),
-        title: TextField(
-          controller: _titleController,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
+        title: Text(
+          'NEW MOMENT',
+          style: GoogleFonts.bebasNeue(
+            fontSize: 24,
+            fontWeight: FontWeight.w600,
             color: Colors.black,
-            letterSpacing: 1.5,
+            letterSpacing: 1.2,
           ),
-          decoration: const InputDecoration(
-            hintText: 'Add a title ie SUNSET COVE',
-            hintStyle: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-              color: Colors.black38,
-              letterSpacing: 1.5,
-            ),
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.zero,
-          ),
-          maxLines: 1,
         ),
-        centerTitle: false,
         actions: [
-          if (_authService.currentUserPhotoUrl != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.black, width: 2),
-                      image: DecorationImage(
-                        image: NetworkImage(_authService.currentUserPhotoUrl!),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+          if (state.status == AddMomentStatus.loading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.only(right: 16),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.black,
                   ),
-                ],
+                ),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: TextButton(
+                onPressed: state.imageFiles.isEmpty
+                    ? null
+                    : _handleCreateMoment,
+                child: Text(
+                  'POST',
+                  style: GoogleFonts.bebasNeue(
+                    fontSize: 24,
+                    color: state.imageFiles.isEmpty
+                        ? AppTheme.textGray
+                        : AppTheme.primaryBlue,
+                    letterSpacing: 1.2,
+                  ),
+                ),
               ),
             ),
         ],
       ),
       body: state.imageFiles.isEmpty
           ? _buildEmptyState(state)
-          : _buildImagePreview(state),
-      bottomNavigationBar: _buildBottomBar(state),
+          : SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 16),
+                  // Title Input
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: TextField(
+                      controller: _titleController,
+                      onChanged: (value) {
+                        if (state.selectedGroupId != null) {
+                          final group = state.nearbyGroups.firstWhere(
+                            (g) => g.id == state.selectedGroupId,
+                          );
+                          if (group.title != value) {
+                            ref
+                                .read(addMomentProvider.notifier)
+                                .selectGroup(null);
+                          }
+                        }
+                      },
+                      style: GoogleFonts.bebasNeue(
+                        fontSize: 48,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black,
+                        letterSpacing: 1.5,
+                        height: 1.0,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'GIVE IT A TITLE',
+                        hintStyle: GoogleFonts.bebasNeue(
+                          fontSize: 48,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black12,
+                          letterSpacing: 1.5,
+                          height: 1.0,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      maxLines: null,
+                      textCapitalization: TextCapitalization.sentences,
+                    ),
+                  ),
+
+                  // Album Selection (Moved here)
+                  if (state.nearbyGroups.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        'OR ADD TO EXISTING MOMENT:',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black54,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      height: 40,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: state.nearbyGroups.length,
+                        itemBuilder: (context, index) {
+                          final group = state.nearbyGroups[index];
+                          final isSelected = group.id == state.selectedGroupId;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 3),
+                            child: GestureDetector(
+                              onTap: () => ref
+                                  .read(addMomentProvider.notifier)
+                                  .selectGroup(group.id),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? Colors.black
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(
+                                    AppTheme.radiusSmall,
+                                  ),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? AppTheme.borderBlack
+                                        : Colors.black12,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Text(
+                                  group.title,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Location
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      children: [
+                        HugeIcon(
+                          icon: HugeIcons.strokeRoundedLocation03,
+                          size: 16,
+                          color: AppTheme.primaryBlue,
+                        ),
+                        const SizedBox(width: 4),
+                        if (state.isGettingLocation)
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 1),
+                          )
+                        else
+                          Text(
+                            state.locationName?.toUpperCase() ?? 'LOCATING...',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.primaryBlue,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Carousel
+                  _buildCarousel(state),
+
+                  const SizedBox(height: 32),
+
+                  // Caption
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'CAPTION',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black54,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.black12),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          child: TextField(
+                            controller: _captionController,
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.black,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'What\'s happening?',
+                              hintStyle: TextStyle(color: Colors.black26),
+                              border: InputBorder.none,
+                            ),
+                            maxLines: 3,
+                            minLines: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  const SizedBox(height: 48), // Bottom padding
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildCarousel(AddMomentState state) {
+    // Add +1 for the "Add Media" card
+    final itemCount = state.imageFiles.length + 1;
+
+    return CarouselSlider.builder(
+      itemCount: itemCount,
+      options: CarouselOptions(
+        height: 400,
+        viewportFraction: 0.75,
+        enlargeCenterPage: true,
+        enlargeFactor: 0.25,
+        enableInfiniteScroll: false,
+      ),
+      itemBuilder: (context, index, realIndex) {
+        // "Add Media" Card
+        if (index == state.imageFiles.length) {
+          return GestureDetector(
+            onTap: () => ref.read(addMomentProvider.notifier).pickImages(),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+              decoration: ShapeDecoration(
+                color: Colors.white,
+                shape: RoundedSuperellipseBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+                  side: const BorderSide(color: Colors.black12, width: 2),
+                ),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.backgroundBeige,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedAdd01,
+                        size: 32,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'ADD PHOTO',
+                      style: GoogleFonts.bebasNeue(
+                        fontSize: 24,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        // Image Card
+        final file = state.imageFiles[index];
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          decoration: ShapeDecoration(
+            color: Colors.white,
+            shape: RoundedSuperellipseBorder(
+              borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+              side: const BorderSide(color: Colors.black, width: 2),
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppTheme.radiusLarge - 2),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.file(File(file.path), fit: BoxFit.cover),
+                // Delete Button
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: GestureDetector(
+                    onTap: () =>
+                        ref.read(addMomentProvider.notifier).removeImage(index),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1),
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                // Index Indicator
+                Positioned(
+                  bottom: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${index + 1}/${state.imageFiles.length}',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -149,21 +505,39 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.add_photo_alternate_outlined,
-            size: 100,
-            color: Colors.black26,
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Add photos to create a moment',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.black54,
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Colors.black, width: 2),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: AppTheme.brutalShadow,
+            ),
+            child: const Icon(
+              Icons.add_a_photo_outlined,
+              size: 48,
+              color: Colors.black,
             ),
           ),
           const SizedBox(height: 32),
+          Text(
+            'CAPTURE THE MOMENT',
+            style: GoogleFonts.bebasNeue(
+              fontSize: 32,
+              color: Colors.black,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Share your world with friends',
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              color: Colors.black54,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 48),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -176,33 +550,30 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                   ),
                   decoration: BoxDecoration(
                     color: AppTheme.primaryBlue,
-                    border: Border.all(color: Colors.black, width: 2.5),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black,
-                        offset: Offset(4, 4),
-                        blurRadius: 0,
-                      ),
-                    ],
+                    border: Border.all(color: Colors.black, width: 2),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: AppTheme.buttonShadow,
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.camera_alt, color: Colors.white),
-                      SizedBox(width: 8),
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedCamera01,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 8),
                       Text(
-                        'Camera',
-                        style: TextStyle(
+                        'CAMERA',
+                        style: GoogleFonts.bebasNeue(
                           color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
+                          fontSize: 20,
+                          letterSpacing: 1.0,
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 20),
               SpringButton(
                 onTap: () => ref.read(addMomentProvider.notifier).pickImages(),
                 child: Container(
@@ -212,26 +583,23 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                   ),
                   decoration: BoxDecoration(
                     color: AppTheme.brightYellow,
-                    border: Border.all(color: Colors.black, width: 2.5),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black,
-                        offset: Offset(4, 4),
-                        blurRadius: 0,
-                      ),
-                    ],
+                    border: Border.all(color: Colors.black, width: 2),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: AppTheme.buttonShadow,
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.photo_library, color: Colors.black),
-                      SizedBox(width: 8),
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedImage02,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 8),
                       Text(
-                        'Gallery',
-                        style: TextStyle(
+                        'GALLERY',
+                        style: GoogleFonts.bebasNeue(
                           color: Colors.black,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
+                          fontSize: 20,
+                          letterSpacing: 1.0,
                         ),
                       ),
                     ],
@@ -239,246 +607,6 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                 ),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildImagePreview(AddMomentState state) {
-    return Column(
-      children: [
-        Expanded(
-          child: PageView.builder(
-            itemCount: state.imageFiles.length,
-            onPageChanged: (index) {
-              setState(() => _currentImageIndex = index);
-            },
-            itemBuilder: (context, index) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                child: Stack(
-                  children: [
-                    Center(
-                      child: Container(
-                        width: double.infinity,
-                        constraints: const BoxConstraints(maxWidth: 400),
-                        child: AspectRatio(
-                          aspectRatio: 3 / 4,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              border: Border.all(color: Colors.black, width: 1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                state.imageFiles[index],
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: GestureDetector(
-                        onTap: () => ref
-                            .read(addMomentProvider.notifier)
-                            .removeImage(index),
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.black, width: 1),
-                          ),
-                          child: const Icon(
-                            Icons.close,
-                            color: Colors.black,
-                            size: 18,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          child: TextField(
-            controller: _captionController,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-            decoration: const InputDecoration(
-              hintText: 'Add caption...',
-              hintStyle: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.black38,
-              ),
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.zero,
-            ),
-            maxLines: 1,
-          ),
-        ),
-        if (state.imageFiles.length > 1)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                state.imageFiles.length,
-                (index) => Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: index == _currentImageIndex ? 24 : 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: index == _currentImageIndex
-                        ? AppTheme.primaryBlue
-                        : Colors.black26,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: Colors.black,
-                      width: index == _currentImageIndex ? 1.5 : 1,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildBottomBar(AddMomentState state) {
-    return Container(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        bottom: MediaQuery.of(context).padding.bottom + 16,
-        top: 16,
-      ),
-      decoration: BoxDecoration(
-        color: AppTheme.backgroundBeige,
-        border: const Border(top: BorderSide(color: Colors.black12, width: 1)),
-      ),
-      child: Row(
-        children: [
-          SpringButton(
-            onTap: () {
-              // TODO: Show emoji/sticker picker
-            },
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.black, width: 2),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black,
-                    offset: Offset(2, 2),
-                    blurRadius: 0,
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.emoji_emotions_outlined, size: 24),
-            ),
-          ),
-          const SizedBox(width: 12),
-          if (state.isGettingLocation)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.black,
-                ),
-              ),
-            )
-          else if (state.locationName != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.black, width: 2),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black,
-                    offset: Offset(2, 2),
-                    blurRadius: 0,
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.location_on, size: 16, color: Colors.black),
-                  const SizedBox(width: 4),
-                  Text(
-                    state.locationName!,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                      color: Colors.black,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const Spacer(),
-          SpringButton(
-            onTap: state.status == AddMomentStatus.loading
-                ? null
-                : _handleCreateMoment,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: BoxDecoration(
-                color: state.status == AddMomentStatus.loading
-                    ? Colors.grey
-                    : AppTheme.primaryBlue,
-                border: Border.all(color: Colors.black, width: 2.5),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black,
-                    offset: Offset(3, 3),
-                    blurRadius: 0,
-                  ),
-                ],
-              ),
-              child: Text(
-                state.status == AddMomentStatus.loading
-                    ? 'Posting...'
-                    : 'Preview',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 15,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
           ),
         ],
       ),

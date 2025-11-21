@@ -27,8 +27,18 @@ extension DateTimeExtensions on DateTime {
 
   String get fullDate {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[month - 1]} $day, $year';
   }
@@ -44,9 +54,11 @@ extension StringExtensions on String {
   String get titleCase {
     if (isEmpty) return this;
     return split(' ')
-        .map((word) => word.isEmpty
-            ? word
-            : '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}')
+        .map(
+          (word) => word.isEmpty
+              ? word
+              : '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}',
+        )
         .join(' ');
   }
 
@@ -68,7 +80,7 @@ extension ColorExtensions on Color {
   }
 
   Color withOpacityFactor(double factor) {
-    return withOpacity((opacity * factor).clamp(0.0, 1.0));
+    return withValues(alpha: (opacity * factor).clamp(0.0, 1.0));
   }
 }
 
@@ -80,15 +92,11 @@ extension WidgetExtensions on Widget {
 
   Widget get flexible => Flexible(child: this);
 
-  Widget padding(EdgeInsetsGeometry padding) => Padding(
-    padding: padding,
-    child: this,
-  );
+  Widget padding(EdgeInsetsGeometry padding) =>
+      Padding(padding: padding, child: this);
 
-  Widget paddingAll(double value) => Padding(
-    padding: EdgeInsets.all(value),
-    child: this,
-  );
+  Widget paddingAll(double value) =>
+      Padding(padding: EdgeInsets.all(value), child: this);
 
   Widget paddingSymmetric({double? horizontal, double? vertical}) => Padding(
     padding: EdgeInsets.symmetric(
@@ -117,24 +125,16 @@ extension WidgetExtensions on Widget {
 
   Widget withHero(String tag) => Hero(tag: tag, child: this);
 
-  Widget onTap(VoidCallback onTap) => GestureDetector(
-    onTap: onTap,
-    child: this,
-  );
+  Widget onTap(VoidCallback onTap) =>
+      GestureDetector(onTap: onTap, child: this);
 
-  Widget fadeIn({
-    Duration? duration,
-    Duration? delay,
-  }) => AnimatedOpacity(
+  Widget fadeIn({Duration? duration, Duration? delay}) => AnimatedOpacity(
     opacity: 1.0,
     duration: duration ?? const Duration(milliseconds: 300),
     child: this,
   );
 
-  Widget slideUp({
-    Duration? duration,
-    Duration? delay,
-  }) => AnimatedSlide(
+  Widget slideUp({Duration? duration, Duration? delay}) => AnimatedSlide(
     offset: Offset.zero,
     duration: duration ?? const Duration(milliseconds: 300),
     child: this,
@@ -175,9 +175,7 @@ extension BuildContextExtensions on BuildContext {
         content: Text(message),
         backgroundColor: backgroundColor,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }

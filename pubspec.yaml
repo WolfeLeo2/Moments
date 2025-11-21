@@ -41,7 +41,6 @@ dependencies:
   crypto: ^3.0.3
 
   # Maps & Location
-  mapbox_maps_flutter: ^2.12.0
   location: ^5.0.3
   geolocator: ^10.1.0
   geocoding: ^3.0.0
@@ -86,6 +85,7 @@ dependencies:
   avatar_stack: ^3.0.0
   flutter_map: ^8.2.2
   share_plus: ^10.1.2
+  flutter_image_compress: ^2.4.0
 
 dev_dependencies:
   flutter_test:
@@ -94,6 +94,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   riverpod_generator: ^2.3.14
   build_runner: ^2.4.11
+  mocktail: ^1.0.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

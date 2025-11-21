@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
+import '../../../core/theme/app_theme.dart';
 
 /// Modern glassmorphic app bar with avatar popup menu and notification bell
 class BlurredAppBar extends StatefulWidget implements PreferredSizeWidget {
@@ -34,7 +35,6 @@ class BlurredAppBar extends StatefulWidget implements PreferredSizeWidget {
 }
 
 class _BlurredAppBarState extends State<BlurredAppBar> {
-
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
@@ -46,14 +46,14 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Colors.white.withOpacity(0.85),
-                Colors.white.withOpacity(0.45),
+                AppTheme.backgroundBeige.withValues(alpha: 0.85),
+                AppTheme.backgroundBeige.withValues(alpha: 0.45),
               ],
             ),
             border: Border(
               bottom: BorderSide(
-                color: Colors.black.withOpacity(0.05),
-                width: 1,
+                color: Colors.black.withValues(alpha: 0.05),
+                width: 0.5,
               ),
             ),
           ),
@@ -64,121 +64,118 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
                 children: [
                   //Add Friends Button
                   Stack(
-                  children: [
-                    IconButton(
-                    onPressed: widget.onFriendsPressed,
-                    icon: const HugeIcon(
-                      icon: HugeIcons.strokeRoundedAddTeam,
-                      color: Colors.black,
-                      size: 30,
-                    ),
-                    tooltip: 'Add Friends',
-                    ),
-                  ],
+                    children: [
+                      IconButton(
+                        onPressed: widget.onFriendsPressed,
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedAddTeam,
+                          color: Colors.black,
+                          size: 30,
+                        ),
+                        tooltip: 'Add Friends',
+                      ),
+                    ],
                   ),
 
                   // Title (CENTERED)
                   Expanded(
-                  child: Center(
-                    child: Text(
-                    widget.title,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.black87,
-                      letterSpacing: 0.5,
-                    ),
+                    child: Center(
+                      child: Text(
+                        widget.title,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.black87,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
                     ),
                   ),
-                  ),
-                  
+
                   IconButton(
-                  onPressed: widget.onNotificationsPressed,
-                  icon: const HugeIcon(
-                    icon: HugeIcons.strokeRoundedNotification01,
-                    color: Colors.black87,
-                    size: 26,
-                  ),
+                    onPressed: widget.onNotificationsPressed,
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedNotification01,
+                      color: Colors.black87,
+                      size: 26,
+                    ),
                   ),
                   if (widget.notificationCount > 0)
-                  Positioned(
-                    right: 8,
-                    top: 8,
-                    child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                      BoxShadow(
-                        color: Colors.red.withOpacity(0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withValues(alpha: 0.4),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: Text(
+                          widget.notificationCount > 9
+                              ? '9+'
+                              : '${widget.notificationCount}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
-                      ],
                     ),
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
-                    child: Text(
-                      widget.notificationCount > 9
-                        ? '9+'
-                        : '${widget.notificationCount}',
-                      style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    ),
-                  ),
                   // Avatar (RIGHT)
                   GestureDetector(
-                  onTap: widget.onProfilePressed,
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.black,
-                      width: 2,
-                    ),
-                    ),
-                    child: widget.profileImageUrl != null
-                      ? ClipOval(
-                        child: CachedNetworkImage(
-                        imageUrl: widget.profileImageUrl!,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
-                          color: Colors.grey[300],
-                          child: HugeIcon(
-                          icon: HugeIcons.strokeRoundedUserMultiple,
-                          size: 20,
-                          color: Colors.grey[600],
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.grey[300],
-                          child: HugeIcon(
-                          icon: HugeIcons.strokeRoundedUser,
-                          size: 20,
-                          color: Colors.grey[600],
-                          ),
-                        ),
-                        ),
-                      )
-                      : Container(
-                        color: Colors.grey[200],
-                        child: HugeIcon(
-                        icon: HugeIcons.strokeRoundedUser,
-                        size: 24,
-                        color: Colors.grey[600],
-                        ),
+                    onTap: widget.onProfilePressed,
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.black, width: 2),
                       ),
-                  ),
+                      child: widget.profileImageUrl != null
+                          ? ClipOval(
+                              child: CachedNetworkImage(
+                                imageUrl: widget.profileImageUrl!,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Container(
+                                  color: Colors.grey[300],
+                                  child: HugeIcon(
+                                    icon: HugeIcons.strokeRoundedUserMultiple,
+                                    size: 20,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  color: Colors.grey[300],
+                                  child: HugeIcon(
+                                    icon: HugeIcons.strokeRoundedUser,
+                                    size: 20,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Container(
+                              color: Colors.grey[200],
+                              child: HugeIcon(
+                                icon: HugeIcons.strokeRoundedUser,
+                                size: 24,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                    ),
                   ),
                 ],
               ),

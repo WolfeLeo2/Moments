@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:avatar_stack/avatar_stack.dart';
+import 'package:moments/core/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:math' as math;
 import '../../../data/models/moment.dart';
 import '../../../core/services/signed_url_cache.dart';
@@ -49,7 +51,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
   Future<void> _loadImageUrls() async {
     final mediaPaths = widget.moments
-        .take(5) // Only load first 5
+        .take(4) // Only load first 5
         .map((m) => m.mediaPath)
         .where((path) => path != null && path.isNotEmpty)
         .cast<String>()
@@ -61,7 +63,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
     if (mounted) {
       setState(() {
-        for (var moment in widget.moments.take(5)) {
+        for (var moment in widget.moments.take(4)) {
           if (moment.mediaPath != null) {
             final url = urls[moment.mediaPath];
             if (url != null) {
@@ -247,16 +249,22 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
           border: Border.all(color: Colors.white, width: 6),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: 0.15),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMomentCard),
           child: imageUrl != null
-              ? CachedImage(imageUrl: imageUrl, fit: BoxFit.cover)
+              ? CachedImage(
+                  imageUrl: imageUrl,
+                  cacheKey:
+                      moment.mediaPath, // Use stable mediaPath as cache key
+                  fit: BoxFit.cover,
+                  memCacheHeight: 600,
+                )
               : Container(
                   color: Colors.grey[300],
                   child: const Center(
@@ -326,7 +334,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -338,7 +346,9 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
                 child: AvatarStack(
                   height: 32,
                   avatars: contributorsWithAvatars
-                      .map((id) => NetworkImage(_userAvatars[id]!))
+                      .map(
+                        (id) => CachedNetworkImageProvider(_userAvatars[id]!),
+                      )
                       .toList(),
                   borderColor: Colors.white,
                   borderWidth: 1,
@@ -356,7 +366,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),

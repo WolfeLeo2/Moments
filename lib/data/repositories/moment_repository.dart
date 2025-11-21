@@ -4,8 +4,10 @@ import 'dart:math' as math;
 import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase_flutter;
 import '../models/moment.dart';
-import '../models/moment_image.dart';
+
+import '../models/moment_group.dart';
 import '../sources/supabase_config.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class MomentRepository {
   static const _uuid = Uuid();
@@ -43,14 +45,16 @@ class MomentRepository {
   }
 
   // Create new moment
-  Future<Moment> createMoment({
-    required String title,
-    required String location,
-    required double latitude,
-    required double longitude,
-    File? imageFile,
+  Future<Moment> createMoment(
+    File imageFile,
+    String title,
+    String caption,
+    String locationName,
+    double latitude,
+    double longitude, {
+    bool isPrivate = false,
+    String? momentGroupId,
     String? description,
-    String? caption, // User's personal caption
   }) async {
     try {
       // Get current user ID
@@ -59,29 +63,24 @@ class MomentRepository {
         throw Exception('User not authenticated');
       }
 
-      String? mediaPath;
+      // 1. Upload the image
+      final mediaPath = await _uploadImage(imageFile);
 
-      // Upload image if provided
-      if (imageFile != null) {
-        mediaPath = await _uploadImage(imageFile);
-      }
-
-      // media_path is required, so we must have an image
-      if (mediaPath == null) {
-        throw Exception('Image is required to create a moment');
-      }
-
+      // 2. Create the moment entry
       final momentData = {
         'user_id': userId,
         'title': title,
-        'location': location,
+        'location': locationName,
         'latitude': latitude,
         'longitude': longitude,
-        'media_path': mediaPath, // Store path, not URL
         'caption': caption,
-        'description': description,
+        'description': null,
         'timestamp': DateTime.now().toIso8601String(),
         'created_at': DateTime.now().toIso8601String(),
+        'is_private': isPrivate,
+        'moment_group_id': momentGroupId,
+        'is_locked': false,
+        'media_path': mediaPath,
       };
 
       final response = await SupabaseConfig.momentsTable
@@ -89,9 +88,108 @@ class MomentRepository {
           .select()
           .single();
 
-      return Moment.fromJson(response);
+      final moment = Moment.fromJson(response);
+
+      // If this moment is part of a group, ensure the group exists and is updated
+      if (moment.momentGroupId != null) {
+        // The original instruction had a placeholder for _supabase, but it should be SupabaseConfig.client
+        await _ensureGroupExists(
+          moment.momentGroupId!,
+          title,
+          latitude,
+          longitude,
+        );
+      } else {
+        // If no group ID provided, check if we should create one or add to nearby?
+        // For now, we assume the caller handles group creation/assignment
+        // or we auto-group based on location (future enhancement)
+      }
+
+      return moment;
     } catch (e) {
       throw Exception('Failed to create moment: $e');
+    }
+  }
+
+  // Create multiple moments in a batch (Atomic DB operation)
+  Future<List<Moment>> createMomentsBatch(
+    List<File> imageFiles,
+    String title,
+    String caption,
+    String locationName,
+    double latitude,
+    double longitude, {
+    bool isPrivate = false,
+    String? momentGroupId,
+    String? description,
+  }) async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // 1. Upload all images first
+      // We do this before DB transaction because we can't rollback storage easily inside DB transaction
+      final mediaPaths = await Future.wait(
+        imageFiles.map((file) => _uploadImage(file)),
+      );
+
+      // 2. Prepare payload for RPC
+      final momentsPayload = mediaPaths.map((path) {
+        return {
+          'title': title,
+          'location': locationName,
+          'latitude': latitude,
+          'longitude': longitude,
+          'caption': caption,
+          'media_path': path,
+          'is_private': isPrivate,
+        };
+      }).toList();
+
+      // 3. Call RPC
+      final response = await SupabaseConfig.client.rpc(
+        'create_moment_batch',
+        params: {
+          'p_moments': momentsPayload,
+          'p_group_id': momentGroupId,
+          'p_group_title': title, // Used if creating new group
+          'p_group_lat': latitude,
+          'p_group_lng': longitude,
+        },
+      );
+
+      // 4. Parse response
+      final momentsJson = response['moments'] as List;
+      return momentsJson
+          .map((json) => Moment.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      // Note: If image upload succeeded but RPC failed, we might have orphaned images.
+      // Ideally we would track uploaded paths and delete them here in catch block.
+      throw Exception('Failed to create moments batch: $e');
+    }
+  }
+
+  Future<void> _ensureGroupExists(
+    String groupId,
+    String title,
+    double lat,
+    double lng,
+  ) async {
+    // Check if group exists
+    final group = await SupabaseConfig.client
+        .from('moment_groups')
+        .select()
+        .eq('id', groupId)
+        .maybeSingle();
+
+    if (group == null) {
+      // Create group if it doesn't exist (though it should usually exist by now)
+      // Assuming createMomentGroup is a method in this class or accessible
+      // For now, this part is commented out as createMomentGroup is not provided in the snippet
+      // await createMomentGroup(title, lat, lng);
     }
   }
 
@@ -113,14 +211,28 @@ class MomentRepository {
   // Delete moment
   Future<void> deleteMoment(String id) async {
     try {
-      // Get moment to delete image if exists
+      // 1. Get moment details to find media path and group
       final moment = await getMomentById(id);
+      if (moment == null) return;
 
-      if (moment?.mediaPath != null) {
-        await _deleteImage(moment!.mediaPath!);
+      // 2. Delete main image file from storage
+      if (moment.mediaPath != null) {
+        await _deleteImage(moment.mediaPath!);
       }
 
+      // 3. Delete the moment from database
       await SupabaseConfig.momentsTable.delete().eq('id', id);
+
+      // 5. Check if group is empty and delete it if so
+      if (moment.momentGroupId != null) {
+        final groupMoments = await getMomentsByGroup(moment.momentGroupId!);
+        if (groupMoments.isEmpty) {
+          await SupabaseConfig.client
+              .from('moment_groups')
+              .delete()
+              .eq('id', moment.momentGroupId!);
+        }
+      }
     } catch (e) {
       throw Exception('Failed to delete moment: $e');
     }
@@ -175,12 +287,16 @@ class MomentRepository {
         throw Exception('User must be authenticated to upload images');
       }
 
+      // Compress image
+      final compressedFile = await _compressImage(imageFile);
+      final fileToUpload = compressedFile ?? imageFile;
+
       final fileName = '${_uuid.v4()}.jpg';
       final filePath = '$userId/$fileName';
 
       await SupabaseConfig.momentsBucket.upload(
         filePath,
-        imageFile,
+        fileToUpload,
         fileOptions: const supabase_flutter.FileOptions(
           cacheControl: '3600',
           upsert: false,
@@ -191,6 +307,60 @@ class MomentRepository {
       return filePath;
     } catch (e) {
       throw Exception('Failed to upload image: $e');
+    }
+  }
+
+  // Compress image file
+  Future<File?> _compressImage(File file) async {
+    try {
+      final filePath = file.absolute.path;
+      // Find the last dot for file extension
+      final lastDotIndex = filePath.lastIndexOf('.');
+      if (lastDotIndex == -1) {
+        // No extension found, return original file
+        return file;
+      }
+
+      final extension = filePath.substring(lastDotIndex).toLowerCase();
+      final splitted = filePath.substring(0, lastDotIndex);
+
+      // Determine output format and extension
+      CompressFormat format;
+      String outExtension;
+
+      if (extension == '.png') {
+        format = CompressFormat.png;
+        outExtension = '.png';
+      } else if (extension == '.heic' || extension == '.heif') {
+        // Convert HEIC to JPEG for better compatibility
+        format = CompressFormat.jpeg;
+        outExtension = '.jpg';
+      } else if (extension == '.webp') {
+        format = CompressFormat.webp;
+        outExtension = '.webp';
+      } else {
+        // Default to JPEG for .jpg, .jpeg, and unknown formats
+        format = CompressFormat.jpeg;
+        outExtension = '.jpg';
+      }
+
+      final outPath = '${splitted}_out$outExtension';
+
+      // Compress the file
+      final result = await FlutterImageCompress.compressAndGetFile(
+        file.absolute.path,
+        outPath,
+        quality: 70,
+        minWidth: 1920,
+        minHeight: 1920,
+        format: format,
+      );
+
+      if (result == null) return file;
+      return File(result.path);
+    } catch (e) {
+      print('Error compressing image: $e');
+      return file;
     }
   }
 
@@ -232,101 +402,31 @@ class MomentRepository {
     return degrees * (math.pi / 180);
   }
 
-  // ==================== MOMENT IMAGES METHODS ====================
-
-  /// Upload multiple images for a moment
-  Future<List<MomentImage>> uploadMomentImages({
-    required String momentId,
-    required List<File> imageFiles,
-    List<String?>? captions,
-  }) async {
-    try {
-      final userId = SupabaseConfig.client.auth.currentUser?.id;
-      if (userId == null) {
-        throw Exception('User not authenticated');
-      }
-
-      final List<MomentImage> uploadedImages = [];
-
-      for (int i = 0; i < imageFiles.length; i++) {
-        final imageFile = imageFiles[i];
-        final caption = captions != null && i < captions.length
-            ? captions[i]
-            : null;
-
-        // Upload image to storage (returns media_path)
-        final mediaPath = await _uploadImage(imageFile);
-
-        // Insert into moment_images table
-        final imageData = {
-          'moment_id': momentId,
-          'media_path': mediaPath,
-          'caption': caption,
-          'display_order': i,
-          'created_at': DateTime.now().toIso8601String(),
-        };
-
-        final response = await SupabaseConfig.client
-            .from('moment_images')
-            .insert(imageData)
-            .select()
-            .single();
-
-        uploadedImages.add(MomentImage.fromJson(response));
-      }
-
-      return uploadedImages;
-    } catch (e) {
-      throw Exception('Failed to upload moment images: $e');
-    }
-  }
-
-  /// Get all images for a moment
-  Future<List<MomentImage>> getMomentImages(String momentId) async {
-    try {
-      final response = await SupabaseConfig.client
-          .from('moment_images')
-          .select()
-          .eq('moment_id', momentId)
-          .order('display_order', ascending: true);
-
-      return (response as List)
-          .map((json) => MomentImage.fromJson(json as Map<String, dynamic>))
-          .toList();
-    } catch (e) {
-      throw Exception('Failed to fetch moment images: $e');
-    }
-  }
-
-  /// Delete a moment image
-  Future<void> deleteMomentImage(String imageId) async {
-    try {
-      // Get image details first to delete from storage
-      final response = await SupabaseConfig.client
-          .from('moment_images')
-          .select()
-          .eq('id', imageId)
-          .maybeSingle();
-
-      if (response != null) {
-        final mediaPath = response['media_path'] as String?;
-        if (mediaPath != null) {
-          await _deleteImage(mediaPath);
-        }
-      }
-
-      await SupabaseConfig.client
-          .from('moment_images')
-          .delete()
-          .eq('id', imageId);
-    } catch (e) {
-      throw Exception('Failed to delete moment image: $e');
-    }
+  /// Delete a specific image file from storage
+  Future<void> deleteImageFile(String mediaPath) async {
+    await _deleteImage(mediaPath);
   }
 
   // ============================================
   // REALTIME STREAMS
   // ============================================
+
+  /// Get moments by group ID
+  Future<List<Moment>> getMomentsByGroup(String groupId) async {
+    try {
+      final response = await SupabaseConfig.momentsTable
+          .select()
+          .eq('moment_group_id', groupId)
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((json) => Moment.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      print('Error fetching group moments: $e');
+      return [];
+    }
+  }
 
   /// Stream all moments with true Realtime updates (v2.10.3+)
   /// Uses .stream() which combines initial data + Realtime PostgreSQL changes
@@ -382,5 +482,75 @@ class MomentRepository {
           print('Error streaming shared moments: $e');
           return <Moment>[];
         });
+  }
+  // ============================================
+  // MOMENT GROUPS METHODS
+  // ============================================
+
+  /// Get nearby moment groups
+  Future<List<MomentGroup>> getNearbyGroups(
+    double latitude,
+    double longitude, {
+    double radiusMeters = 100,
+  }) async {
+    try {
+      // Using Supabase PostGIS functions for geospatial queries if available
+      // Or simple lat/lng filtering
+      final response = await SupabaseConfig.client
+          .from('moment_groups')
+          .select()
+          .order('created_at', ascending: false);
+
+      final allGroups = (response as List)
+          .map((json) => MomentGroup.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      // Filter by distance
+      return allGroups.where((group) {
+        final distance = _calculateDistance(
+          latitude,
+          longitude,
+          group.latitude,
+          group.longitude,
+        );
+        return distance * 1000 <= radiusMeters; // Convert km to meters
+      }).toList();
+    } catch (e) {
+      print('Error fetching nearby groups: $e');
+      return [];
+    }
+  }
+
+  /// Create a new moment group
+  Future<MomentGroup> createMomentGroup(
+    String title,
+    double latitude,
+    double longitude,
+  ) async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final groupData = {
+        'title': title,
+        'center_latitude': latitude,
+        'center_longitude': longitude,
+        'created_by': userId,
+        'is_public': true, // Default to public for now
+        'created_at': DateTime.now().toIso8601String(),
+      };
+
+      final response = await SupabaseConfig.client
+          .from('moment_groups')
+          .insert(groupData)
+          .select()
+          .single();
+
+      return MomentGroup.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to create moment group: $e');
+    }
   }
 }

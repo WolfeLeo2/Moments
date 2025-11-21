@@ -4,39 +4,49 @@ import 'package:cached_network_image/cached_network_image.dart';
 /// Widget that loads images from network with caching
 class CachedImage extends StatelessWidget {
   final String imageUrl;
+  final String?
+  cacheKey; // Stable cache key (e.g., mediaPath) to prevent reloads when URL changes
   final double? width;
   final double? height;
   final BoxFit fit;
   final Widget? placeholder;
   final Widget? errorWidget;
   final BorderRadius? borderRadius;
+  final int? memCacheWidth;
+  final int? memCacheHeight;
+  final Duration? fadeInDuration;
 
   const CachedImage({
     super.key,
     required this.imageUrl,
+    this.cacheKey, // Optional stable cache key
     this.width,
     this.height,
     this.fit = BoxFit.cover,
     this.placeholder,
     this.errorWidget,
     this.borderRadius,
+    this.memCacheWidth,
+    this.memCacheHeight,
+    this.fadeInDuration,
   });
 
   @override
   Widget build(BuildContext context) {
-    debugPrint(
-      '🖼️ CachedImage building with URL: ${imageUrl.substring(0, 100)}...',
-    );
+    // Debug print removed to reduce noise, can be re-enabled if needed
+    // debugPrint('🖼️ CachedImage building with URL: ${imageUrl.substring(0, min(imageUrl.length, 100))}...');
 
     Widget image = CachedNetworkImage(
       imageUrl: imageUrl,
+      cacheKey: cacheKey ?? imageUrl, // Use stable cache key if provided
       width: width,
       height: height,
       fit: fit,
+      memCacheWidth: memCacheWidth,
+      memCacheHeight: memCacheHeight,
+      fadeInDuration: fadeInDuration ?? const Duration(milliseconds: 100),
+      fadeOutDuration: const Duration(milliseconds: 100),
       imageBuilder: (context, imageProvider) {
-        debugPrint(
-          '✅ Image loaded successfully: ${imageUrl.substring(0, 100)}...',
-        );
         return Image(
           image: imageProvider,
           width: width,
@@ -45,7 +55,6 @@ class CachedImage extends StatelessWidget {
         );
       },
       placeholder: (context, url) {
-        debugPrint('📥 Loading image: ${url.substring(0, 100)}...');
         return placeholder ??
             Container(
               width: width,

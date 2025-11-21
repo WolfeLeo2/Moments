@@ -29,6 +29,7 @@ class AppTheme {
   static const double radiusMedium = 12.0;
   static const double radiusLarge = 16.0;
   static const double radiusCircle = 50.0;
+  static const double radiusMomentCard = 4.0;
 
   // Border widths
   static const double borderThin = 2.0;
@@ -64,7 +65,7 @@ class AppTheme {
           backgroundColor: primaryBlue,
           foregroundColor: Colors.white,
           elevation: 0,
-          shadowColor: primaryBlue.withOpacity(0.25),
+          shadowColor: primaryBlue.withValues(alpha: 0.25),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radiusCircle),
           ),
@@ -81,7 +82,7 @@ class AppTheme {
       cardTheme: CardThemeData(
         color: cardWhite,
         elevation: 0,
-        shadowColor: Colors.black.withOpacity(0.08),
+        shadowColor: Colors.black.withValues(alpha: 0.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusMedium),
         ),

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/data/repositories/moment_repository.dart';
 import 'package:moments/data/models/moment.dart';
@@ -33,24 +34,26 @@ class CreateMomentNotifier extends StateNotifier<AsyncValue<Moment?>> {
   CreateMomentNotifier(this._repo) : super(const AsyncValue.data(null));
 
   Future<void> createMoment({
+    required File imageFile,
     required String title,
-    required String location,
+    required String caption,
+    required String locationName,
     required double latitude,
     required double longitude,
-    required dynamic imageFile,
-    String? description,
-    String? caption,
+    bool isPrivate = false,
+    String? placeGroupId,
   }) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(
       () => _repo.createMoment(
-        title: title,
-        location: location,
-        latitude: latitude,
-        longitude: longitude,
-        imageFile: imageFile,
-        description: description,
-        caption: caption,
+        imageFile,
+        title,
+        caption,
+        locationName,
+        latitude,
+        longitude,
+        isPrivate: isPrivate,
+        momentGroupId: placeGroupId,
       ),
     );
   }

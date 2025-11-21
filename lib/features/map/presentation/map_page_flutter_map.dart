@@ -135,8 +135,6 @@ class _MapPageState extends ConsumerState<MapPage> {
     return location.split(',').first.trim();
   }
 
-  // Old _onPlaceMarkerTapped (Hero) removed in favor of rect-based transform transition
-
   void _onPlaceMarkerTapped(
     List<Moment> moments,
     String placeName,
@@ -163,7 +161,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                   return FadeTransition(
                     opacity: CurvedAnimation(
                       parent: animation,
-                      curve: Curves.easeInOut, // Smoother curve
+                      curve: Curves.easeInOutCubicEmphasized, // Smoother curve
                     ),
                     child: child,
                   );
@@ -175,8 +173,6 @@ class _MapPageState extends ConsumerState<MapPage> {
           ref.invalidate(momentsStreamProvider);
         });
   }
-
-  // Removed - replaced with AnimatedFAB widget
 
   // Removed - replaced with AnimatedFAB widget
 
@@ -192,16 +188,14 @@ class _MapPageState extends ConsumerState<MapPage> {
       final imagePicker = picker.ImagePicker();
       final pickedFile = await imagePicker.pickImage(
         source: source,
-        imageQuality: 85,
-        maxWidth: 1920,
-        maxHeight: 1920,
+        imageQuality: 70,
       );
 
       if (pickedFile == null || !mounted) return;
 
       final result = await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => AddMomentPageNew(
+          builder: (context) => AddMomentPage(
             imagePath: pickedFile.path,
             initialLatitude: _currentPosition!.latitude,
             initialLongitude: _currentPosition!.longitude,
@@ -231,7 +225,7 @@ class _MapPageState extends ConsumerState<MapPage> {
     try {
       final pickerInstance = picker.ImagePicker();
       final List<picker.XFile> images = await pickerInstance.pickMultiImage(
-        imageQuality: 85,
+        imageQuality: 75,
       );
 
       if (images.isNotEmpty && mounted) {
@@ -239,7 +233,7 @@ class _MapPageState extends ConsumerState<MapPage> {
         final imagePaths = images.map((img) => img.path).toList();
         final result = await Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) => AddMomentPageNew(
+            builder: (context) => AddMomentPage(
               imagePaths: imagePaths,
               initialLatitude: _currentPosition!.latitude,
               initialLongitude: _currentPosition!.longitude,
@@ -338,7 +332,9 @@ class _MapPageState extends ConsumerState<MapPage> {
                           height: 40,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: AppTheme.primaryBlue.withOpacity(0.3),
+                              color: AppTheme.primaryBlue.withValues(
+                                alpha: 0.3,
+                              ),
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 3),
                             ),
@@ -452,7 +448,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Row(
@@ -462,7 +458,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                         '© Mapbox © OpenStreetMap',
                         style: TextStyle(
                           fontSize: 10,
-                          color: Colors.black.withOpacity(0.7),
+                          color: Colors.black.withValues(alpha: 0.7),
                         ),
                       ),
                     ],

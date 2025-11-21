@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/map/presentation/map_page_flutter_map.dart';
-import '../../features/moments/presentation/moment_detail_page.dart';
-import '../../features/moments/presentation/add_moment_page_new.dart';
+import '../../features/moments/presentation/add_moment_page.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../services/auth_service.dart';
 
@@ -47,17 +46,6 @@ class AppRouter {
             MaterialPage(key: state.pageKey, child: const MapPage()),
       ),
       GoRoute(
-        path: momentDetailRoute,
-        name: 'moment-detail',
-        pageBuilder: (context, state) {
-          final momentId = state.pathParameters['id']!;
-          return MaterialPage(
-            key: state.pageKey,
-            child: MomentDetailPage(momentId: momentId),
-          );
-        },
-      ),
-      GoRoute(
         path: addMomentRoute,
         name: 'add-moment',
         pageBuilder: (context, state) {
@@ -75,7 +63,7 @@ class AppRouter {
 
           return MaterialPage(
             key: state.pageKey,
-            child: AddMomentPageNew(
+            child: AddMomentPage(
               initialLatitude: latitude,
               initialLongitude: longitude,
               imagePath: imagePath,

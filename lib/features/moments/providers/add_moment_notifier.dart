@@ -40,6 +40,20 @@ class AddMomentNotifier extends StateNotifier<AddMomentState> {
     // If no location provided, fetch it
     if (initialLatitude == null || initialLongitude == null) {
       getCurrentLocation();
+    } else {
+      // If coordinates provided, still need to fetch the city name and groups
+      _fetchCityName(initialLatitude, initialLongitude);
+      _fetchNearbyGroups(initialLatitude, initialLongitude);
+    }
+  }
+
+  Future<void> _fetchCityName(double lat, double lng) async {
+    try {
+      final cityName = await GeocodingService.getCityFromCoordinates(lat, lng);
+      state = state.copyWith(locationName: cityName);
+    } catch (e) {
+      // Fail silently for name, user can still post with coords
+      print('Error fetching city name: $e');
     }
   }
 
@@ -79,11 +93,36 @@ class AddMomentNotifier extends StateNotifier<AddMomentState> {
         locationName: cityName,
         isGettingLocation: false,
       );
+
+      _fetchNearbyGroups(position.latitude, position.longitude);
     } catch (e) {
       state = state.copyWith(
         isGettingLocation: false,
         errorMessage: e.toString(),
       );
+    }
+  }
+
+  Future<void> _fetchNearbyGroups(double lat, double lng) async {
+    try {
+      final groups = await _momentRepository.getNearbyGroups(lat, lng);
+      state = state.copyWith(nearbyGroups: groups);
+    } catch (e) {
+      print('Error fetching nearby groups: $e');
+    }
+  }
+
+  void selectGroup(String? groupId) {
+    if (groupId == state.selectedGroupId) {
+      // Deselect if already selected
+      state = state.copyWith(selectedGroupId: null);
+    } else {
+      // Select new group
+      state = state.copyWith(selectedGroupId: groupId);
+
+      // Optional: Auto-fill title with group title
+      // We can't easily update the text controller from here,
+      // but the UI can listen to state changes.
     }
   }
 
@@ -147,25 +186,15 @@ class AddMomentNotifier extends StateNotifier<AddMomentState> {
     state = state.copyWith(status: AddMomentStatus.loading, errorMessage: null);
 
     try {
-      // Create moment with first image
-      final moment = await _momentRepository.createMoment(
-        title: title.isEmpty ? 'SUNSET COVE' : title,
-        location: state.locationName ?? 'Unknown Location',
-        latitude: state.latitude!,
-        longitude: state.longitude!,
-        imageFile: state.imageFiles.first,
-        caption: caption.isNotEmpty ? caption : null,
-        description: caption.isNotEmpty ? caption : null,
+      await _momentRepository.createMomentsBatch(
+        state.imageFiles,
+        title,
+        caption,
+        state.locationName ?? 'Unknown Location',
+        state.latitude!,
+        state.longitude!,
+        momentGroupId: state.selectedGroupId,
       );
-
-      // Upload additional images if more than one
-      if (state.imageFiles.length > 1) {
-        final additionalImages = state.imageFiles.sublist(1);
-        await _momentRepository.uploadMomentImages(
-          momentId: moment.id,
-          imageFiles: additionalImages,
-        );
-      }
 
       state = state.copyWith(status: AddMomentStatus.success);
       return true;

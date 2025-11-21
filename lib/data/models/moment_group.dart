@@ -5,7 +5,7 @@ import 'moment.dart';
 /// This can be used for both local grouping (UI) and database-backed shared groups
 class MomentGroup extends Equatable {
   final String id;
-  final String placeName;
+  final String title;
   final List<Moment> moments; // For UI grouping
   final double latitude;
   final double longitude;
@@ -16,7 +16,7 @@ class MomentGroup extends Equatable {
 
   const MomentGroup({
     required this.id,
-    required this.placeName,
+    required this.title,
     required this.moments,
     required this.latitude,
     required this.longitude,
@@ -27,7 +27,7 @@ class MomentGroup extends Equatable {
   });
 
   // Legacy getters for backward compatibility
-  String get title => placeName;
+  String get placeName => title;
   double get centerLatitude => latitude;
   double get centerLongitude => longitude;
 
@@ -80,7 +80,7 @@ class MomentGroup extends Equatable {
   @override
   List<Object?> get props => [
     id,
-    placeName,
+    title,
     moments,
     latitude,
     longitude,
@@ -94,23 +94,25 @@ class MomentGroup extends Equatable {
   factory MomentGroup.fromJson(Map<String, dynamic> json) {
     return MomentGroup(
       id: json['id'] as String,
-      placeName: json['place_name'] as String,
+      title: json['title'] as String,
       moments: [], // Will be populated separately
-      latitude: (json['latitude'] as num).toDouble(),
-      longitude: (json['longitude'] as num).toDouble(),
+      latitude: (json['center_latitude'] as num).toDouble(),
+      longitude: (json['center_longitude'] as num).toDouble(),
       createdBy: json['created_by'] as String?,
       isPublic: json['is_public'] as bool? ?? false,
       createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      updatedAt: DateTime.parse(
+        json['updated_at'] as String? ?? json['created_at'] as String,
+      ),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'place_name': placeName,
-      'latitude': latitude,
-      'longitude': longitude,
+      'title': title,
+      'center_latitude': latitude,
+      'center_longitude': longitude,
       'created_by': createdBy,
       'is_public': isPublic,
       'created_at': createdAt.toIso8601String(),
@@ -120,7 +122,7 @@ class MomentGroup extends Equatable {
 
   MomentGroup copyWith({
     String? id,
-    String? placeName,
+    String? title,
     List<Moment>? moments,
     double? latitude,
     double? longitude,
@@ -131,7 +133,7 @@ class MomentGroup extends Equatable {
   }) {
     return MomentGroup(
       id: id ?? this.id,
-      placeName: placeName ?? this.placeName,
+      title: title ?? this.title,
       moments: moments ?? this.moments,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,

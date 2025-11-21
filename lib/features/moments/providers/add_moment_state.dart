@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:equatable/equatable.dart';
+import '../../../data/models/moment_group.dart';
 
 enum AddMomentStatus { initial, loading, success, error }
 
@@ -11,6 +12,10 @@ class AddMomentState extends Equatable {
   final String? locationName;
   final String? errorMessage;
   final bool isGettingLocation;
+  final String caption;
+  final bool isPrivate;
+  final List<MomentGroup> nearbyGroups;
+  final String? selectedGroupId;
 
   const AddMomentState({
     this.status = AddMomentStatus.initial,
@@ -20,6 +25,10 @@ class AddMomentState extends Equatable {
     this.locationName,
     this.errorMessage,
     this.isGettingLocation = false,
+    this.caption = '',
+    this.isPrivate = false,
+    this.nearbyGroups = const [],
+    this.selectedGroupId,
   });
 
   AddMomentState copyWith({
@@ -30,6 +39,10 @@ class AddMomentState extends Equatable {
     String? locationName,
     String? errorMessage,
     bool? isGettingLocation,
+    String? caption,
+    bool? isPrivate,
+    List<MomentGroup>? nearbyGroups,
+    String? selectedGroupId,
   }) {
     return AddMomentState(
       status: status ?? this.status,
@@ -39,6 +52,10 @@ class AddMomentState extends Equatable {
       locationName: locationName ?? this.locationName,
       errorMessage: errorMessage, // Allow clearing error by passing null
       isGettingLocation: isGettingLocation ?? this.isGettingLocation,
+      caption: caption ?? this.caption,
+      isPrivate: isPrivate ?? this.isPrivate,
+      nearbyGroups: nearbyGroups ?? this.nearbyGroups,
+      selectedGroupId: selectedGroupId ?? this.selectedGroupId,
     );
   }
 
@@ -51,5 +68,9 @@ class AddMomentState extends Equatable {
     locationName,
     errorMessage,
     isGettingLocation,
+    caption,
+    isPrivate,
+    nearbyGroups,
+    selectedGroupId,
   ];
 }

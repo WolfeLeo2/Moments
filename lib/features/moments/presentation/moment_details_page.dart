@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:motor/motor.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:avatar_stack/avatar_stack.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../data/models/moment.dart';
 import '../../../core/services/signed_url_cache.dart';
 import '../../../widgets/cached_image.dart';
 import 'dart:math' as math;
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/extensions.dart';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../core/providers/moments_providers.dart';
+import 'dart:io';
 
 /// Details page showing moments in a carousel with spring animations
-class MomentDetailsPage extends StatefulWidget {
+class MomentDetailsPage extends ConsumerStatefulWidget {
   final String locationName;
   final List<Moment> moments;
   final String? heroTag;
@@ -27,10 +35,10 @@ class MomentDetailsPage extends StatefulWidget {
   });
 
   @override
-  State<MomentDetailsPage> createState() => _MomentDetailsPageState();
+  ConsumerState<MomentDetailsPage> createState() => _MomentDetailsPageState();
 }
 
-class _MomentDetailsPageState extends State<MomentDetailsPage>
+class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     with TickerProviderStateMixin {
   final Map<String, String> _imageUrls = {};
   final Map<String, String> _userAvatars = {}; // User ID -> avatar URL
@@ -160,6 +168,17 @@ class _MomentDetailsPageState extends State<MomentDetailsPage>
   }
 
   Future<void> _loadImageUrls() async {
+    // Pre-populate with existing imageUrls (fallback)
+    if (mounted) {
+      setState(() {
+        for (var moment in widget.moments) {
+          if (moment.imageUrl != null) {
+            _imageUrls[moment.id] = moment.imageUrl!;
+          }
+        }
+      });
+    }
+
     final mediaPaths = widget.moments
         .map((m) => m.mediaPath)
         .where((path) => path != null && path.isNotEmpty)
@@ -168,20 +187,79 @@ class _MomentDetailsPageState extends State<MomentDetailsPage>
 
     if (mediaPaths.isEmpty) return;
 
-    final urls = await SignedUrlCache.getSignedUrlsBatch(mediaPaths);
+    try {
+      final urls = await SignedUrlCache.getSignedUrlsBatch(mediaPaths);
 
-    if (mounted) {
-      setState(() {
-        for (var i = 0; i < widget.moments.length; i++) {
-          final moment = widget.moments[i];
-          if (moment.mediaPath != null) {
-            final url = urls[moment.mediaPath];
-            if (url != null) {
-              _imageUrls[moment.id] = url;
+      if (mounted) {
+        setState(() {
+          for (var i = 0; i < widget.moments.length; i++) {
+            final moment = widget.moments[i];
+            if (moment.mediaPath != null) {
+              final url = urls[moment.mediaPath];
+              if (url != null) {
+                _imageUrls[moment.id] = url;
+              }
             }
           }
-        }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading signed URLs: $e');
+    }
+  }
+
+  final ImagePicker _picker = ImagePicker();
+  bool _isUploading = false;
+
+  Future<void> _handleAddPhotos() async {
+    if (widget.moments.isEmpty) return;
+
+    final firstMoment = widget.moments.first;
+    final groupId = firstMoment.momentGroupId;
+
+    if (groupId == null) {
+      context.showErrorSnackBar('Cannot add photos to this moment (Legacy).');
+      return;
+    }
+
+    try {
+      final List<XFile> pickedFiles = await _picker.pickMultiImage(
+        imageQuality: 85,
+      );
+
+      if (pickedFiles.isEmpty) return;
+
+      setState(() {
+        _isUploading = true;
       });
+
+      final imageFiles = pickedFiles.map((xFile) => File(xFile.path)).toList();
+
+      await ref
+          .read(momentRepositoryProvider)
+          .createMomentsBatch(
+            imageFiles,
+            firstMoment.title,
+            '', // Caption optional for batch add
+            widget.locationName,
+            firstMoment.latitude,
+            firstMoment.longitude,
+            momentGroupId: groupId,
+          );
+
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+        context.showSuccessSnackBar('Photos added successfully!');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+        context.showErrorSnackBar('Error picking photos: $e');
+      }
     }
   }
 
@@ -260,6 +338,78 @@ class _MomentDetailsPageState extends State<MomentDetailsPage>
     return contributorIds.toList();
   }
 
+  Future<void> _showDeleteDialog(Moment moment) async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Moment'),
+        content: const Text('What would you like to delete?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'cancel'),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'delete'),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'delete_all'),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete All'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null || result == 'cancel' || !mounted) return;
+
+    try {
+      if (result == 'delete') {
+        // Delete single moment
+        await Supabase.instance.client
+            .from('moments')
+            .delete()
+            .eq('id', moment.id);
+
+        if (mounted) {
+          setState(() {
+            widget.moments.remove(moment);
+          });
+
+          if (widget.moments.isEmpty) {
+            Navigator.pop(context);
+          } else {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Moment deleted')));
+          }
+        }
+      } else if (result == 'delete_all') {
+        // Delete all moments at this location
+        final momentIds = widget.moments.map((m) => m.id).toList();
+        await Supabase.instance.client
+            .from('moments')
+            .delete()
+            .inFilter('id', momentIds);
+
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('All moments deleted')));
+          Navigator.pop(context);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Get screen height for proper sizing
@@ -271,6 +421,13 @@ class _MomentDetailsPageState extends State<MomentDetailsPage>
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBeige,
+      floatingActionButton: FloatingActionButton(
+        onPressed: _isUploading ? null : _handleAddPhotos,
+        backgroundColor: Colors.black,
+        child: _isUploading
+            ? const CircularProgressIndicator(color: Colors.white)
+            : const Icon(Icons.add_photo_alternate, color: Colors.white),
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -285,7 +442,7 @@ class _MomentDetailsPageState extends State<MomentDetailsPage>
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8.0,
-                        vertical: 8.0,
+                        vertical: 16.0,
                       ),
                       child: Row(
                         children: [
@@ -298,15 +455,47 @@ class _MomentDetailsPageState extends State<MomentDetailsPage>
                             onPressed: () => Navigator.pop(context),
                           ),
                           Expanded(
-                            child: Text(
-                              widget.locationName.toUpperCase(),
-                              style: GoogleFonts.bangers(
-                                fontSize: 22,
-                                letterSpacing: 3,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                              textAlign: TextAlign.center,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  widget.moments.isNotEmpty
+                                      ? widget.moments.first.title.toUpperCase()
+                                      : 'MOMENT',
+                                  style: GoogleFonts.bebasNeue(
+                                    fontSize: 28,
+                                    letterSpacing: 1.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black,
+                                    height: 1.0,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const HugeIcon(
+                                      icon: HugeIcons.strokeRoundedLocation03,
+                                      size: 12,
+                                      color: AppTheme.primaryBlue,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      widget.locationName,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppTheme.primaryBlue,
+                                        letterSpacing: 1,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 48), // Balance the back button
@@ -321,7 +510,7 @@ class _MomentDetailsPageState extends State<MomentDetailsPage>
                         vertical: 4.0,
                       ),
                       child: Text(
-                        '${widget.moments.length} ${widget.moments.length == 1 ? 'moment' : 'moments'}  •  ${_getDateRange()}',
+                        '${widget.moments.length} ${widget.moments.length == 1 ? 'photo' : 'photos'}  •  ${_getDateRange()}',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.black54,
@@ -341,18 +530,21 @@ class _MomentDetailsPageState extends State<MomentDetailsPage>
                             height: 40,
                             child: AvatarStack(
                               height: 40,
-                              avatars: _getUniqueContributorIds().take(5).map((
-                                userId,
-                              ) {
-                                final avatarUrl = _userAvatars[userId];
-                                if (avatarUrl != null && avatarUrl.isNotEmpty) {
-                                  return NetworkImage(avatarUrl);
-                                }
-                                // Fallback to a placeholder image
-                                return const NetworkImage(
-                                  'https://via.placeholder.com/150',
-                                );
-                              }).toList(),
+                              avatars: _getUniqueContributorIds()
+                                  .take(5)
+                                  .map((userId) {
+                                    final avatarUrl = _userAvatars[userId];
+                                    if (avatarUrl != null &&
+                                        avatarUrl.isNotEmpty) {
+                                      return CachedNetworkImageProvider(
+                                        avatarUrl,
+                                      );
+                                    }
+                                    // Return null for users without avatars
+                                    return null;
+                                  })
+                                  .whereType<ImageProvider>()
+                                  .toList(),
                               borderWidth: 2,
                               borderColor: Colors.white,
                               infoWidgetBuilder: (surplus, context) {
@@ -378,7 +570,7 @@ class _MomentDetailsPageState extends State<MomentDetailsPage>
 
             // Carousel with spring animations using carousel_slider - fixed height
             SizedBox(
-              height: availableHeight - 200, // Subtract header/avatar space
+              height: availableHeight - 270, // Subtract header/avatar space
               child: CarouselSlider.builder(
                 itemCount: widget.moments.length,
                 options: CarouselOptions(
@@ -402,107 +594,101 @@ class _MomentDetailsPageState extends State<MomentDetailsPage>
                   // Slight rotation for natural feel
                   final rotation = (((index * 37) % 5) - 2) * 0.5;
 
-                  return Transform.scale(
-                    scale: scale,
-                    child: Opacity(
-                      opacity: opacity.clamp(0.0, 1.0),
-                      child: Transform.rotate(
-                        angle: rotation * math.pi / 180,
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              maxWidth:
-                                  320, // Slightly larger for better visibility with 0.7 viewport
-                              maxHeight: 500,
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                // Image card with white border - 4:5 aspect ratio
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
+                  return GestureDetector(
+                    onLongPress: () => _showDeleteDialog(moment),
+                    child: Transform.scale(
+                      scale: scale,
+                      child: Opacity(
+                        opacity: opacity.clamp(0.0, 1.0),
+                        child: Transform.rotate(
+                          angle: rotation * math.pi / 180,
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                maxWidth:
+                                    320, // Slightly larger for better visibility with 0.7 viewport
+                                maxHeight: 500,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // Image card with white border - 4:5 aspect ratio
+                                  Container(
+                                    decoration: BoxDecoration(
                                       color: Colors.white,
-                                      width: 6,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.15),
-                                        blurRadius: 24,
-                                        offset: const Offset(0, 12),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 6,
                                       ),
-                                    ],
-                                  ),
-                                  child: AspectRatio(
-                                    aspectRatio: 4 / 5,
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(6),
-                                      child: imageUrl != null
-                                          ? CachedImage(
-                                              imageUrl: imageUrl,
-                                              fit: BoxFit.cover,
-                                            )
-                                          : Container(
-                                              color: Colors.grey[200],
-                                              child: const Center(
-                                                child:
-                                                    CircularProgressIndicator(),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.15,
+                                          ),
+                                          blurRadius: 24,
+                                          offset: const Offset(0, 12),
+                                        ),
+                                      ],
+                                    ),
+                                    child: AspectRatio(
+                                      aspectRatio: 4 / 5,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: imageUrl != null
+                                            ? CachedImage(
+                                                imageUrl: imageUrl,
+                                                cacheKey: moment.mediaPath,
+                                                fit: BoxFit.cover,
+                                              )
+                                            : Container(
+                                                color: Colors.grey[200],
+                                                child: const Center(
+                                                  child:
+                                                      CircularProgressIndicator(),
+                                                ),
                                               ),
-                                            ),
+                                      ),
                                     ),
                                   ),
-                                ),
 
-                                // Description below image
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    top: 16.0,
-                                    left: 8.0,
-                                    right: 8.0,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      if (moment.caption != null &&
-                                          moment.caption!.isNotEmpty)
-                                        Text(
-                                          moment.caption!,
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            height: 1.4,
-                                            color: Colors.black87,
+                                  // Description below image
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: 16.0,
+                                      left: 8.0,
+                                      right: 8.0,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
+                                      children: [
+                                        if (moment.caption != null &&
+                                            moment.caption!.isNotEmpty)
+                                          Text(
+                                            moment.caption!,
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              height: 1.4,
+                                              color: AppTheme.textDark,
+                                            ),
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                          maxLines: 3,
-                                          overflow: TextOverflow.ellipsis,
-                                        )
-                                      else
+                                        const SizedBox(height: 4),
                                         Text(
-                                          moment.title,
-                                          style: const TextStyle(
-                                            fontFamily: 'BebasNeue',
-                                            fontSize: 18,
-                                            letterSpacing: 1.2,
-                                            color: Colors.black87,
+                                          _formatDate(moment.timestamp),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppTheme.textGray,
                                           ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _formatDate(moment.timestamp),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[500],
-                                        ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),

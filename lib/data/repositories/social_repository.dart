@@ -280,4 +280,72 @@ class SocialRepository {
       throw Exception('Failed to fetch friends profiles: $e');
     }
   }
+  // ============================================
+  // REALTIME STREAMS
+  // ============================================
+
+  /// Stream of friends profiles (Realtime)
+  /// Watches friendships table and fetches profiles when it changes
+  Stream<List<Profile>> streamFriends() {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      return Stream.value(<Profile>[]);
+    }
+
+    // Watch friendships table for any accepted friendship involving the user
+    // Note: stream() does not support eq() directly in this version of the SDK for all platforms/versions
+    // or it behaves differently. The correct way usually is to just stream and filter in client
+    // or use eq() BEFORE stream() if supported (but stream() returns SupabaseStreamBuilder which might not have eq).
+    // Actually, in supabase_flutter v2, stream() takes filters as arguments or we filter on the collection BEFORE .stream()?
+    // No, .stream() is on the Table.
+    // Let's check the SDK version. It's ^2.10.3.
+    // In v2, we should use: .stream(primaryKey: ['id']).eq('status', 'accepted')
+    // If that fails, it means the builder returned by stream() doesn't have eq.
+    // Wait, the error says "The method 'eq' isn't defined for the type 'SupabaseStreamBuilder'".
+    // This means we cannot filter a stream on the server side with this SDK version using .eq() AFTER .stream().
+    // We must accept all events and filter in Dart, OR use a different approach.
+
+    // However, for 'streamPendingRequests', we really want to filter by user_id.
+    // Let's try to filter in Dart for now to be safe and fix the error.
+
+    return _client
+        .from('friendships')
+        .stream(primaryKey: ['id'])
+        .asyncMap((data) async {
+          // We just re-fetch everything to be safe and simple
+          return getFriendsProfiles();
+        })
+        .handleError((e) {
+          print('Error streaming friends: $e');
+          return <Profile>[];
+        });
+  }
+
+  /// Stream of pending requests (Realtime)
+  Stream<List<Friendship>> streamPendingRequests() {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      return Stream.value(<Friendship>[]);
+    }
+
+    return _client
+        .from('friendships')
+        .stream(primaryKey: ['id'])
+        .map((data) {
+          // Filter in Dart because .eq() is not supported on stream builder
+          final requests = (data as List)
+              .map((json) => Friendship.fromJson(json as Map<String, dynamic>))
+              .where((f) => f.friendId == userId && f.status == 'pending')
+              .toList();
+
+          // Sort by requested_at desc
+          requests.sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
+
+          return requests;
+        })
+        .handleError((e) {
+          print('Error streaming pending requests: $e');
+          return <Friendship>[];
+        });
+  }
 }
