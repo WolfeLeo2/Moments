@@ -95,9 +95,12 @@ class FriendRequestNotifier extends StateNotifier<AsyncValue<void>> {
 
   Future<void> acceptRequest(String friendshipId) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(
-      () => _socialRepo.acceptFriendRequest(friendshipId),
-    );
+    try {
+      await _socialRepo.acceptFriendRequest(friendshipId);
+      state = const AsyncValue.data(null);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
   }
 
   Future<void> rejectRequest(String friendshipId) async {

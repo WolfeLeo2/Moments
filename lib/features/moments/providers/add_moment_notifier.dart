@@ -126,10 +126,14 @@ class AddMomentNotifier extends StateNotifier<AddMomentState> {
     }
   }
 
+  void togglePrivacy(bool isPrivate) {
+    state = state.copyWith(isPrivate: isPrivate);
+  }
+
   Future<void> pickImages() async {
     try {
       final List<XFile> pickedFiles = await _picker.pickMultiImage(
-        imageQuality: 85,
+        imageQuality: 70,
       );
 
       if (pickedFiles.isNotEmpty) {
@@ -148,7 +152,7 @@ class AddMomentNotifier extends StateNotifier<AddMomentState> {
     try {
       final XFile? photo = await _picker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 85,
+        imageQuality: 70,
       );
 
       if (photo != null) {
@@ -193,6 +197,7 @@ class AddMomentNotifier extends StateNotifier<AddMomentState> {
         state.locationName ?? 'Unknown Location',
         state.latitude!,
         state.longitude!,
+        isPrivate: state.isPrivate,
         momentGroupId: state.selectedGroupId,
       );
 

@@ -183,8 +183,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                         }
                       },
                       style: GoogleFonts.bebasNeue(
-                        fontSize: 48,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 46,
+                        fontWeight: FontWeight.w600,
                         color: Colors.black,
                         letterSpacing: 1.5,
                         height: 1.0,
@@ -192,8 +192,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                       decoration: InputDecoration(
                         hintText: 'GIVE IT A TITLE',
                         hintStyle: GoogleFonts.bebasNeue(
-                          fontSize: 48,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 46,
+                          fontWeight: FontWeight.w600,
                           color: Colors.black12,
                           letterSpacing: 1.5,
                           height: 1.0,
@@ -328,16 +328,21 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: Colors.black54,
+                            color: AppTheme.textDark,
                             letterSpacing: 1.0,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Container(
-                          decoration: BoxDecoration(
+                          decoration: ShapeDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.black12),
+                            shape: RoundedSuperellipseBorder(
+                              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                              side: BorderSide(
+                                color: AppTheme.borderBlack,
+                                width: 1.5,
+                              ),
+                            ),
                           ),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -348,16 +353,141 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                             style: GoogleFonts.inter(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: Colors.black,
+                              color: AppTheme.textDark,
                             ),
                             decoration: const InputDecoration(
                               hintText: 'What\'s happening?',
-                              hintStyle: TextStyle(color: Colors.black26),
+                              hintStyle: TextStyle(color: AppTheme.textGray),
                               border: InputBorder.none,
                             ),
                             maxLines: 3,
                             minLines: 1,
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Privacy Toggle
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ALLOW COLLABORATORS?',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textDark,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => ref
+                                    .read(addMomentProvider.notifier)
+                                    .togglePrivacy(false),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  decoration: ShapeDecoration(
+                                    color: !state.isPrivate
+                                        ? AppTheme.primaryBlue
+                                        : Colors.white,
+                                    shape: RoundedSuperellipseBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      AppTheme.radiusSmall,
+                                    ),
+                                    side: BorderSide(
+                                      color: !state.isPrivate
+                                          ? AppTheme.borderBlack
+                                          : Colors.black12,
+                                      width: 1.5,
+                                    ),
+                                    ),
+                                    shadows: [
+                                      BoxShadow(
+                                        color: !state.isPrivate
+                                            ? AppTheme.borderBlack
+                                            : Colors.black12,
+                                        blurRadius: 0,
+                                        offset: const Offset(2, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    'YES',
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: !state.isPrivate
+                                          ? Colors.white
+                                          : Colors.black54,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => ref
+                                    .read(addMomentProvider.notifier)
+                                    .togglePrivacy(true),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  decoration: ShapeDecoration(
+                                    color: state.isPrivate
+                                        ? AppTheme.emergencyRed
+                                        : Colors.white,
+                                    shape: RoundedSuperellipseBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      AppTheme.radiusSmall,
+                                    ),
+                                    side: BorderSide(
+                                      color: state.isPrivate
+                                          ? AppTheme.borderBlack
+                                          : Colors.black12,
+                                      width: 1.5,
+                                    ),
+                                    ),
+                                    shadows: [
+                                      BoxShadow(
+                                        color: state.isPrivate
+                                            ? AppTheme.borderBlack
+                                            : Colors.black12,
+                                        blurRadius: 0,
+                                        offset: const Offset(2, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    'NO',
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: state.isPrivate
+                                          ? Colors.white
+                                          : Colors.black54,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

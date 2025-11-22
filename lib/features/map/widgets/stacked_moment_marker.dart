@@ -3,6 +3,7 @@ import 'package:avatar_stack/avatar_stack.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import '../../../data/models/moment.dart';
 import '../../../core/services/signed_url_cache.dart';
@@ -217,6 +218,9 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
                   // Avatar stack and date badge on top
                   _buildFloatingBadges(),
+
+                  // Title badge at bottom right
+                  _buildTitleBadge(),
                 ],
               ),
             ),
@@ -382,6 +386,36 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTitleBadge() {
+    if (widget.moments.isEmpty) return const SizedBox.shrink();
+    final title = widget.moments.first.title;
+    if (title.isEmpty) return const SizedBox.shrink();
+
+    return Positioned(
+      bottom: 0,
+      right: -10,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          title.toUpperCase(),
+          style: GoogleFonts.bebasNeue(
+            fontSize: 24,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+            letterSpacing: 0.5,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
     );
   }

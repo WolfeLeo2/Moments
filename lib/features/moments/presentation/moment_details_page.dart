@@ -458,20 +458,41 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  widget.moments.isNotEmpty
-                                      ? widget.moments.first.title.toUpperCase()
-                                      : 'MOMENT',
-                                  style: GoogleFonts.bebasNeue(
-                                    fontSize: 28,
-                                    letterSpacing: 1.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black,
-                                    height: 1.0,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (widget.moments.isNotEmpty &&
+                                        widget.moments.first.isPrivate)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 6.0,
+                                        ),
+                                        child: HugeIcon(
+                                          icon: HugeIcons
+                                              .strokeRoundedSquareLock02,
+                                          size: 20,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                    Flexible(
+                                      child: Text(
+                                        widget.moments.isNotEmpty
+                                            ? widget.moments.first.title
+                                                  .toUpperCase()
+                                            : 'MOMENT',
+                                        style: GoogleFonts.bebasNeue(
+                                          fontSize: 28,
+                                          letterSpacing: 1.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black,
+                                          height: 1.2,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 const SizedBox(height: 4),
                                 Row(
@@ -545,8 +566,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                   })
                                   .whereType<ImageProvider>()
                                   .toList(),
-                              borderWidth: 2,
-                              borderColor: Colors.white,
+                              borderWidth: 1,
+                              borderColor: AppTheme.borderBlack,
                               infoWidgetBuilder: (surplus, context) {
                                 return Center(
                                   child: Text(

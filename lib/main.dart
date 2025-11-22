@@ -15,6 +15,7 @@ void main() async {
   // Initialize Supabase
   await SupabaseConfig.initialize();
 
+
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

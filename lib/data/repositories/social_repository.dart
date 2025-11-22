@@ -115,20 +115,33 @@ class SocialRepository {
   /// Send friend request using invite code
   Future<Friendship> sendFriendRequest(String inviteCode) async {
     try {
+      print('🔵 [FRIEND REQUEST] Starting request with code: $inviteCode');
+
       final userId = _client.auth.currentUser?.id;
-      if (userId == null) throw Exception('User not authenticated');
+      if (userId == null) {
+        print('❌ [FRIEND REQUEST] User not authenticated');
+        throw Exception('User not authenticated');
+      }
+      print('✅ [FRIEND REQUEST] User ID: $userId');
 
       // Find the user with this invite code
+      print('🔍 [FRIEND REQUEST] Looking up profile with invite code...');
       final friendProfile = await getProfileByInviteCode(inviteCode);
       if (friendProfile == null) {
+        print('❌ [FRIEND REQUEST] No profile found with code: $inviteCode');
         throw Exception('Invalid invite code');
       }
+      print(
+        '✅ [FRIEND REQUEST] Found profile: ${friendProfile.id} (${friendProfile.displayName ?? friendProfile.username})',
+      );
 
       if (friendProfile.id == userId) {
+        print('❌ [FRIEND REQUEST] User tried to add themselves');
         throw Exception('Cannot add yourself as a friend');
       }
 
       // Check if friendship already exists
+      print('🔍 [FRIEND REQUEST] Checking for existing friendship...');
       final existing = await _client
           .from('friendships')
           .select()
@@ -137,41 +150,66 @@ class SocialRepository {
           .maybeSingle();
 
       if (existing != null) {
+        print(
+          '❌ [FRIEND REQUEST] Friendship already exists: ${existing['status']}',
+        );
         throw Exception('Friend request already sent');
       }
+      print('✅ [FRIEND REQUEST] No existing friendship found');
 
       // Create friendship request
+      print('📝 [FRIEND REQUEST] Inserting friendship record...');
+      final insertData = {
+        'user_id': userId,
+        'friend_id': friendProfile.id,
+        'status': 'pending',
+      };
+      print('📝 [FRIEND REQUEST] Insert data: $insertData');
+
       final response = await _client
           .from('friendships')
-          .insert({
-            'user_id': userId,
-            'friend_id': friendProfile.id,
-            'status': 'pending',
-          })
+          .insert(insertData)
           .select()
           .single();
 
+      print('✅ [FRIEND REQUEST] Successfully created friendship!');
+      print('📊 [FRIEND REQUEST] Response: $response');
+
       return Friendship.fromJson(response);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ [FRIEND REQUEST] Error: $e');
+      print('📚 [FRIEND REQUEST] Stack trace: $stackTrace');
       throw Exception('Failed to send friend request: $e');
     }
   }
 
   /// Accept friend request
-  Future<Friendship> acceptFriendRequest(String friendshipId) async {
+  Future<void> acceptFriendRequest(String friendshipId) async {
     try {
-      final response = await _client
+      print(
+        '🔵 [ACCEPT REQUEST] Starting accept for friendship: $friendshipId',
+      );
+
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) {
+        print('❌ [ACCEPT REQUEST] User not authenticated');
+        throw Exception('User not authenticated');
+      }
+      print('✅ [ACCEPT REQUEST] User ID: $userId');
+
+      print('📝 [ACCEPT REQUEST] Updating friendship status to accepted...');
+      await _client
           .from('friendships')
           .update({
             'status': 'accepted',
             'responded_at': DateTime.now().toIso8601String(),
           })
-          .eq('id', friendshipId)
-          .select()
-          .single();
+          .eq('id', friendshipId);
 
-      return Friendship.fromJson(response);
-    } catch (e) {
+      print('✅ [ACCEPT REQUEST] Successfully accepted friendship!');
+    } catch (e, stackTrace) {
+      print('❌ [ACCEPT REQUEST] Error: $e');
+      print('📚 [ACCEPT REQUEST] Stack trace: $stackTrace');
       throw Exception('Failed to accept friend request: $e');
     }
   }
@@ -325,18 +363,39 @@ class SocialRepository {
   Stream<List<Friendship>> streamPendingRequests() {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
+      print('⚠️ [PENDING REQUESTS STREAM] No authenticated user');
       return Stream.value(<Friendship>[]);
     }
+
+    print('🔵 [PENDING REQUESTS STREAM] Starting stream for user: $userId');
 
     return _client
         .from('friendships')
         .stream(primaryKey: ['id'])
         .map((data) {
+          print(
+            '📊 [PENDING REQUESTS STREAM] Received ${data.length} total friendships',
+          );
+
           // Filter in Dart because .eq() is not supported on stream builder
           final requests = (data as List)
               .map((json) => Friendship.fromJson(json as Map<String, dynamic>))
-              .where((f) => f.friendId == userId && f.status == 'pending')
+              .where((f) {
+                final isForMe = f.friendId == userId;
+                final isPending =
+                    f.status ==
+                    FriendshipStatus
+                        .pending; // FIX: Compare to enum, not string
+                print(
+                  '  - Friendship ${f.id}: friendId=${f.friendId}, status=${f.status}, isForMe=$isForMe, isPending=$isPending',
+                );
+                return isForMe && isPending;
+              })
               .toList();
+
+          print(
+            '✅ [PENDING REQUESTS STREAM] Filtered to ${requests.length} pending requests',
+          );
 
           // Sort by requested_at desc
           requests.sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
@@ -344,7 +403,7 @@ class SocialRepository {
           return requests;
         })
         .handleError((e) {
-          print('Error streaming pending requests: $e');
+          print('❌ [PENDING REQUESTS STREAM] Error: $e');
           return <Friendship>[];
         });
   }

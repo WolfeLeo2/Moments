@@ -10,6 +10,7 @@ class AppTheme {
   static const Color vibrantGreen = Color(0xFF06FFA5);
   static const Color backgroundBeige = Color.fromARGB(255, 249, 240, 230);
   static const Color cardWhite = Color(0xFFFFFFFF);
+  static const Color emergencyRed = Color(0xFFE53935);
   static const Color textDark = Color(0xFF000000);
   static const Color textGray = Color(0xFF718096);
   static const Color borderBlack = Color(0xFF000000);

@@ -135,6 +135,8 @@ class _MapPageState extends ConsumerState<MapPage> {
     return location.split(',').first.trim();
   }
 
+  // Old _onPlaceMarkerTapped (Hero) removed in favor of rect-based transform transition
+
   void _onPlaceMarkerTapped(
     List<Moment> moments,
     String placeName,
@@ -161,7 +163,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                   return FadeTransition(
                     opacity: CurvedAnimation(
                       parent: animation,
-                      curve: Curves.easeInOutCubicEmphasized, // Smoother curve
+                      curve: Curves.easeInOut, // Smoother curve
                     ),
                     child: child,
                   );
@@ -173,6 +175,8 @@ class _MapPageState extends ConsumerState<MapPage> {
           ref.invalidate(momentsStreamProvider);
         });
   }
+
+  // Removed - replaced with AnimatedFAB widget
 
   // Removed - replaced with AnimatedFAB widget
 
@@ -332,9 +336,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                           height: 40,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: AppTheme.primaryBlue.withValues(
-                                alpha: 0.3,
-                              ),
+                              color: AppTheme.primaryBlue.withValues(alpha: 0.3),
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 3),
                             ),
