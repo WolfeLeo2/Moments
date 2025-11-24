@@ -25,6 +25,7 @@ class Message extends Equatable {
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isDeleted;
+  final bool isRead;
 
   const Message({
     required this.id,
@@ -36,6 +37,7 @@ class Message extends Equatable {
     required this.createdAt,
     required this.updatedAt,
     this.isDeleted = false,
+    this.isRead = false,
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
@@ -49,6 +51,7 @@ class Message extends Equatable {
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       isDeleted: json['is_deleted'] as bool? ?? false,
+      isRead: json['is_read'] as bool? ?? false,
     );
   }
 
@@ -63,6 +66,7 @@ class Message extends Equatable {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'is_deleted': isDeleted,
+      'is_read': isRead,
     };
   }
 
@@ -76,6 +80,7 @@ class Message extends Equatable {
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isDeleted,
+    bool? isRead,
   }) {
     return Message(
       id: id ?? this.id,
@@ -87,6 +92,7 @@ class Message extends Equatable {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isDeleted: isDeleted ?? this.isDeleted,
+      isRead: isRead ?? this.isRead,
     );
   }
 
@@ -101,5 +107,6 @@ class Message extends Equatable {
     createdAt,
     updatedAt,
     isDeleted,
+    isRead,
   ];
 }

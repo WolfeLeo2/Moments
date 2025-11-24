@@ -7,6 +7,30 @@ final chatRepositoryProvider = Provider<ChatRepository>((ref) {
   return ChatRepository();
 });
 
+/// Conversation cache to prevent reloading when navigating back to chat
+class ConversationCacheNotifier extends StateNotifier<Map<String, String>> {
+  ConversationCacheNotifier() : super({});
+
+  String? getCachedConversationId(String friendId) {
+    return state[friendId];
+  }
+
+  void cacheConversationId(String friendId, String conversationId) {
+    state = {...state, friendId: conversationId};
+  }
+
+  void clearCache() {
+    state = {};
+  }
+}
+
+final conversationCacheProvider =
+    StateNotifierProvider<ConversationCacheNotifier, Map<String, String>>((
+      ref,
+    ) {
+      return ConversationCacheNotifier();
+    });
+
 /// Stream messages for a specific conversation
 final messagesStreamProvider = StreamProvider.family<List<Message>, String>((
   ref,

@@ -87,34 +87,30 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     if (userIds.isEmpty) return;
 
     try {
-      // For each user, try to get their avatar from auth metadata
-      final avatarMap = <String, String>{};
+      // Fetch profiles for all users involved
+      final response = await Supabase.instance.client
+          .from('profiles')
+          .select('id, avatar_url')
+          .inFilter('id', userIds);
 
-      for (final userId in userIds) {
-        try {
-          // Try to get user metadata from Supabase auth admin API
-          // Note: This requires proper permissions. Alternative: create a profiles table
-          final currentUser = Supabase.instance.client.auth.currentUser;
-          if (currentUser != null && currentUser.id == userId) {
-            final avatarUrl =
-                currentUser.userMetadata?['avatar_url'] as String?;
-            if (avatarUrl != null && avatarUrl.isNotEmpty) {
-              avatarMap[userId] = avatarUrl;
-            }
+      if (mounted) {
+        final avatarMap = <String, String>{};
+        for (final record in response) {
+          final userId = record['id'] as String;
+          final avatarUrl = record['avatar_url'] as String?;
+          if (avatarUrl != null && avatarUrl.isNotEmpty) {
+            avatarMap[userId] = avatarUrl;
           }
-        } catch (e) {
-          // Skip if we can't get avatar for this user
-          print('Could not load avatar for user $userId: $e');
+        }
+
+        if (avatarMap.isNotEmpty) {
+          setState(() {
+            _userAvatars.addAll(avatarMap);
+          });
         }
       }
-
-      if (mounted && avatarMap.isNotEmpty) {
-        setState(() {
-          _userAvatars.addAll(avatarMap);
-        });
-      }
     } catch (e) {
-      print('Error loading user avatars: $e');
+      debugPrint('Error loading user avatars: $e');
     }
   }
 

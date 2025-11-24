@@ -197,10 +197,19 @@ class ChatRepository {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
+    // Update last_read_at for the participant
     await _client
         .from('conversation_participants')
         .update({'last_read_at': DateTime.now().toIso8601String()})
         .eq('conversation_id', conversationId)
         .eq('user_id', userId);
+
+    // Mark all messages from the OTHER user as read
+    await _client
+        .from('messages')
+        .update({'is_read': true})
+        .eq('conversation_id', conversationId)
+        .neq('sender_id', userId)
+        .eq('is_read', false);
   }
 }

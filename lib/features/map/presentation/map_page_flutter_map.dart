@@ -229,7 +229,7 @@ class _MapPageState extends ConsumerState<MapPage> {
     try {
       final pickerInstance = picker.ImagePicker();
       final List<picker.XFile> images = await pickerInstance.pickMultiImage(
-        imageQuality: 75,
+        imageQuality: 70,
       );
 
       if (images.isNotEmpty && mounted) {
@@ -336,7 +336,9 @@ class _MapPageState extends ConsumerState<MapPage> {
                           height: 40,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: AppTheme.primaryBlue.withValues(alpha: 0.3),
+                              color: AppTheme.primaryBlue.withValues(
+                                alpha: 0.3,
+                              ),
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 3),
                             ),

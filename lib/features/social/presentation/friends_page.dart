@@ -1291,7 +1291,7 @@ class _FriendCardState extends State<_FriendCard>
                                           style: TextStyle(
                                             fontSize: 13,
                                             color: Colors.grey[600],
-                                            fontWeight: FontWeight.w500,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -1308,7 +1308,7 @@ class _FriendCardState extends State<_FriendCard>
                                       error: (_, __) => Text(
                                         'Say something 👋',
                                         style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: 12,
                                           color: Colors.grey[500],
                                           fontWeight: FontWeight.w500,
                                         ),
