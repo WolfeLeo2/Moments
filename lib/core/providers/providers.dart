@@ -1,102 +1,100 @@
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/services/auth_service.dart';
 import 'package:moments/data/repositories/social_repository.dart';
 import 'package:moments/data/models/profile.dart';
 import 'package:moments/data/models/friendship.dart';
 
+part 'providers.g.dart';
+
 // ============================================
 // SINGLETON PROVIDERS
 // ============================================
 
 /// Auth service provider - always same instance
-final authServiceProvider = Provider((ref) => AuthService());
+@riverpod
+AuthService authService(Ref ref) => AuthService();
 
 /// Social repository provider - always same instance
-final socialRepositoryProvider = Provider((ref) => SocialRepository());
+@riverpod
+SocialRepository socialRepository(Ref ref) => SocialRepository();
 
 // ============================================
 // AUTH STATE
 // ============================================
 
 /// Current authenticated user
-final currentUserProvider = StreamProvider((ref) {
+@riverpod
+Stream<dynamic> currentUser(Ref ref) {
   final authService = ref.watch(authServiceProvider);
   return authService.authStateChanges.map((state) => state.session?.user);
-});
+}
 
 /// Current user's profile with auto-refresh
-final currentUserProfileProvider = FutureProvider<Profile?>((ref) async {
+@riverpod
+Future<Profile?> currentUserProfile(Ref ref) async {
   final socialRepo = ref.watch(socialRepositoryProvider);
   return socialRepo.getCurrentUserProfile();
-});
+}
 
 // ============================================
 // FRIENDS & REQUESTS
 // ============================================
 
 /// List of current user's friends
-final friendsListProvider = FutureProvider<List<Profile>>((ref) async {
+@riverpod
+Future<List<Profile>> friendsList(Ref ref) async {
   final socialRepo = ref.watch(socialRepositoryProvider);
   return socialRepo.getFriendsProfiles();
-});
+}
 
 /// Pending friend requests
-final pendingRequestsProvider = FutureProvider<List<Friendship>>((ref) async {
+@riverpod
+Future<List<Friendship>> pendingRequests(Ref ref) async {
   final socialRepo = ref.watch(socialRepositoryProvider);
   return socialRepo.getPendingRequests();
-});
+}
 
 /// Get a friend's profile by ID - cached per user to prevent API spam
-final friendProfileProvider = FutureProvider.family<Profile?, String>((
-  ref,
-  friendId,
-) async {
+@riverpod
+Future<Profile?> friendProfile(Ref ref, String friendId) async {
   final socialRepo = ref.watch(socialRepositoryProvider);
   return socialRepo.getProfileById(friendId);
-});
+}
 
 // ============================================
 // NOTIFIER CLASSES FOR STATE MUTATIONS
 // ============================================
 
 /// Notifier for adding a friend
-class AddFriendNotifier extends StateNotifier<AsyncValue<void>> {
-  final SocialRepository _socialRepo;
-
-  AddFriendNotifier(this._socialRepo) : super(const AsyncValue.data(null));
+@riverpod
+class AddFriend extends _$AddFriend {
+  @override
+  AsyncValue<void> build() => const AsyncValue.data(null);
 
   Future<void> sendFriendRequest(String inviteCode) async {
     state = const AsyncValue.loading();
-    final result = await AsyncValue.guard(
-      () => _socialRepo.sendFriendRequest(inviteCode),
+    final socialRepo = ref.read(socialRepositoryProvider);
+    state = await AsyncValue.guard(
+      () => socialRepo.sendFriendRequest(inviteCode),
     );
-    if (mounted) {
-      state = result;
-    }
   }
 }
-
-final addFriendProvider =
-    StateNotifierProvider.autoDispose<AddFriendNotifier, AsyncValue<void>>((
-      ref,
-    ) {
-      final socialRepo = ref.watch(socialRepositoryProvider);
-      return AddFriendNotifier(socialRepo);
-    });
 
 // ============================================
 // FRIEND REQUEST ACTIONS
 // ============================================
 
-class FriendRequestNotifier extends StateNotifier<AsyncValue<void>> {
-  final SocialRepository _socialRepo;
-
-  FriendRequestNotifier(this._socialRepo) : super(const AsyncValue.data(null));
+@riverpod
+class FriendRequest extends _$FriendRequest {
+  @override
+  AsyncValue<void> build() => const AsyncValue.data(null);
 
   Future<void> acceptRequest(String friendshipId) async {
     state = const AsyncValue.loading();
+    final socialRepo = ref.read(socialRepositoryProvider);
     try {
-      await _socialRepo.acceptFriendRequest(friendshipId);
+      await socialRepo.acceptFriendRequest(friendshipId);
       state = const AsyncValue.data(null);
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
@@ -105,19 +103,12 @@ class FriendRequestNotifier extends StateNotifier<AsyncValue<void>> {
 
   Future<void> rejectRequest(String friendshipId) async {
     state = const AsyncValue.loading();
+    final socialRepo = ref.read(socialRepositoryProvider);
     state = await AsyncValue.guard(
-      () => _socialRepo.rejectFriendRequest(friendshipId),
+      () => socialRepo.rejectFriendRequest(friendshipId),
     );
   }
 }
-
-final friendRequestProvider =
-    StateNotifierProvider.autoDispose<FriendRequestNotifier, AsyncValue<void>>((
-      ref,
-    ) {
-      final socialRepo = ref.watch(socialRepositoryProvider);
-      return FriendRequestNotifier(socialRepo);
-    });
 
 // ============================================
 // CACHE INVALIDATION HELPERS

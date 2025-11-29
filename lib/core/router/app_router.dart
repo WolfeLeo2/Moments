@@ -29,7 +29,6 @@ class AppRouter {
       if (isSignedIn && isOnLoginPage) {
         return mapRoute;
       }
-
       return null; // No redirect needed
     },
     routes: [

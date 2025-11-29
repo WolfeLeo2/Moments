@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -7,12 +8,20 @@ class AuthService {
   late final GoogleSignIn _googleSignIn;
 
   AuthService() {
-    // Initialize Google Sign In with web client ID
-    final webClientId = dotenv.env['SUPABASE_GOOGLE_WEB_CLIENT_ID'];
-    _googleSignIn = GoogleSignIn(
-      serverClientId: webClientId,
-      scopes: ['email', 'profile'],
-    );
+    // Initialize Google Sign In
+    // For iOS: clientId is automatically read from Info.plist (GIDClientID)
+    // For Android: need to provide serverClientId (web client ID)
+    if (Platform.isIOS) {
+      // iOS: No serverClientId needed, reads from Info.plist
+      _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+    } else {
+      // Android: Use web client ID as serverClientId
+      final webClientId = dotenv.env['SUPABASE_GOOGLE_WEB_CLIENT_ID'];
+      _googleSignIn = GoogleSignIn(
+        serverClientId: webClientId,
+        scopes: ['email', 'profile'],
+      );
+    }
   }
 
   /// Get current user

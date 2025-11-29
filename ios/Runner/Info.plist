@@ -24,6 +24,21 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>GIDClientID</key>
+	<string>837716303354-135himrkif8vjfhpap1q9mu68f2b70gg.apps.googleusercontent.com</string>
+	<!-- URL scheme for Google Sign-In callback -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- Reversed client ID from Google Cloud Console -->
+				<string>com.googleusercontent.apps.837716303354-135himrkif8vjfhpap1q9mu68f2b70gg</string>
+			</array>
+		</dict>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -57,6 +72,8 @@
 	<string>This app needs camera access to take photos for your moments.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs photo library access to select photos for your moments.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs microphone access to record audio for voice chat.</string>
 
 </dict>
 </plist>

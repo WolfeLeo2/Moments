@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/painting.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/data/sources/supabase_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -211,5 +214,179 @@ class ChatRepository {
         .eq('conversation_id', conversationId)
         .neq('sender_id', userId)
         .eq('is_read', false);
+  }
+
+  /// Upload a file to Supabase Storage
+  Future<String> uploadFile(File file, String path) async {
+    try {
+      await _client.storage.from('chat_attachments').upload(path, file);
+      final publicUrl = _client.storage
+          .from('chat_attachments')
+          .getPublicUrl(path);
+      return publicUrl;
+    } catch (e) {
+      print('❌ [CHAT REPO] Error uploading file: $e');
+      rethrow;
+    }
+  }
+
+  /// Send an audio message
+  Future<Message> sendAudioMessage({
+    required String conversationId,
+    required String audioPath,
+    required int durationMs,
+  }) async {
+    try {
+      final currentUserId = _client.auth.currentUser?.id;
+      if (currentUserId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Upload audio file to storage
+      final fileName = 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final filePath = '$conversationId/$fileName';
+
+      await _client.storage
+          .from('chat_attachments')
+          .upload(
+            filePath,
+            File(audioPath),
+            fileOptions: const FileOptions(contentType: 'audio/mp4'),
+          );
+
+      final mediaUrl = _client.storage
+          .from('chat_attachments')
+          .getPublicUrl(filePath);
+
+      // Create message in database
+      final response = await _client
+          .from('messages')
+          .insert({
+            'conversation_id': conversationId,
+            'sender_id': currentUserId,
+            'content': 'Voice message ($durationMs ms)',
+            'message_type': 'audio',
+            'media_url': mediaUrl,
+            'metadata': {'duration_ms': durationMs},
+          })
+          .select()
+          .single();
+
+      return Message.fromJson(response);
+    } catch (e) {
+      print('❌ [CHAT REPO] Error sending audio message: $e');
+      rethrow;
+    }
+  }
+
+  /// Send an image message
+  Future<Message> sendImageMessage({
+    required String conversationId,
+    required String imagePath,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not authenticated');
+
+    // 1. Calculate image dimensions
+    final file = File(imagePath);
+    final bytes = await file.readAsBytes();
+    final image = await decodeImageFromList(bytes);
+    final metadata = {'width': image.width, 'height': image.height};
+
+    // 2. Upload image file
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final storagePath = '$conversationId/$fileName';
+
+    final mediaUrl = await uploadFile(file, storagePath);
+
+    // 3. Create message record
+    final response = await _client
+        .from('messages')
+        .insert({
+          'conversation_id': conversationId,
+          'sender_id': userId,
+          'content': 'Image', // Fallback text
+          'message_type': 'image',
+          'media_url': mediaUrl,
+          'metadata': metadata,
+        })
+        .select()
+        .single();
+
+    return Message.fromJson(response);
+  }
+
+  /// Send a video message
+  Future<Message> sendVideoMessage({
+    required String conversationId,
+    required String videoPath,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not authenticated');
+
+    // 1. Upload video file
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}.mp4';
+    final storagePath = '$conversationId/$fileName';
+    final file = File(videoPath);
+
+    final mediaUrl = await uploadFile(file, storagePath);
+
+    // 2. Create message record
+    final response = await _client
+        .from('messages')
+        .insert({
+          'conversation_id': conversationId,
+          'sender_id': userId,
+          'content': 'Video', // Fallback text
+          'message_type': 'video',
+          'media_url': mediaUrl,
+        })
+        .select()
+        .single();
+
+    return Message.fromJson(response);
+  }
+
+  /// Send typing indicator
+  Future<void> sendTyping(String conversationId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    final channel = _client.channel('chat:$conversationId');
+
+    try {
+      await channel.sendBroadcastMessage(
+        event: 'typing',
+        payload: {'user_id': userId},
+      );
+    } catch (e) {
+      // Silently ignore typing indicator errors
+    }
+  }
+
+  /// Subscribe to typing indicators
+  Stream<String> subscribeToTyping(String conversationId) {
+    final controller = StreamController<String>.broadcast();
+    final userId = _client.auth.currentUser?.id;
+
+    final channel = _client.channel('chat:$conversationId');
+
+    channel
+        .onBroadcast(
+          event: 'typing',
+          callback: (payload) {
+            // The payload structure is: {event: typing, payload: {user_id: ...}, type: broadcast}
+            // Extract from the nested 'payload' object
+            final nestedPayload = payload['payload'] as Map<String, dynamic>?;
+            final typingUserId = nestedPayload?['user_id'] as String?;
+
+            if (typingUserId != null && typingUserId != userId) {
+              controller.add(typingUserId);
+            }
+          },
+        )
+        .subscribe();
+
+    return controller.stream;
   }
 }

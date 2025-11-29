@@ -4,6 +4,8 @@ import 'package:equatable/equatable.dart';
 enum MessageType {
   text,
   image,
+  audio,
+  video,
   file;
 
   static MessageType fromString(String value) {
@@ -22,6 +24,7 @@ class Message extends Equatable {
   final String content;
   final MessageType messageType;
   final String? mediaUrl;
+  final Map<String, dynamic>? metadata;
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isDeleted;
@@ -34,6 +37,7 @@ class Message extends Equatable {
     required this.content,
     required this.messageType,
     this.mediaUrl,
+    this.metadata,
     required this.createdAt,
     required this.updatedAt,
     this.isDeleted = false,
@@ -48,6 +52,7 @@ class Message extends Equatable {
       content: json['content'] as String,
       messageType: MessageType.fromString(json['message_type'] as String),
       mediaUrl: json['media_url'] as String?,
+      metadata: json['metadata'] as Map<String, dynamic>?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       isDeleted: json['is_deleted'] as bool? ?? false,
@@ -63,6 +68,7 @@ class Message extends Equatable {
       'content': content,
       'message_type': messageType.name,
       'media_url': mediaUrl,
+      'metadata': metadata,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'is_deleted': isDeleted,
@@ -77,6 +83,7 @@ class Message extends Equatable {
     String? content,
     MessageType? messageType,
     String? mediaUrl,
+    Map<String, dynamic>? metadata,
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isDeleted,
@@ -89,6 +96,7 @@ class Message extends Equatable {
       content: content ?? this.content,
       messageType: messageType ?? this.messageType,
       mediaUrl: mediaUrl ?? this.mediaUrl,
+      metadata: metadata ?? this.metadata,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isDeleted: isDeleted ?? this.isDeleted,
@@ -104,6 +112,7 @@ class Message extends Equatable {
     content,
     messageType,
     mediaUrl,
+    metadata,
     createdAt,
     updatedAt,
     isDeleted,

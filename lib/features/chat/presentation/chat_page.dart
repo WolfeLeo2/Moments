@@ -1,13 +1,23 @@
+import 'dart:async';
 import 'dart:ui';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/features/chat/providers/chat_providers.dart';
 import 'package:moments/features/chat/widgets/message_bubble.dart';
-import 'package:chat_bubbles/chat_bubbles.dart';
+
 import 'package:moments/core/utils/extensions.dart';
 import 'package:moments/data/sources/supabase_config.dart';
 import 'package:moments/data/models/message.dart';
+import 'package:wechat_assets_picker/wechat_assets_picker.dart';
+import 'package:moments/features/chat/widgets/audio_message_bubble.dart';
+import 'package:moments/features/chat/widgets/audio_recorder_widget.dart';
+import 'package:moments/features/chat/widgets/image_message_bubble.dart';
+import 'package:moments/features/chat/widgets/video_message_bubble.dart';
+import 'package:moments/features/chat/widgets/typing_indicator_bubble.dart';
+import 'package:image_picker/image_picker.dart';
 
 class ChatPage extends ConsumerStatefulWidget {
   final String friendId;
@@ -29,9 +39,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     with AutomaticKeepAliveClientMixin {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  String? _conversationId;
-  bool _isLoading = true;
-  bool _showSendButton = false;
+  Timer? _typingTimer;
 
   @override
   bool get wantKeepAlive => true;
@@ -39,99 +47,79 @@ class _ChatPageState extends ConsumerState<ChatPage>
   @override
   void initState() {
     super.initState();
-    debugPrint(
-      '🔵 [ChatPage] initState called - conversationId: $_conversationId, isLoading: $_isLoading',
-    );
     _messageController.addListener(_onMessageChanged);
-
-    // Check cache first
-    final cachedId = ref
-        .read(conversationCacheProvider.notifier)
-        .getCachedConversationId(widget.friendId);
-    if (cachedId != null) {
-      debugPrint('✅ [ChatPage] Found cached conversationId: $cachedId');
-      setState(() {
-        _conversationId = cachedId;
-        _isLoading = false;
-      });
-    } else {
-      debugPrint('🔵 [ChatPage] No cached conversationId, initializing...');
-      _initializeConversation();
-    }
   }
 
   void _onMessageChanged() {
-    setState(() {
-      _showSendButton = _messageController.text.trim().isNotEmpty;
+    final conversationAsync = ref.read(conversationIdProvider(widget.friendId));
+
+    conversationAsync.whenData((conversationId) {
+      final hasText = _messageController.text.trim().isNotEmpty;
+      final currentShowSend = ref.read(showSendButtonProvider(conversationId));
+
+      if (currentShowSend != hasText) {
+        if (hasText) {
+          ref.read(showSendButtonProvider(conversationId).notifier).show();
+        } else {
+          ref.read(showSendButtonProvider(conversationId).notifier).hide();
+        }
+      }
+      _handleTyping(conversationId);
     });
   }
 
-  Future<void> _initializeConversation() async {
-    debugPrint('🔵 [ChatPage] _initializeConversation started');
-    try {
-      final chatRepo = ref.read(chatRepositoryProvider);
-      final conversationId = await chatRepo.getOrCreateConversation(
-        widget.friendId,
-      );
+  void _handleTyping(String conversationId) {
+    // Cancel existing timer
+    _typingTimer?.cancel();
 
-      if (!mounted) return;
+    // Send typing event on every keystroke
+    // This ensures the indicator stays alive while actively typing
+    ref.read(chatRepositoryProvider).sendTyping(conversationId);
 
-      debugPrint(
-        '✅ [ChatPage] Got conversationId: $conversationId, setting isLoading to false',
-      );
-
-      // Cache the conversation ID
-      ref
-          .read(conversationCacheProvider.notifier)
-          .cacheConversationId(widget.friendId, conversationId);
-
-      setState(() {
-        _conversationId = conversationId;
-        _isLoading = false;
-      });
-
-      // Mark as read when opening chat
-      // Wrap in try-catch so it doesn't block the UI if it fails
-      try {
-        await chatRepo.markAsRead(conversationId);
-      } catch (e) {
-        debugPrint('Failed to mark as read: $e');
-      }
-    } catch (e) {
-      debugPrint('❌ [ChatPage] Error initializing conversation: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-        // Only show error if we really failed to get the conversation
-        if (_conversationId == null) {
-          context.showErrorSnackBar('Failed to load conversation');
-        }
-      }
-    }
+    // Auto-clear after 2 seconds of inactivity (no more keystrokes)
+    _typingTimer = Timer(const Duration(seconds: 2), () {
+      // Timer expired - user stopped typing
+    });
   }
 
-  Future<void> _sendMessage() async {
+  void _subscribeToTyping(String conversationId) {
+    ref.read(chatRepositoryProvider).subscribeToTyping(conversationId).listen((
+      userId,
+    ) {
+      if (mounted) {
+        // Update typing users map with current timestamp
+        ref
+            .read(typingUsersProvider(conversationId).notifier)
+            .addTypingUser(userId);
+
+        // Clear typing indicator after 5 seconds of inactivity
+        // This gives a smooth experience as typing events are sent every ~2 seconds
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            // Clear old typing indicators
+            ref
+                .read(typingUsersProvider(conversationId).notifier)
+                .clearOldTypingIndicators(const Duration(seconds: 2));
+          }
+        });
+      }
+    });
+  }
+
+  Future<void> _sendMessage(String conversationId) async {
     final content = _messageController.text.trim();
-    if (content.isEmpty || _conversationId == null) return;
+    if (content.isEmpty) return;
 
     _messageController.clear();
+    _typingTimer?.cancel();
 
     try {
       final chatRepo = ref.read(chatRepositoryProvider);
       await chatRepo.sendMessage(
-        conversationId: _conversationId!,
+        conversationId: conversationId,
         content: content,
       );
 
-      // Scroll to bottom after sending
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar('Failed to send message');
@@ -139,55 +127,71 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
   }
 
+  Future<void> _sendAudioMessage(
+    String conversationId,
+    String path,
+    int durationMs,
+  ) async {
+    try {
+      final chatRepo = ref.read(chatRepositoryProvider);
+      await chatRepo.sendAudioMessage(
+        conversationId: conversationId,
+        audioPath: path,
+        durationMs: durationMs,
+      );
+
+      ref.read(isRecordingProvider(conversationId).notifier).stop();
+
+      _scrollToBottom();
+    } catch (e) {
+      debugPrint('Error sending audio: $e');
+      if (mounted) {
+        context.showErrorSnackBar('Failed to send voice note');
+      }
+    }
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   @override
   void dispose() {
     _messageController.removeListener(_onMessageChanged);
     _messageController.dispose();
     _scrollController.dispose();
+    _typingTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
-    debugPrint(
-      '🔵 [ChatPage] build called - conversationId: $_conversationId, isLoading: $_isLoading',
+
+    final conversationAsync = ref.watch(
+      conversationIdProvider(widget.friendId),
     );
     final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
-
-    // Listen to message updates to mark them as read in real-time
-    if (_conversationId != null) {
-      ref.listen<AsyncValue<List<Message>>>(
-        messagesStreamProvider(_conversationId!),
-        (previous, next) {
-          next.whenData((messages) {
-            if (messages.isEmpty) return;
-
-            // Check if there are any unread messages from the other user
-            final hasUnreadMessages = messages.any(
-              (m) => m.senderId != currentUserId && !m.isRead,
-            );
-
-            if (hasUnreadMessages) {
-              // Mark as read without awaiting to avoid blocking UI
-              ref.read(chatRepositoryProvider).markAsRead(_conversationId!);
-            }
-          });
-        },
-      );
-    }
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBeige,
       appBar: AppBar(
-        backgroundColor: AppTheme.backgroundBeige.withValues(alpha: 0.3),
-        elevation: 0,
-        flexibleSpace: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(color: Colors.white.withValues(alpha: 0.3)),
+        backgroundColor: AppTheme.backgroundBeige,
+        shape: const Border(
+          bottom: BorderSide(
+            color: Colors.white70,
+            width: 1.0,
           ),
         ),
+        elevation: 0,
         leadingWidth: 24,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
@@ -226,256 +230,536 @@ class _ChatPageState extends ConsumerState<ChatPage>
         ),
       ),
       extendBodyBehindAppBar: true,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _conversationId == null
-          ? const Center(child: Text('Failed to load conversation'))
-          : Stack(
-              children: [
-                // Messages list
-                Positioned.fill(
-                  child: Consumer(
-                    builder: (context, ref, child) {
-                      final messagesAsync = ref.watch(
-                        messagesStreamProvider(_conversationId!),
-                      );
+      body: conversationAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(child: Text('Error: $error')),
+        data: (conversationId) {
+          // Initialize typing subscription once we have the ID
+          // We use a post-frame callback to avoid build-phase side effects
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            // This is safe to call repeatedly as it handles its own subscription state
+            _subscribeToTyping(conversationId);
+          });
 
-                      return messagesAsync.when(
-                        data: (messages) {
-                          if (messages.isEmpty) {
-                            return Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.chat_bubble_outline,
-                                    size: 64,
-                                    color: Colors.grey[400],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No messages yet',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Say something! 👋',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey[500],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
+          // Listen to message updates to mark them as read in real-time
+          ref.listen<AsyncValue<List<Message>>>(
+            messagesStreamProvider(conversationId),
+            (previous, next) {
+              next.whenData((messages) {
+                if (messages.isEmpty) return;
 
-                          // Scroll to bottom when new messages arrive
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (_scrollController.hasClients) {
-                              _scrollController.animateTo(
-                                _scrollController.position.maxScrollExtent,
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeOut,
-                              );
-                            }
-                          });
+                // Check if there are any unread messages from the other user
+                final hasUnreadMessages = messages.any(
+                  (m) => m.senderId != currentUserId && !m.isRead,
+                );
 
-                          // Build list items with DateChips and Tail logic
-                          final List<Widget> chatItems = [];
-                          for (int i = 0; i < messages.length; i++) {
-                            final message = messages[i];
-                            final isMe = message.senderId == currentUserId;
-                            final isFirst = i == 0;
+                if (hasUnreadMessages) {
+                  // Mark as read without awaiting to avoid blocking UI
+                  ref.read(chatRepositoryProvider).markAsRead(conversationId);
+                }
+              });
+            },
+          );
 
-                            // Date Chip
-                            bool showDate = false;
-                            if (isFirst) {
-                              showDate = true;
-                            } else {
-                              final prevDate = messages[i - 1].createdAt;
-                              final currDate = message.createdAt;
-                              if (prevDate.day != currDate.day ||
-                                  prevDate.month != currDate.month ||
-                                  prevDate.year != currDate.year) {
-                                showDate = true;
-                              }
-                            }
+          return Stack(
+            children: [
+              // Messages list
+              Positioned.fill(
+                child: Consumer(
+                  builder: (context, ref, child) {
+                    final messagesAsync = ref.watch(
+                      messagesStreamProvider(conversationId),
+                    );
 
-                            if (showDate) {
-                              chatItems.add(
-                                Center(
-                                  child: DateChip(
-                                    date: message.createdAt,
-                                    color: const Color(0x558AD3D5),
+                    return messagesAsync.when(
+                      data: (messages) {
+                        if (messages.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 64,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No messages yet',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey[600],
                                   ),
                                 ),
-                              );
-                            }
-
-                            // Tail Logic
-                            bool tail = false;
-                            if (i == messages.length - 1) {
-                              tail = true;
-                            } else {
-                              final nextMessage = messages[i + 1];
-                              if (nextMessage.senderId != message.senderId) {
-                                tail = true;
-                              }
-                              // Also add tail if next message is on a different day (optional but looks better)
-                              final nextDate = nextMessage.createdAt;
-                              if (message.createdAt.day != nextDate.day) {
-                                tail = true;
-                              }
-                            }
-
-                            chatItems.add(
-                              MessageBubble(
-                                message: message,
-                                isMe: isMe,
-                                tail: tail,
-                              ),
-                            );
-                          }
-
-                          return SafeArea(
-                            child: ListView(
-                              controller: _scrollController,
-                              padding: const EdgeInsets.only(
-                                left: 0, // Bubbles handle their own padding
-                                right: 0,
-                                top: 100, // Space for AppBar
-                                bottom: 100, // Space for Input Area
-                              ),
-                              children: chatItems,
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Say something! 👋',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
                             ),
                           );
-                        },
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
-                        error: (error, stack) => Center(
-                          child: Text('Error loading messages: $error'),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                        }
 
-                // Glassmorphism Message Input
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: ClipRRect(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          // Just the blur, no added color as requested
-                          color: Colors.white.withValues(alpha: 0.3),
-                          border: Border(
-                            top: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.3),
-                              width: 0.5,
+                        // Scroll to bottom when new messages arrive
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (_scrollController.hasClients) {
+                            _scrollController.animateTo(
+                              _scrollController.position.maxScrollExtent,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOut,
+                            );
+                          }
+                        });
+
+                        // Find the index of the last message sent by the current user
+                        int lastMyMessageIndex = -1;
+                        for (int i = messages.length - 1; i >= 0; i--) {
+                          if (messages[i].senderId == currentUserId) {
+                            lastMyMessageIndex = i;
+                            break;
+                          }
+                        }
+
+                        // Build list items with Smart Date Headers and Tail logic
+                        final List<Widget> chatItems = [];
+                        for (int i = 0; i < messages.length; i++) {
+                          final message = messages[i];
+                          final isMe = message.senderId == currentUserId;
+                          final isFirst = i == 0;
+
+                          // Smart Date Header Logic
+                          bool showDate = false;
+                          if (isFirst) {
+                            showDate = true;
+                          } else {
+                            final prevDate = messages[i - 1].createdAt;
+                            final currDate = message.createdAt;
+                            final diff = currDate
+                                .difference(prevDate)
+                                .inMinutes;
+                            if (diff > 60 || prevDate.day != currDate.day) {
+                              showDate = true;
+                            }
+                          }
+
+                          if (showDate) {
+                            chatItems.add(
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    _formatDateHeader(message.createdAt),
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          // Tail Logic
+                          bool tail = false;
+                          if (i == messages.length - 1) {
+                            tail = true;
+                          } else {
+                            final nextMessage = messages[i + 1];
+                            if (nextMessage.senderId != message.senderId) {
+                              tail = true;
+                            }
+                            // Also add tail if next message is > 60 mins away (new block)
+                            final nextDate = nextMessage.createdAt;
+                            final diff = nextDate
+                                .difference(message.createdAt)
+                                .inMinutes;
+                            if (diff > 60) {
+                              tail = true;
+                            }
+                          }
+
+                          // Add Message Bubble
+                          Widget bubble;
+                          if (message.messageType == MessageType.audio) {
+                            bubble = AudioMessageBubble(
+                              message: message,
+                              isMe: isMe,
+                            );
+                          } else if (message.messageType == MessageType.image) {
+                            bubble = ImageMessageBubble(
+                              message: message,
+                              isMe: isMe,
+                            );
+                          } else if (message.messageType == MessageType.video) {
+                            bubble = VideoMessageBubble(
+                              message: message,
+                              isMe: isMe,
+                            );
+                          } else {
+                            bubble = MessageBubble(
+                              message: message,
+                              isMe: isMe,
+                              tail: tail,
+                            );
+                          }
+
+                          chatItems.add(
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical:
+                                    2, // Reduced vertical padding for tighter groups
+                                horizontal: 8,
+                              ),
+                              child: Align(
+                                alignment: isMe
+                                    ? Alignment.centerRight
+                                    : Alignment.centerLeft,
+                                child: bubble,
+                              ),
                             ),
+                          );
+
+                          // Status Label (Delivered/Read) - Only for the last message sent by me
+                          if (i == lastMyMessageIndex) {
+                            final statusText = message.isRead
+                                ? 'Read'
+                                : 'Delivered';
+                            chatItems.add(
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: 2,
+                                  bottom: 8,
+                                  right: 12,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Text(
+                                    statusText,
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                        }
+
+                        // Add typing indicator if someone is typing
+                        final typingUsers = ref.watch(
+                          typingUsersProvider(conversationId),
+                        );
+                        if (typingUsers.isNotEmpty) {
+                          chatItems.add(
+                            const Padding(
+                              padding: EdgeInsets.symmetric(
+                                vertical: 2,
+                                horizontal: 8,
+                              ),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: TypingIndicatorBubble(),
+                              ),
+                            ),
+                          );
+                        }
+
+                        return SafeArea(
+                          child: ListView(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.only(
+                              left: 0, // Bubbles handle their own padding
+                              right: 0,
+                              top: 100, // Space for AppBar
+                              bottom: 100, // Space for Input Area
+                            ),
+                            children: chatItems,
+                          ),
+                        );
+                      },
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (error, stack) =>
+                          Center(child: Text('Error loading messages: $error')),
+                    );
+                  },
+                ),
+              ),
+
+              // Glassmorphism Message Input
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: ClipRRect(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        // Just the blur, no added color as requested
+                        color: Colors.white.withValues(alpha: 0.3),
+                        border: Border(
+                          top: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            width: 0.5,
                           ),
                         ),
-                        padding: EdgeInsets.only(
-                          left: 8,
-                          right: 8,
-                          top: 8,
-                          bottom: 8 + MediaQuery.of(context).padding.bottom,
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.add,
-                                color: AppTheme.electricPurple,
-                              ),
-                              onPressed: () {}, // TODO: Add attachment
-                            ),
-                            Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(
-                                    AppTheme.radiusLarge + 2,
-                                  ),
-                                  border: Border.all(
-                                    color: Colors.grey.withValues(alpha: 0.2),
-                                  ),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                ),
-                                child: Row(
+                      ),
+                      padding: EdgeInsets.only(
+                        left: 8,
+                        right: 8,
+                        top: 8,
+                        bottom: 8 + MediaQuery.of(context).padding.bottom,
+                      ),
+                      child: Consumer(
+                        builder: (context, ref, child) {
+                          final isRecording = ref.watch(
+                            isRecordingProvider(conversationId),
+                          );
+
+                          return isRecording
+                              ? AudioRecorderWidget(
+                                  onRecordingComplete: (path, duration) =>
+                                      _sendAudioMessage(
+                                        conversationId,
+                                        path,
+                                        duration,
+                                      ),
+                                  onCancel: () {
+                                    ref
+                                        .read(
+                                          isRecordingProvider(
+                                            conversationId,
+                                          ).notifier,
+                                        )
+                                        .stop();
+                                  },
+                                )
+                              : Row(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.add,
+                                        color: AppTheme.electricPurple,
+                                      ),
+                                      onPressed: () =>
+                                          _pickMedia(conversationId),
+                                    ),
                                     Expanded(
-                                      child: TextField(
-                                        controller: _messageController,
-                                        style: const TextStyle(
-                                          color: Colors.black87,
-                                        ),
-                                        decoration: InputDecoration(
-                                          hintText: 'Message...',
-                                          hintStyle: TextStyle(
-                                            color: Colors.grey[500],
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            AppTheme.radiusLarge + 2,
                                           ),
-                                          border: InputBorder.none,
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                vertical: 10,
-                                              ),
+                                          border: Border.all(
+                                            color: Colors.grey.withValues(
+                                              alpha: 0.2,
+                                            ),
+                                          ),
                                         ),
-                                        maxLines: null,
-                                        textCapitalization:
-                                            TextCapitalization.sentences,
-                                        onSubmitted: (_) => _sendMessage(),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: TextField(
+                                                controller: _messageController,
+                                                style: const TextStyle(
+                                                  color: Colors.black87,
+                                                ),
+                                                decoration: InputDecoration(
+                                                  hintText: 'Message...',
+                                                  hintStyle: TextStyle(
+                                                    color: Colors.grey[500],
+                                                  ),
+                                                  border: InputBorder.none,
+                                                  contentPadding:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 10,
+                                                      ),
+                                                ),
+                                                maxLines: null,
+                                                textCapitalization:
+                                                    TextCapitalization
+                                                        .sentences,
+                                                onSubmitted: (_) =>
+                                                    _sendMessage(
+                                                      conversationId,
+                                                    ),
+                                              ),
+                                            ),
+                                            IconButton(
+                                              icon: Icon(
+                                                Icons.sticky_note_2_outlined,
+                                                color: Colors.grey[600],
+                                                size: 24,
+                                              ),
+                                              onPressed:
+                                                  () {}, // TODO: Stickers
+                                              padding: EdgeInsets.zero,
+                                              constraints:
+                                                  const BoxConstraints(),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
+
                                     IconButton(
-                                      icon: Icon(
-                                        Icons.sticky_note_2_outlined,
-                                        color: Colors.grey[600],
-                                        size: 24,
+                                      icon: const Icon(
+                                        Icons.camera_alt_outlined,
+                                        color: AppTheme.electricPurple,
                                       ),
-                                      onPressed: () {}, // TODO: Stickers
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
+                                      onPressed: () =>
+                                          _pickCameraImage(conversationId),
+                                    ),
+                                    Consumer(
+                                      builder: (context, ref, child) {
+                                        final showSend = ref.watch(
+                                          showSendButtonProvider(
+                                            conversationId,
+                                          ),
+                                        );
+
+                                        return IconButton(
+                                          icon: Icon(
+                                            showSend
+                                                ? Icons.send
+                                                : Icons.mic_none_outlined,
+                                            color: AppTheme.electricPurple,
+                                          ),
+                                          onPressed: showSend
+                                              ? () =>
+                                                    _sendMessage(conversationId)
+                                              : () {
+                                                  ref
+                                                      .read(
+                                                        isRecordingProvider(
+                                                          conversationId,
+                                                        ).notifier,
+                                                      )
+                                                      .start();
+                                                },
+                                        );
+                                      },
                                     ),
                                   ],
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.camera_alt_outlined,
-                                color: AppTheme.electricPurple,
-                              ),
-                              onPressed: () {}, // TODO: Camera
-                            ),
-                            IconButton(
-                              icon: Icon(
-                                _showSendButton
-                                    ? Icons.send
-                                    : Icons.mic_none_outlined,
-                                color: AppTheme.electricPurple,
-                              ),
-                              onPressed: _showSendButton
-                                  ? _sendMessage
-                                  : () {}, // TODO: Implement voice note
-                            ),
-                          ],
-                        ),
+                                );
+                        },
                       ),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
+          );
+        },
+      ),
     );
+  }
+
+  Future<void> _pickMedia(String conversationId) async {
+    try {
+      final List<AssetEntity>? result = await AssetPicker.pickAssets(
+        context,
+        pickerConfig: const AssetPickerConfig(
+          maxAssets: 1,
+          requestType: RequestType.common, // Images and Videos
+        ),
+      );
+
+      if (result != null && result.isNotEmpty) {
+        final asset = result.first;
+        final file = await asset.file;
+        if (file == null) return;
+
+        if (asset.type == AssetType.video) {
+          await _sendVideoMessage(conversationId, file);
+        } else if (asset.type == AssetType.image) {
+          await _sendImageMessage(conversationId, file);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error picking media: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error picking media: $e')));
+      }
+    }
+  }
+
+  Future<void> _sendImageMessage(String conversationId, File file) async {
+    try {
+      await ref
+          .read(chatRepositoryProvider)
+          .sendImageMessage(
+            conversationId: conversationId,
+            imagePath: file.path,
+          );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
+      }
+    }
+  }
+
+  Future<void> _sendVideoMessage(String conversationId, File file) async {
+    try {
+      await ref
+          .read(chatRepositoryProvider)
+          .sendVideoMessage(
+            conversationId: conversationId,
+            videoPath: file.path,
+          );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send video: $e')));
+      }
+    }
+  }
+
+  Future<void> _pickCameraImage(String conversationId) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.camera);
+
+      if (pickedFile != null) {
+        await _sendImageMessage(conversationId, File(pickedFile.path));
+      }
+    } catch (e) {
+      debugPrint('Error picking camera image: $e');
+    }
+  }
+
+  String _formatDateHeader(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final messageDate = DateTime(date.year, date.month, date.day);
+
+    final timestring = DateFormat('h:mm a').format(date);
+
+    if (messageDate == today) {
+      return 'Today $timestring';
+    } else if (messageDate == yesterday) {
+      return 'Yesterday $timestring';
+    } else {
+      return '${DateFormat('d MMM').format(date)} $timestring';
+    }
   }
 }

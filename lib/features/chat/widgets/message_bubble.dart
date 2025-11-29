@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/data/models/message.dart';
-
-import 'package:chat_bubbles/chat_bubbles.dart';
+import 'package:moments/features/chat/widgets/custom_bubble_special_three.dart';
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -16,7 +15,6 @@ class MessageBubble extends StatelessWidget {
     this.tail = true,
   });
 
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -24,18 +22,17 @@ class MessageBubble extends StatelessWidget {
           ? CrossAxisAlignment.end
           : CrossAxisAlignment.start,
       children: [
-        BubbleSpecialThree(
-          text: message.content,
+        CustomBubbleSpecialThree(
+          child: Text(
+            message.content,
+            style: TextStyle(
+              color: isMe ? Colors.white : Colors.black87,
+              fontSize: 16,
+            ),
+          ),
           color: isMe ? AppTheme.electricPurple : Colors.white,
           tail: tail,
-          textStyle: TextStyle(
-            color: isMe ? Colors.white : Colors.black87,
-            fontSize: 13,
-          ),
           isSender: isMe,
-          sent: isMe,
-          delivered: isMe,
-          seen: isMe && message.isRead,
         ),
       ],
     );

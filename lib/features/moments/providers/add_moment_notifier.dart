@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/utils/constants.dart';
@@ -7,16 +7,16 @@ import '../../../core/services/geocoding_service.dart';
 import '../../../data/repositories/moment_repository.dart';
 import 'add_moment_state.dart';
 
-final addMomentProvider =
-    StateNotifierProvider.autoDispose<AddMomentNotifier, AddMomentState>((ref) {
-      return AddMomentNotifier(MomentRepository());
-    });
+part 'add_moment_notifier.g.dart';
 
-class AddMomentNotifier extends StateNotifier<AddMomentState> {
-  final MomentRepository _momentRepository;
+@riverpod
+class AddMoment extends _$AddMoment {
   final ImagePicker _picker = ImagePicker();
+  
+  MomentRepository get _momentRepository => MomentRepository();
 
-  AddMomentNotifier(this._momentRepository) : super(const AddMomentState());
+  @override
+  AddMomentState build() => const AddMomentState();
 
   void initialize({
     double? initialLatitude,
