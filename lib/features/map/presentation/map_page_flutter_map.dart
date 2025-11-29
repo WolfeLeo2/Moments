@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:image_picker/image_picker.dart' as picker;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lottie/lottie.dart' as lottie;
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/services/geocoding_service.dart';
@@ -263,10 +264,14 @@ class _MapPageState extends ConsumerState<MapPage> {
     final momentsAsync = ref.watch(momentsStreamProvider);
 
     return momentsAsync.when(
-      loading: () => const Scaffold(
+      loading: () => Scaffold(
         backgroundColor: AppTheme.backgroundBeige,
         body: Center(
-          child: CircularProgressIndicator(color: AppTheme.primaryBlue),
+          child: lottie.Lottie.asset(
+            'assets/animations/loading.json',
+            width: 150,
+            height: 150,
+          ),
         ),
       ),
       error: (error, stackTrace) {

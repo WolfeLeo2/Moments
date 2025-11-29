@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lottie/lottie.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/features/chat/providers/chat_providers.dart';
 import 'package:moments/features/chat/widgets/message_bubble.dart';
@@ -231,7 +232,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
       ),
       extendBodyBehindAppBar: true,
       body: conversationAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => Center(
+          child: Lottie.asset(
+            'assets/animations/loading.json',
+            width: 150,
+            height: 150,
+          ),
+        ),
         error: (error, stack) => Center(child: Text('Error: $error')),
         data: (conversationId) {
           // Initialize typing subscription once we have the ID
@@ -486,8 +493,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
                           ),
                         );
                       },
-                      loading: () =>
-                          const Center(child: CircularProgressIndicator()),
+                      loading: () => Center(
+                        child: Lottie.asset(
+                          'assets/animations/loading.json',
+                          width: 150,
+                          height: 150,
+                        ),
+                      ),
                       error: (error, stack) =>
                           Center(child: Text('Error loading messages: $error')),
                     );

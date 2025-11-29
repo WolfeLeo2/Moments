@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/router/app_router.dart';
@@ -105,49 +106,49 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // App Logo/Title
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 16,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryBlue,
-                    border: Border.all(color: Colors.black, width: 3),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black,
-                        offset: Offset(6, 6),
-                        blurRadius: 0,
+                // Lottie Animation
+                Lottie.asset(
+                  'assets/animations/login.json',
+                  width: 320,
+                  height: 320,
+                  fit: BoxFit.cover,
+                ),
+
+                const SizedBox(height: 6),
+
+                // App Name
+                Stack(
+                  children: [
+                    Text(
+                      'MOMENTS',
+                      style: TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 4,
+                        foreground: Paint()
+                          ..style = PaintingStyle.stroke
+                          ..strokeWidth = 6
+                          ..color = Colors.black,
                       ),
-                    ],
-                  ),
-                  child: Stack(
-                    children: [
-                      Text(
-                        'MOMENTS',
-                        style: TextStyle(
-                          fontSize: 46,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 3,
-                          foreground: Paint()
-                            ..style = PaintingStyle.stroke
-                            ..strokeWidth = 4
-                            ..color = Colors.white,
-                        ),
+                    ),
+                    Text(
+                      'MOMENTS',
+                      style: TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 4,
+                        foreground: Paint()
+                          ..shader = const LinearGradient(
+                            colors: [
+                              AppTheme.primaryBlue,
+                              AppTheme.electricPurple,
+                            ],
+                          ).createShader(
+                            const Rect.fromLTWH(0, 0, 300, 70),
+                          ),
                       ),
-                      const Text(
-                        'MOMENTS',
-                        style: TextStyle(
-                          fontSize: 46,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.black,
-                          letterSpacing: 3,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 48),
