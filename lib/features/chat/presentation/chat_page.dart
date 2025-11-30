@@ -8,7 +8,6 @@ import 'package:lottie/lottie.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/features/chat/providers/chat_providers.dart';
 import 'package:moments/features/chat/widgets/message_bubble.dart';
-
 import 'package:moments/core/utils/extensions.dart';
 import 'package:moments/data/sources/supabase_config.dart';
 import 'package:moments/data/models/message.dart';
@@ -120,7 +119,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
         conversationId: conversationId,
         content: content,
       );
-
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar('Failed to send message');
@@ -187,10 +185,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
       appBar: AppBar(
         backgroundColor: AppTheme.backgroundBeige,
         shape: const Border(
-          bottom: BorderSide(
-            color: Colors.white70,
-            width: 1.0,
-          ),
+          bottom: BorderSide(color: Colors.white70, width: 1.0),
         ),
         elevation: 0,
         leadingWidth: 24,

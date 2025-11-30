@@ -1,39 +1,40 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/data/repositories/chat_repository.dart';
+import 'package:moments/core/services/message_storage_service.dart';
 
 part 'chat_providers.g.dart';
 
-/// Chat repository provider
+/// Message storage service provider
+@riverpod
+MessageStorageService messageStorage(Ref ref) {
+  return MessageStorageService();
+}
+
+/// Chat repository provider (original, simple version)
 @riverpod
 ChatRepository chatRepository(Ref ref) {
   return ChatRepository();
 }
 
-/// Conversation cache to prevent reloading when navigating back to chat
+/// Stream messages for a specific conversation with persistent storage
 @riverpod
-class ConversationCache extends _$ConversationCache {
-  @override
-  Map<String, String> build() => {};
-
-  String? getCachedConversationId(String friendId) {
-    return state[friendId];
-  }
-
-  void cacheConversationId(String friendId, String conversationId) {
-    state = {...state, friendId: conversationId};
-  }
-
-  void clearCache() {
-    state = {};
-  }
-}
-
-/// Stream messages for a specific conversation
-@riverpod
-Stream<List<Message>> messagesStream(Ref ref, String conversationId) {
+Stream<List<Message>> messagesStream(Ref ref, String conversationId) async* {
+  final storage = ref.watch(messageStorageProvider);
   final chatRepo = ref.watch(chatRepositoryProvider);
-  return chatRepo.streamMessages(conversationId);
+
+  // 1. Load stored messages immediately for instant UI
+  final storedMessages = await storage.getMessages(conversationId);
+  if (storedMessages.isNotEmpty) {
+    yield storedMessages;
+  }
+
+  // 2. Subscribe to Supabase realtime stream and update storage
+  await for (final messages in chatRepo.streamMessages(conversationId)) {
+    // Save to persistent storage
+    storage.saveMessages(conversationId, messages);
+    yield messages;
+  }
 }
 
 /// Get last message for a conversation
@@ -101,25 +102,22 @@ class IsRecording extends _$IsRecording {
 }
 
 /// Async conversation ID provider
-/// Handles caching and fetching conversation ID
+/// Gets or creates a conversation with a friend
+/// Uses local storage cache to prevent unnecessary network calls
 @riverpod
 Future<String> conversationId(Ref ref, String friendId) async {
-  // Check cache first
-  final cachedId = ref
-      .read(conversationCacheProvider.notifier)
-      .getCachedConversationId(friendId);
-  if (cachedId != null) {
-    return cachedId;
-  }
-
-  // Fetch from repository
+  final storage = ref.watch(messageStorageProvider);
   final chatRepo = ref.watch(chatRepositoryProvider);
-  final conversationId = await chatRepo.getOrCreateConversation(friendId);
 
-  // Update cache
-  ref
-      .read(conversationCacheProvider.notifier)
-      .cacheConversationId(friendId, conversationId);
+  // 1. Try local storage first (Instant load)
+  final cachedId = await storage.getConversationId(friendId);
+  if (cachedId != null) return cachedId;
 
-  return conversationId;
+  // 2. Network fallback (First time only)
+  final id = await chatRepo.getOrCreateConversation(friendId);
+
+  // 3. Save for next time
+  await storage.saveConversationId(friendId, id);
+
+  return id;
 }

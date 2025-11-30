@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:moments/core/theme/app_theme.dart';
@@ -28,6 +29,13 @@ class ImageMessageBubble extends StatelessWidget {
   }
 
   Widget _buildImage() {
+    if (message.localMediaPath != null &&
+        File(message.localMediaPath!).existsSync()) {
+      return _buildAspectRatioAwareImage(
+        FileImage(File(message.localMediaPath!)),
+      );
+    }
+
     if (message.mediaUrl == null) {
       return Container(
         width: 200,
@@ -37,6 +45,12 @@ class ImageMessageBubble extends StatelessWidget {
       );
     }
 
+    return _buildAspectRatioAwareImage(
+      CachedNetworkImageProvider(message.mediaUrl!),
+    );
+  }
+
+  Widget _buildAspectRatioAwareImage(ImageProvider imageProvider) {
     // Calculate aspect ratio from metadata if available
     double? aspectRatio;
     if (message.metadata != null &&
@@ -49,15 +63,22 @@ class ImageMessageBubble extends StatelessWidget {
       }
     }
 
-    final imageWidget = CachedNetworkImage(
-      imageUrl: message.mediaUrl!,
-      placeholder: (context, url) => Container(
-        color: Colors.grey[200],
-        child: const Center(child: CircularProgressIndicator()),
-      ),
-      errorWidget: (context, url, error) =>
-          Container(color: Colors.grey[200], child: const Icon(Icons.error)),
+    final imageWidget = Image(
+      image: imageProvider,
       fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: Colors.grey[200],
+          child: const Center(child: CircularProgressIndicator()),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          color: Colors.grey[200],
+          child: const Icon(Icons.error),
+        );
+      },
     );
 
     if (aspectRatio != null) {

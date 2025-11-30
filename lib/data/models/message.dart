@@ -24,6 +24,7 @@ class Message extends Equatable {
   final String content;
   final MessageType messageType;
   final String? mediaUrl;
+  final String? localMediaPath;
   final Map<String, dynamic>? metadata;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -37,6 +38,7 @@ class Message extends Equatable {
     required this.content,
     required this.messageType,
     this.mediaUrl,
+    this.localMediaPath,
     this.metadata,
     required this.createdAt,
     required this.updatedAt,
@@ -52,6 +54,7 @@ class Message extends Equatable {
       content: json['content'] as String,
       messageType: MessageType.fromString(json['message_type'] as String),
       mediaUrl: json['media_url'] as String?,
+      localMediaPath: json['local_media_path'] as String?,
       metadata: json['metadata'] as Map<String, dynamic>?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
@@ -68,6 +71,7 @@ class Message extends Equatable {
       'content': content,
       'message_type': messageType.name,
       'media_url': mediaUrl,
+      'local_media_path': localMediaPath,
       'metadata': metadata,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -83,6 +87,7 @@ class Message extends Equatable {
     String? content,
     MessageType? messageType,
     String? mediaUrl,
+    String? localMediaPath,
     Map<String, dynamic>? metadata,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -96,6 +101,7 @@ class Message extends Equatable {
       content: content ?? this.content,
       messageType: messageType ?? this.messageType,
       mediaUrl: mediaUrl ?? this.mediaUrl,
+      localMediaPath: localMediaPath ?? this.localMediaPath,
       metadata: metadata ?? this.metadata,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -112,6 +118,7 @@ class Message extends Equatable {
     content,
     messageType,
     mediaUrl,
+    localMediaPath,
     metadata,
     createdAt,
     updatedAt,

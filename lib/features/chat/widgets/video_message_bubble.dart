@@ -34,6 +34,16 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
   }
 
   Future<void> _initializePlayer() async {
+    if (widget.message.localMediaPath != null &&
+        File(widget.message.localMediaPath!).existsSync()) {
+      _videoPlayerController = VideoPlayerController.file(
+        File(widget.message.localMediaPath!),
+      );
+      await _videoPlayerController!.initialize();
+      _setupChewie();
+      return;
+    }
+
     if (widget.message.mediaUrl == null) return;
 
     try {
@@ -48,33 +58,36 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
       _videoPlayerController = VideoPlayerController.file(File(localPath));
 
       await _videoPlayerController!.initialize();
-
-      _chewieController = ChewieController(
-        videoPlayerController: _videoPlayerController!,
-        aspectRatio: _videoPlayerController!.value.aspectRatio,
-        autoPlay: false,
-        looping: false,
-        showControls: true,
-        materialProgressColors: ChewieProgressColors(
-          playedColor: AppTheme.electricPurple,
-          handleColor: AppTheme.electricPurple,
-          backgroundColor: Colors.grey,
-          bufferedColor: Colors.white,
-        ),
-        placeholder: Container(
-          color: Colors.black,
-          child: const Center(child: CircularProgressIndicator()),
-        ),
-        autoInitialize: true,
-      );
-
-      if (mounted) {
-        setState(() {
-          _isInitialized = true;
-        });
-      }
+      _setupChewie();
     } catch (e) {
       debugPrint('Error initializing video player: $e');
+    }
+  }
+
+  void _setupChewie() {
+    _chewieController = ChewieController(
+      videoPlayerController: _videoPlayerController!,
+      aspectRatio: _videoPlayerController!.value.aspectRatio,
+      autoPlay: false,
+      looping: false,
+      showControls: true,
+      materialProgressColors: ChewieProgressColors(
+        playedColor: AppTheme.electricPurple,
+        handleColor: AppTheme.electricPurple,
+        backgroundColor: Colors.grey,
+        bufferedColor: Colors.white,
+      ),
+      placeholder: Container(
+        color: Colors.black,
+        child: const Center(child: CircularProgressIndicator()),
+      ),
+      autoInitialize: true,
+    );
+
+    if (mounted) {
+      setState(() {
+        _isInitialized = true;
+      });
     }
   }
 

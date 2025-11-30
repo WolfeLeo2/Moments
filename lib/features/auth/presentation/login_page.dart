@@ -109,9 +109,9 @@ class _LoginPageState extends State<LoginPage> {
                 // Lottie Animation
                 Lottie.asset(
                   'assets/animations/login.json',
-                  width: 320,
-                  height: 320,
-                  fit: BoxFit.cover,
+                  width: 360,
+                  height: 360,
+                  fit: BoxFit.contain,
                 ),
 
                 const SizedBox(height: 6),
@@ -143,9 +143,7 @@ class _LoginPageState extends State<LoginPage> {
                               AppTheme.primaryBlue,
                               AppTheme.electricPurple,
                             ],
-                          ).createShader(
-                            const Rect.fromLTWH(0, 0, 300, 70),
-                          ),
+                          ).createShader(const Rect.fromLTWH(0, 0, 300, 70)),
                       ),
                     ),
                   ],

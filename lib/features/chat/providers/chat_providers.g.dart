@@ -8,17 +8,69 @@ part of 'chat_providers.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Chat repository provider
+/// Message storage service provider
+
+@ProviderFor(messageStorage)
+const messageStorageProvider = MessageStorageProvider._();
+
+/// Message storage service provider
+
+final class MessageStorageProvider
+    extends
+        $FunctionalProvider<
+          MessageStorageService,
+          MessageStorageService,
+          MessageStorageService
+        >
+    with $Provider<MessageStorageService> {
+  /// Message storage service provider
+  const MessageStorageProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'messageStorageProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$messageStorageHash();
+
+  @$internal
+  @override
+  $ProviderElement<MessageStorageService> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  MessageStorageService create(Ref ref) {
+    return messageStorage(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(MessageStorageService value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<MessageStorageService>(value),
+    );
+  }
+}
+
+String _$messageStorageHash() => r'0906386001e73e8be113ec3e352e19214bf02bcd';
+
+/// Chat repository provider (original, simple version)
 
 @ProviderFor(chatRepository)
 const chatRepositoryProvider = ChatRepositoryProvider._();
 
-/// Chat repository provider
+/// Chat repository provider (original, simple version)
 
 final class ChatRepositoryProvider
     extends $FunctionalProvider<ChatRepository, ChatRepository, ChatRepository>
     with $Provider<ChatRepository> {
-  /// Chat repository provider
+  /// Chat repository provider (original, simple version)
   const ChatRepositoryProvider._()
     : super(
         from: null,
@@ -54,71 +106,12 @@ final class ChatRepositoryProvider
 
 String _$chatRepositoryHash() => r'ea9e083da4dcdf131e1c2e9541b05be8efba8977';
 
-/// Conversation cache to prevent reloading when navigating back to chat
-
-@ProviderFor(ConversationCache)
-const conversationCacheProvider = ConversationCacheProvider._();
-
-/// Conversation cache to prevent reloading when navigating back to chat
-final class ConversationCacheProvider
-    extends $NotifierProvider<ConversationCache, Map<String, String>> {
-  /// Conversation cache to prevent reloading when navigating back to chat
-  const ConversationCacheProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'conversationCacheProvider',
-        isAutoDispose: true,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$conversationCacheHash();
-
-  @$internal
-  @override
-  ConversationCache create() => ConversationCache();
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(Map<String, String> value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<Map<String, String>>(value),
-    );
-  }
-}
-
-String _$conversationCacheHash() => r'ba69901a90ffe2cbc312604ad2a02a089fa1b136';
-
-/// Conversation cache to prevent reloading when navigating back to chat
-
-abstract class _$ConversationCache extends $Notifier<Map<String, String>> {
-  Map<String, String> build();
-  @$mustCallSuper
-  @override
-  void runBuild() {
-    final created = build();
-    final ref = this.ref as $Ref<Map<String, String>, Map<String, String>>;
-    final element =
-        ref.element
-            as $ClassProviderElement<
-              AnyNotifier<Map<String, String>, Map<String, String>>,
-              Map<String, String>,
-              Object?,
-              Object?
-            >;
-    element.handleValue(ref, created);
-  }
-}
-
-/// Stream messages for a specific conversation
+/// Stream messages for a specific conversation with persistent storage
 
 @ProviderFor(messagesStream)
 const messagesStreamProvider = MessagesStreamFamily._();
 
-/// Stream messages for a specific conversation
+/// Stream messages for a specific conversation with persistent storage
 
 final class MessagesStreamProvider
     extends
@@ -128,7 +121,7 @@ final class MessagesStreamProvider
           Stream<List<Message>>
         >
     with $FutureModifier<List<Message>>, $StreamProvider<List<Message>> {
-  /// Stream messages for a specific conversation
+  /// Stream messages for a specific conversation with persistent storage
   const MessagesStreamProvider._({
     required MessagesStreamFamily super.from,
     required String super.argument,
@@ -173,9 +166,9 @@ final class MessagesStreamProvider
   }
 }
 
-String _$messagesStreamHash() => r'6e4feceb7fcac1ca44a9220731ad4c51aaf75801';
+String _$messagesStreamHash() => r'62232ec92e8c67479c171793f44eb8e98654e31a';
 
-/// Stream messages for a specific conversation
+/// Stream messages for a specific conversation with persistent storage
 
 final class MessagesStreamFamily extends $Family
     with $FunctionalFamilyOverride<Stream<List<Message>>, String> {
@@ -188,7 +181,7 @@ final class MessagesStreamFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Stream messages for a specific conversation
+  /// Stream messages for a specific conversation with persistent storage
 
   MessagesStreamProvider call(String conversationId) =>
       MessagesStreamProvider._(argument: conversationId, from: this);
@@ -672,19 +665,19 @@ abstract class _$IsRecording extends $Notifier<bool> {
 }
 
 /// Async conversation ID provider
-/// Handles caching and fetching conversation ID
+/// Gets or creates a conversation with a friend
 
 @ProviderFor(conversationId)
 const conversationIdProvider = ConversationIdFamily._();
 
 /// Async conversation ID provider
-/// Handles caching and fetching conversation ID
+/// Gets or creates a conversation with a friend
 
 final class ConversationIdProvider
     extends $FunctionalProvider<AsyncValue<String>, String, FutureOr<String>>
     with $FutureModifier<String>, $FutureProvider<String> {
   /// Async conversation ID provider
-  /// Handles caching and fetching conversation ID
+  /// Gets or creates a conversation with a friend
   const ConversationIdProvider._({
     required ConversationIdFamily super.from,
     required String super.argument,
@@ -728,10 +721,10 @@ final class ConversationIdProvider
   }
 }
 
-String _$conversationIdHash() => r'4e26cf912f6efedec6744ce2eb00acada814a67c';
+String _$conversationIdHash() => r'835c8b5e879879f45ad143c738f8e51d9c725daa';
 
 /// Async conversation ID provider
-/// Handles caching and fetching conversation ID
+/// Gets or creates a conversation with a friend
 
 final class ConversationIdFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<String>, String> {
@@ -745,7 +738,7 @@ final class ConversationIdFamily extends $Family
       );
 
   /// Async conversation ID provider
-  /// Handles caching and fetching conversation ID
+  /// Gets or creates a conversation with a friend
 
   ConversationIdProvider call(String friendId) =>
       ConversationIdProvider._(argument: friendId, from: this);

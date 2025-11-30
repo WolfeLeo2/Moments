@@ -90,15 +90,13 @@ dependencies:
   just_audio: ^0.9.40
   record: ^6.1.2
   permission_handler: ^11.3.0
-  path: ^1.9.0
+  path: ^1.9.1
   video_player: ^2.10.1
   chewie: ^1.13.0
   wechat_assets_picker: ^10.0.0
+  sqflite: ^2.4.2
+  connectivity_plus: ^7.0.0
 
-  # Offline First (Brick)
-  brick_offline_first_with_supabase: ^2.1.0
-  brick_sqlite: ^4.1.0
-  brick_supabase: ^2.1.1
 
 dev_dependencies:
   flutter_test:
@@ -108,8 +106,6 @@ dev_dependencies:
   riverpod_generator: ^3.0.3
   build_runner: ^2.10.4
   mocktail: ^1.0.4
-  brick_build: ^4.1.0
-  brick_offline_first_with_supabase_build: ^2.1.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

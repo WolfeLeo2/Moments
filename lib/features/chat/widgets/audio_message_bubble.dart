@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -41,17 +42,24 @@ class _AudioMessageBubbleState extends ConsumerState<AudioMessageBubble>
   }
 
   Future<void> _initAudio() async {
-    if (widget.message.mediaUrl == null) return;
-
     try {
-      final cacheService = ref.read(mediaCacheServiceProvider);
-      final localPath = await cacheService.getAudioFile(
-        widget.message.id,
-        widget.message.mediaUrl!,
-      );
+      String? filePath;
+
+      if (widget.message.localMediaPath != null &&
+          File(widget.message.localMediaPath!).existsSync()) {
+        filePath = widget.message.localMediaPath;
+      } else if (widget.message.mediaUrl != null) {
+        final cacheService = ref.read(mediaCacheServiceProvider);
+        filePath = await cacheService.getAudioFile(
+          widget.message.id,
+          widget.message.mediaUrl!,
+        );
+      }
+
+      if (filePath == null) return;
 
       _audioPlayer = AudioPlayer();
-      await _audioPlayer!.setFilePath(localPath);
+      await _audioPlayer!.setFilePath(filePath);
 
       // Listen to player state
       _playerStateSubscription = _audioPlayer!.playerStateStream.listen((
