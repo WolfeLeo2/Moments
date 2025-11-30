@@ -103,21 +103,8 @@ class IsRecording extends _$IsRecording {
 
 /// Async conversation ID provider
 /// Gets or creates a conversation with a friend
-/// Uses local storage cache to prevent unnecessary network calls
 @riverpod
 Future<String> conversationId(Ref ref, String friendId) async {
-  final storage = ref.watch(messageStorageProvider);
   final chatRepo = ref.watch(chatRepositoryProvider);
-
-  // 1. Try local storage first (Instant load)
-  final cachedId = await storage.getConversationId(friendId);
-  if (cachedId != null) return cachedId;
-
-  // 2. Network fallback (First time only)
-  final id = await chatRepo.getOrCreateConversation(friendId);
-
-  // 3. Save for next time
-  await storage.saveConversationId(friendId, id);
-
-  return id;
+  return chatRepo.getOrCreateConversation(friendId);
 }

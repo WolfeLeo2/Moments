@@ -48,14 +48,6 @@ class MessageStorageService {
           CREATE INDEX idx_conversation 
           ON messages(conversation_id, created_at)
         ''');
-
-        // Table to cache friend_id -> conversation_id mapping
-        await db.execute('''
-          CREATE TABLE conversation_map (
-            friend_id TEXT PRIMARY KEY,
-            conversation_id TEXT NOT NULL
-          )
-        ''');
       },
     );
   }
@@ -122,34 +114,6 @@ class MessageStorageService {
     await batch.commit(noResult: true);
   }
 
-  /// Get cached conversation ID for a friend
-  Future<String?> getConversationId(String friendId) async {
-    final db = await database;
-    final results = await db.query(
-      'conversation_map',
-      columns: ['conversation_id'],
-      where: 'friend_id = ?',
-      whereArgs: [friendId],
-    );
-
-    if (results.isNotEmpty) {
-      return results.first['conversation_id'] as String;
-    }
-    return null;
-  }
-
-  /// Save conversation ID mapping
-  Future<void> saveConversationId(
-    String friendId,
-    String conversationId,
-  ) async {
-    final db = await database;
-    await db.insert('conversation_map', {
-      'friend_id': friendId,
-      'conversation_id': conversationId,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
-  }
-
   /// Clear stored messages for a conversation
   Future<void> clearConversation(String conversationId) async {
     final db = await database;
@@ -164,7 +128,6 @@ class MessageStorageService {
   Future<void> clearAll() async {
     final db = await database;
     await db.delete('messages');
-    await db.delete('conversation_map');
   }
 
   MessageType _parseMessageType(String type) {
