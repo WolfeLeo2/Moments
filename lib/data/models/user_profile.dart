@@ -23,8 +23,8 @@ class UserProfile extends Equatable {
       username: json['username'] as String?,
       displayName: json['display_name'] as String?,
       avatarUrl: json['avatar_url'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
     );
   }
 

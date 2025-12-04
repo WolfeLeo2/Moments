@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:moments/data/models/message.dart';
@@ -27,7 +28,7 @@ class MessageStorageService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // Updated version for conversations table
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE messages (
@@ -48,6 +49,27 @@ class MessageStorageService {
           CREATE INDEX idx_conversation 
           ON messages(conversation_id, created_at)
         ''');
+
+        // Table for caching conversation IDs
+        await db.execute('''
+          CREATE TABLE conversations (
+            friend_id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            cached_at INTEGER NOT NULL
+          )
+        ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        // Migrate from version 1 to 2
+        if (oldVersion < 2) {
+          await db.execute('''
+            CREATE TABLE conversations (
+              friend_id TEXT PRIMARY KEY,
+              conversation_id TEXT NOT NULL,
+              cached_at INTEGER NOT NULL
+            )
+          ''');
+        }
       },
     );
   }
@@ -63,6 +85,22 @@ class MessageStorageService {
     );
 
     return results.map((row) {
+      // Parse metadata from JSON string
+      Map<String, dynamic>? parsedMetadata;
+      final rawMetadata = row['metadata'];
+      if (rawMetadata != null &&
+          rawMetadata is String &&
+          rawMetadata.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(rawMetadata);
+          if (decoded is Map) {
+            parsedMetadata = Map<String, dynamic>.from(decoded);
+          }
+        } catch (_) {
+          // Ignore JSON decode errors
+        }
+      }
+
       return Message(
         id: row['id'] as String,
         conversationId: row['conversation_id'] as String,
@@ -70,12 +108,7 @@ class MessageStorageService {
         content: row['content'] as String,
         messageType: _parseMessageType(row['message_type'] as String),
         mediaUrl: row['media_url'] as String?,
-        metadata: row['metadata'] != null
-            ? Map<String, dynamic>.from(
-                // Parse JSON string if needed
-                row['metadata'] as Map,
-              )
-            : null,
+        metadata: parsedMetadata,
         createdAt: DateTime.fromMillisecondsSinceEpoch(
           row['created_at'] as int,
         ),
@@ -104,7 +137,9 @@ class MessageStorageService {
         'content': message.content,
         'message_type': message.messageType.name,
         'media_url': message.mediaUrl,
-        'metadata': message.metadata?.toString(),
+        'metadata': message.metadata != null
+            ? jsonEncode(message.metadata)
+            : null,
         'created_at': message.createdAt.millisecondsSinceEpoch,
         'is_read': message.isRead ? 1 : 0,
         'is_deleted': message.isDeleted ? 1 : 0,
@@ -128,6 +163,33 @@ class MessageStorageService {
   Future<void> clearAll() async {
     final db = await database;
     await db.delete('messages');
+  }
+
+  /// Cache conversation ID for a friend
+  Future<void> cacheConversationId(
+    String friendId,
+    String conversationId,
+  ) async {
+    final db = await database;
+    await db.insert('conversations', {
+      'friend_id': friendId,
+      'conversation_id': conversationId,
+      'cached_at': DateTime.now().millisecondsSinceEpoch,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  /// Get cached conversation ID for a friend
+  Future<String?> getCachedConversationId(String friendId) async {
+    final db = await database;
+    final results = await db.query(
+      'conversations',
+      where: 'friend_id = ?',
+      whereArgs: [friendId],
+      limit: 1,
+    );
+
+    if (results.isEmpty) return null;
+    return results.first['conversation_id'] as String;
   }
 
   MessageType _parseMessageType(String type) {

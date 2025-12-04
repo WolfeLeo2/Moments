@@ -5,10 +5,12 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:image_picker/image_picker.dart' as picker;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart' as lottie;
+import 'package:wechat_assets_picker/wechat_assets_picker.dart' hide LatLng;
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/services/geocoding_service.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/map_cache_service.dart';
 import '../../../core/providers/moments_providers.dart';
 import '../../../data/models/moment.dart';
 import '../../../widgets/blurred_app_bar.dart';
@@ -31,6 +33,7 @@ class MapPage extends ConsumerStatefulWidget {
 
 class _MapPageState extends ConsumerState<MapPage> {
   final MapController _mapController = MapController();
+  final MapCacheService _mapCacheService = MapCacheService();
   geo.Position? _currentPosition;
   String _cityName = 'Loading...';
   final AuthService _authService = AuthService();
@@ -43,6 +46,8 @@ class _MapPageState extends ConsumerState<MapPage> {
 
   Future<void> _initializeMap() async {
     try {
+      // Initialize map caching first
+      await _mapCacheService.initialize();
       await _getCurrentLocation();
       await _loadCityName();
     } catch (e) {
@@ -181,7 +186,7 @@ class _MapPageState extends ConsumerState<MapPage> {
 
   // Removed - replaced with AnimatedFAB widget
 
-  Future<void> _pickImageAndNavigate(picker.ImageSource source) async {
+  Future<void> _pickFromCamera() async {
     if (_currentPosition == null) {
       if (mounted) {
         context.showErrorSnackBar('Unable to get current location');
@@ -189,19 +194,47 @@ class _MapPageState extends ConsumerState<MapPage> {
       return;
     }
 
+    // Show dialog to choose between photo and video
+    final mediaType = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Capture'),
+        content: const Text('What would you like to capture?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'photo'),
+            child: const Text('Photo'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'video'),
+            child: const Text('Video'),
+          ),
+        ],
+      ),
+    );
+
+    if (mediaType == null || !mounted) return;
+
     try {
       final imagePicker = picker.ImagePicker();
-      final pickedFile = await imagePicker.pickImage(
-        source: source,
-        imageQuality: 70,
-      );
+      picker.XFile? file;
 
-      if (pickedFile == null || !mounted) return;
+      if (mediaType == 'photo') {
+        file = await imagePicker.pickImage(source: picker.ImageSource.camera);
+      } else {
+        file = await imagePicker.pickVideo(
+          source: picker.ImageSource.camera,
+          maxDuration: const Duration(seconds: 60),
+        );
+      }
+
+      if (file == null || !mounted) return;
 
       final result = await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => AddMomentPage(
-            imagePath: pickedFile.path,
+            mediaPath: file!.path,
+            isVideo: mediaType == 'video',
             initialLatitude: _currentPosition!.latitude,
             initialLongitude: _currentPosition!.longitude,
           ),
@@ -214,12 +247,12 @@ class _MapPageState extends ConsumerState<MapPage> {
       }
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Error picking image: $e');
+        context.showErrorSnackBar('Error opening camera: $e');
       }
     }
   }
 
-  Future<void> _pickMultipleImagesAndNavigate() async {
+  Future<void> _pickFromGallery() async {
     if (_currentPosition == null) {
       if (mounted) {
         context.showErrorSnackBar('Unable to get current location');
@@ -228,32 +261,56 @@ class _MapPageState extends ConsumerState<MapPage> {
     }
 
     try {
-      final pickerInstance = picker.ImagePicker();
-      final List<picker.XFile> images = await pickerInstance.pickMultiImage(
-        imageQuality: 70,
+      // Use wechat_assets_picker to pick images and videos
+      final List<AssetEntity>? assets = await AssetPicker.pickAssets(
+        context,
+        pickerConfig: AssetPickerConfig(
+          maxAssets: 10, // Allow up to 10 media files
+          requestType: RequestType.common, // Support both images and videos
+          specialPickerType: SpecialPickerType.noPreview,
+        ),
       );
 
-      if (images.isNotEmpty && mounted) {
-        // Pass all image paths
-        final imagePaths = images.map((img) => img.path).toList();
-        final result = await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => AddMomentPage(
-              imagePaths: imagePaths,
-              initialLatitude: _currentPosition!.latitude,
-              initialLongitude: _currentPosition!.longitude,
-            ),
-          ),
-        );
+      if (assets == null || assets.isEmpty || !mounted) return;
 
-        // Invalidate moments cache to refresh if moment was created successfully
-        if (result == true && mounted) {
-          ref.invalidate(momentsStreamProvider);
+      // Convert assets to file paths and check types
+      final List<String> mediaPaths = [];
+      bool hasVideo = false;
+      int? videoDuration;
+
+      for (final asset in assets) {
+        final file = await asset.file;
+        if (file != null) {
+          mediaPaths.add(file.path);
+          if (asset.type == AssetType.video) {
+            hasVideo = true;
+            videoDuration = asset.duration;
+          }
         }
+      }
+
+      if (mediaPaths.isEmpty || !mounted) return;
+
+      // Navigate to AddMomentPage
+      final result = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => AddMomentPage(
+            mediaPaths: mediaPaths,
+            isVideo: hasVideo,
+            videoDuration: videoDuration ?? 0,
+            initialLatitude: _currentPosition!.latitude,
+            initialLongitude: _currentPosition!.longitude,
+          ),
+        ),
+      );
+
+      // Invalidate moments cache to refresh if moment was created successfully
+      if (result == true && mounted) {
+        ref.invalidate(momentsStreamProvider);
       }
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Error picking images: $e');
+        context.showErrorSnackBar('Error picking media: $e');
       }
     }
   }
@@ -288,6 +345,7 @@ class _MapPageState extends ConsumerState<MapPage> {
           extendBodyBehindAppBar: true,
           appBar: BlurredAppBar(
             title: 'Moments',
+
             profileImageUrl: _authService.currentUserPhotoUrl,
             onFriendsPressed: () {
               Navigator.push(
@@ -314,18 +372,20 @@ class _MapPageState extends ConsumerState<MapPage> {
                           _currentPosition!.longitude,
                         )
                       : const LatLng(0, 0),
-                  initialZoom: 14.0,
+                  initialZoom: 18.0,
                   minZoom: 5.0,
-                  maxZoom: 18.0,
+                  maxZoom: 22.0,
                 ),
                 children: [
-                  // Mapbox tile layer - Standard style (blueish)
+                  // Mapbox Streets v11 - 512px tiles for better performance
                   TileLayer(
                     urlTemplate:
-                        'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}@2x?access_token=pk.eyJ1Ijoid29sZmVsZW8iLCJhIjoiY21oYXRxMW82MW5nNjJqcGc4aDA0YndoeSJ9.gvLhQFM-46KlcUdAKFGMYg',
+                        'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/512/{z}/{x}/{y}@2x?access_token=pk.eyJ1Ijoid29sZmVsZW8iLCJhIjoiY21oYXRxMW82MW5nNjJqcGc4aDA0YndoeSJ9.gvLhQFM-46KlcUdAKFGMYg',
                     userAgentPackageName: 'com.moments.app',
+                    tileProvider: _mapCacheService.tileProvider,
                     tileSize: 512,
                     zoomOffset: -1,
+                    retinaMode: true,
                   ),
 
                   // User location marker (BEFORE moment markers so it appears below)
@@ -440,9 +500,8 @@ class _MapPageState extends ConsumerState<MapPage> {
                 right: 0,
                 child: Center(
                   child: _AnimatedFAB(
-                    onCameraTap: () =>
-                        _pickImageAndNavigate(picker.ImageSource.camera),
-                    onGalleryTap: _pickMultipleImagesAndNavigate,
+                    onCameraTap: _pickFromCamera,
+                    onGalleryTap: _pickFromGallery,
                   ),
                 ),
               ),

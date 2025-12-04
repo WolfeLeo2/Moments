@@ -27,7 +27,7 @@ class MomentImage extends Equatable {
       mediaPath: json['media_path'] as String,
       caption: json['caption'] as String?,
       displayOrder: json['display_order'] as int? ?? 0,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
     );
   }
 

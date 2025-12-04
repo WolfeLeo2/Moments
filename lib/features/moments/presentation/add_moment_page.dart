@@ -6,6 +6,7 @@ import 'package:moments/core/utils/extensions.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/constants.dart';
 import '../../../widgets/spring_button.dart';
+import '../../../widgets/video_player_widget.dart';
 import '../providers/add_moment_notifier.dart';
 import '../providers/add_moment_state.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -15,15 +16,19 @@ import 'package:flutter_svg/flutter_svg.dart';
 class AddMomentPage extends ConsumerStatefulWidget {
   final double? initialLatitude;
   final double? initialLongitude;
-  final String? imagePath;
-  final List<String>? imagePaths;
+  final String? mediaPath; // Single media file (image or video)
+  final List<String>? mediaPaths; // Multiple media files
+  final bool isVideo; // Whether the media is video
+  final int? videoDuration; // Video duration in seconds
 
   const AddMomentPage({
     super.key,
     this.initialLatitude,
     this.initialLongitude,
-    this.imagePath,
-    this.imagePaths,
+    this.mediaPath,
+    this.mediaPaths,
+    this.isVideo = false,
+    this.videoDuration,
   });
 
   @override
@@ -44,8 +49,10 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
           .initialize(
             initialLatitude: widget.initialLatitude,
             initialLongitude: widget.initialLongitude,
-            imagePath: widget.imagePath,
-            imagePaths: widget.imagePaths,
+            imagePath: widget.mediaPath,
+            imagePaths: widget.mediaPaths,
+            isVideo: widget.isVideo,
+            videoDuration: widget.videoDuration,
           );
     });
   }
@@ -337,7 +344,9 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                           decoration: ShapeDecoration(
                             color: Colors.white,
                             shape: RoundedSuperellipseBorder(
-                              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusMedium,
+                              ),
                               side: BorderSide(
                                 color: AppTheme.borderBlack,
                                 width: 1.5,
@@ -403,15 +412,15 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                         ? AppTheme.primaryBlue
                                         : Colors.white,
                                     shape: RoundedSuperellipseBorder(
-                                    borderRadius: BorderRadius.circular(
-                                      AppTheme.radiusSmall,
-                                    ),
-                                    side: BorderSide(
-                                      color: !state.isPrivate
-                                          ? AppTheme.borderBlack
-                                          : Colors.black12,
-                                      width: 1.5,
-                                    ),
+                                      borderRadius: BorderRadius.circular(
+                                        AppTheme.radiusSmall,
+                                      ),
+                                      side: BorderSide(
+                                        color: !state.isPrivate
+                                            ? AppTheme.borderBlack
+                                            : Colors.black12,
+                                        width: 1.5,
+                                      ),
                                     ),
                                     shadows: [
                                       BoxShadow(
@@ -453,15 +462,15 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                         ? AppTheme.emergencyRed
                                         : Colors.white,
                                     shape: RoundedSuperellipseBorder(
-                                    borderRadius: BorderRadius.circular(
-                                      AppTheme.radiusSmall,
-                                    ),
-                                    side: BorderSide(
-                                      color: state.isPrivate
-                                          ? AppTheme.borderBlack
-                                          : Colors.black12,
-                                      width: 1.5,
-                                    ),
+                                      borderRadius: BorderRadius.circular(
+                                        AppTheme.radiusSmall,
+                                      ),
+                                      side: BorderSide(
+                                        color: state.isPrivate
+                                            ? AppTheme.borderBlack
+                                            : Colors.black12,
+                                        width: 1.5,
+                                      ),
                                     ),
                                     shadows: [
                                       BoxShadow(
@@ -560,8 +569,17 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
           );
         }
 
-        // Image Card
+        // Media Card (Image or Video)
         final file = state.imageFiles[index];
+        // Check if this specific file is a video based on extension
+        final filePath = file.path.toLowerCase();
+        final isVideoFile =
+            filePath.endsWith('.mp4') ||
+            filePath.endsWith('.mov') ||
+            filePath.endsWith('.avi') ||
+            filePath.endsWith('.mkv') ||
+            filePath.endsWith('.3gp');
+
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           decoration: ShapeDecoration(
@@ -576,7 +594,16 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.file(File(file.path), fit: BoxFit.cover),
+                // Show video player for video files
+                if (isVideoFile)
+                  VideoPlayerWidget(
+                    videoUrl: file.path,
+                    isLocalFile: true,
+                    autoPlay: true,
+                    looping: true,
+                  )
+                else
+                  Image.file(File(file.path), fit: BoxFit.cover),
                 // Delete Button
                 Positioned(
                   top: 0,

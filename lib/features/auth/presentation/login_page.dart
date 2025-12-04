@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/services/auth_service.dart';
@@ -101,49 +103,27 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: AppTheme.backgroundBeige,
       body: SafeArea(
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Lottie Animation
-                Lottie.asset(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Lottie Animation
+                  Lottie.asset(
                   'assets/animations/login.json',
-                  width: 360,
-                  height: 360,
+                  width: 320,
+                  height: 320,
                   fit: BoxFit.contain,
                 ),
-
-                const SizedBox(height: 6),
-
                 // App Name
                 Stack(
                   children: [
                     Text(
                       'MOMENTS',
-                      style: TextStyle(
+                      style: GoogleFonts.bungeeShade(
                         fontSize: 48,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 4,
-                        foreground: Paint()
-                          ..style = PaintingStyle.stroke
-                          ..strokeWidth = 6
-                          ..color = Colors.black,
-                      ),
-                    ),
-                    Text(
-                      'MOMENTS',
-                      style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 4,
-                        foreground: Paint()
-                          ..shader = const LinearGradient(
-                            colors: [
-                              AppTheme.primaryBlue,
-                              AppTheme.electricPurple,
-                            ],
-                          ).createShader(const Rect.fromLTWH(0, 0, 300, 70)),
                       ),
                     ),
                   ],
@@ -224,7 +204,8 @@ class _LoginPageState extends State<LoginPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(SimpleIcons.google),
+                        SvgPicture.asset('assets/icons/google.svg',
+                            width: 24, height: 24),
                         const SizedBox(width: 12),
                         const Text(
                           'CONTINUE WITH GOOGLE',

@@ -72,8 +72,8 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
       looping: false,
       showControls: true,
       materialProgressColors: ChewieProgressColors(
-        playedColor: AppTheme.electricPurple,
-        handleColor: AppTheme.electricPurple,
+        playedColor: AppTheme.primaryBlue.withValues(alpha: 0.5),
+        handleColor: AppTheme.primaryBlue,
         backgroundColor: Colors.grey,
         bufferedColor: Colors.white,
       ),
@@ -102,7 +102,7 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
   Widget build(BuildContext context) {
     return CustomMediaBubble(
       isSender: widget.isMe,
-      color: widget.isMe ? AppTheme.electricPurple : Colors.white,
+      color: widget.isMe ? AppTheme.primaryBlue : Colors.white,
       tail: true,
       child: Container(
         constraints: const BoxConstraints(maxWidth: 250, maxHeight: 300),

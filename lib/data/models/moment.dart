@@ -7,8 +7,11 @@ class Moment extends Equatable {
   final double latitude;
   final double longitude;
   final String? imageUrl;
-  final String? mediaPath; // Storage path for the image
+  final String? mediaPath; // Storage path for the media (image or video)
   final String? caption; // User's personal caption
+  final String mediaType; // 'image' or 'video'
+  final int? duration; // Duration in seconds for videos
+  final String? thumbnailPath; // Thumbnail for videos
   final DateTime createdAt;
   final DateTime timestamp;
   final String? userId;
@@ -26,6 +29,9 @@ class Moment extends Equatable {
     this.imageUrl,
     this.mediaPath,
     this.caption,
+    this.mediaType = 'image',
+    this.duration,
+    this.thumbnailPath,
     required this.createdAt,
     required this.timestamp,
     this.userId,
@@ -45,8 +51,11 @@ class Moment extends Equatable {
       imageUrl: json['image_url'] as String?,
       mediaPath: json['media_path'] as String?,
       caption: json['caption'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      timestamp: DateTime.parse(json['timestamp'] as String),
+      mediaType: json['media_type'] as String? ?? 'image',
+      duration: json['duration'] as int?,
+      thumbnailPath: json['thumbnail_path'] as String?,
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      timestamp: DateTime.parse(json['timestamp'] as String).toLocal(),
       userId: json['user_id'] as String?,
       description: json['description'] as String?,
       momentGroupId: json['moment_group_id'] as String?,
@@ -65,6 +74,9 @@ class Moment extends Equatable {
       'image_url': imageUrl,
       'media_path': mediaPath,
       'caption': caption,
+      'media_type': mediaType,
+      'duration': duration,
+      'thumbnail_path': thumbnailPath,
       'created_at': createdAt.toIso8601String(),
       'timestamp': timestamp.toIso8601String(),
       'user_id': userId,
@@ -90,6 +102,9 @@ class Moment extends Equatable {
     String? imageUrl,
     String? mediaPath,
     String? caption,
+    String? mediaType,
+    int? duration,
+    String? thumbnailPath,
     DateTime? createdAt,
     DateTime? timestamp,
     String? userId,
@@ -107,6 +122,9 @@ class Moment extends Equatable {
       imageUrl: imageUrl ?? this.imageUrl,
       mediaPath: mediaPath ?? this.mediaPath,
       caption: caption ?? this.caption,
+      mediaType: mediaType ?? this.mediaType,
+      duration: duration ?? this.duration,
+      thumbnailPath: thumbnailPath ?? this.thumbnailPath,
       createdAt: createdAt ?? this.createdAt,
       timestamp: timestamp ?? this.timestamp,
       userId: userId ?? this.userId,
@@ -127,6 +145,9 @@ class Moment extends Equatable {
     imageUrl,
     mediaPath,
     caption,
+    mediaType,
+    duration,
+    thumbnailPath,
     createdAt,
     timestamp,
     userId,

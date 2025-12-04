@@ -12,7 +12,7 @@ part 'add_moment_notifier.g.dart';
 @riverpod
 class AddMoment extends _$AddMoment {
   final ImagePicker _picker = ImagePicker();
-  
+
   MomentRepository get _momentRepository => MomentRepository();
 
   @override
@@ -23,6 +23,8 @@ class AddMoment extends _$AddMoment {
     double? initialLongitude,
     String? imagePath,
     List<String>? imagePaths,
+    bool isVideo = false,
+    int? videoDuration,
   }) {
     List<File> initialImages = [];
     if (imagePaths != null && imagePaths.isNotEmpty) {
@@ -33,6 +35,8 @@ class AddMoment extends _$AddMoment {
 
     state = state.copyWith(
       imageFiles: initialImages,
+      isVideo: isVideo,
+      videoDuration: videoDuration,
       latitude: initialLatitude,
       longitude: initialLongitude,
     );
@@ -178,7 +182,9 @@ class AddMoment extends _$AddMoment {
     required String caption,
   }) async {
     if (state.imageFiles.isEmpty) {
-      state = state.copyWith(errorMessage: 'Please select at least one image');
+      state = state.copyWith(
+        errorMessage: 'Please select at least one image or video',
+      );
       return false;
     }
 
@@ -190,16 +196,33 @@ class AddMoment extends _$AddMoment {
     state = state.copyWith(status: AddMomentStatus.loading, errorMessage: null);
 
     try {
-      await _momentRepository.createMomentsBatch(
-        state.imageFiles,
-        title,
-        caption,
-        state.locationName ?? 'Unknown Location',
-        state.latitude!,
-        state.longitude!,
-        isPrivate: state.isPrivate,
-        momentGroupId: state.selectedGroupId,
-      );
+      // If single media (could be video or single image)
+      if (state.imageFiles.length == 1) {
+        await _momentRepository.createMoment(
+          state.imageFiles.first,
+          title,
+          caption,
+          state.locationName ?? 'Unknown Location',
+          state.latitude!,
+          state.longitude!,
+          isPrivate: state.isPrivate,
+          momentGroupId: state.selectedGroupId,
+          isVideo: state.isVideo,
+          videoDuration: state.videoDuration,
+        );
+      } else {
+        // Multiple images - use batch
+        await _momentRepository.createMomentsBatch(
+          state.imageFiles,
+          title,
+          caption,
+          state.locationName ?? 'Unknown Location',
+          state.latitude!,
+          state.longitude!,
+          isPrivate: state.isPrivate,
+          momentGroupId: state.selectedGroupId,
+        );
+      }
 
       state = state.copyWith(status: AddMomentStatus.success);
       return true;

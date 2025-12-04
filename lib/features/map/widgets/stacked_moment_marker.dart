@@ -7,7 +7,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import '../../../data/models/moment.dart';
 import '../../../core/services/signed_url_cache.dart';
-import '../../../widgets/cached_image.dart';
+import '../../../core/services/moment_storage_service.dart';
+import '../../../widgets/offline_image.dart';
 
 /// Stacked card marker showing up to 5 moments with unique rotations
 class StackedMomentMarker extends StatefulWidget {
@@ -30,8 +31,10 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     with SingleTickerProviderStateMixin {
   late AnimationController _pressController;
   final Map<String, String> _imageUrls = {};
+  final Map<String, String> _localPaths = {}; // Local cached paths
   final Map<String, String> _userAvatars = {}; // User ID -> avatar URL
   bool _isPressed = false;
+  final MomentStorageService _storage = MomentStorageService();
 
   @override
   void initState() {
@@ -40,7 +43,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
       vsync: this,
       duration: const Duration(milliseconds: 150),
     );
-    _loadImageUrls();
+    _loadImages();
     _loadUserAvatars();
   }
 
@@ -50,29 +53,96 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     super.dispose();
   }
 
-  Future<void> _loadImageUrls() async {
-    final mediaPaths = widget.moments
-        .take(4) // Only load first 5
-        .map((m) => m.mediaPath)
-        .where((path) => path != null && path.isNotEmpty)
-        .cast<String>()
-        .toList();
+  Future<void> _loadImages() async {
+    // First, check for locally cached images
+    for (var moment in widget.moments.take(4)) {
+      final isThumbnail = moment.mediaType == 'video';
+      final localPath = await _storage.getLocalMediaPath(
+        moment.id,
+        isThumbnail: isThumbnail,
+      );
 
-    if (mediaPaths.isEmpty) return;
+      if (localPath != null && mounted) {
+        setState(() {
+          _localPaths[moment.id] = localPath;
+        });
+      }
+    }
 
-    final urls = await SignedUrlCache.getSignedUrlsBatch(mediaPaths);
+    // Then load network URLs (for fallback and caching)
+    await _loadNetworkUrls();
+  }
+
+  Future<void> _loadNetworkUrls() async {
+    // Collect paths to load - use thumbnails for videos, media_path for images
+    final pathsToLoad = <String>[];
+
+    for (var moment in widget.moments.take(4)) {
+      // For videos, only load thumbnail
+      if (moment.mediaType == 'video') {
+        if (moment.thumbnailPath != null && moment.thumbnailPath!.isNotEmpty) {
+          pathsToLoad.add(moment.thumbnailPath!);
+        }
+      } else {
+        // For images, load the media path
+        if (moment.mediaPath != null && moment.mediaPath!.isNotEmpty) {
+          pathsToLoad.add(moment.mediaPath!);
+        }
+      }
+    }
+
+    if (pathsToLoad.isEmpty) return;
+
+    final urls = await SignedUrlCache.getSignedUrlsBatch(pathsToLoad);
 
     if (mounted) {
       setState(() {
         for (var moment in widget.moments.take(4)) {
-          if (moment.mediaPath != null) {
-            final url = urls[moment.mediaPath];
-            if (url != null) {
-              _imageUrls[moment.id] = url;
+          if (moment.mediaType == 'video') {
+            // For videos, use thumbnail URL
+            if (moment.thumbnailPath != null) {
+              final thumbUrl = urls[moment.thumbnailPath];
+              if (thumbUrl != null) {
+                _imageUrls[moment.id] = thumbUrl;
+              }
+            }
+          } else {
+            // For images, use media URL
+            if (moment.mediaPath != null) {
+              final url = urls[moment.mediaPath];
+              if (url != null) {
+                _imageUrls[moment.id] = url;
+              }
             }
           }
         }
       });
+
+      // Cache images to local storage in background
+      _cacheImagesInBackground(urls);
+    }
+  }
+
+  Future<void> _cacheImagesInBackground(Map<String, String> urls) async {
+    for (var moment in widget.moments.take(4)) {
+      // Skip if already cached locally
+      if (_localPaths.containsKey(moment.id)) continue;
+
+      final url = _imageUrls[moment.id];
+      if (url == null) continue;
+
+      final isThumbnail = moment.mediaType == 'video';
+      final localPath = await _storage.cacheMedia(
+        moment.id,
+        url,
+        isThumbnail: isThumbnail,
+      );
+
+      if (localPath != null && mounted) {
+        setState(() {
+          _localPaths[moment.id] = localPath;
+        });
+      }
     }
   }
 
@@ -232,12 +302,17 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     int stackIndex, {
     bool isFrontCard = false,
   }) {
+    // Get local path first, fallback to network URL
+    final localPath = _localPaths[moment.id];
     final imageUrl = _imageUrls[moment.id];
     final rotation = _getRotation(stackIndex, moment.id);
     final offset = _getOffset(stackIndex, moment.id);
 
     // Add extra shuffle rotation on press
     final pressRotation = _isPressed ? (stackIndex - 2) * 2.0 : 0.0;
+
+    bool isVideo = moment.mediaType == 'video';
+    bool hasImage = localPath != null || imageUrl != null;
 
     // Simple card for Hero compatibility - 3:4 aspect ratio
     Widget simpleCard = AspectRatio(
@@ -257,24 +332,45 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppTheme.radiusMomentCard),
-          child: imageUrl != null
-              ? CachedImage(
-                  imageUrl: imageUrl,
-                  cacheKey:
-                      moment.mediaPath, // Use stable mediaPath as cache key
-                  fit: BoxFit.cover,
-                  memCacheHeight: 600,
-                )
-              : Container(
-                  color: Colors.grey[300],
-                  child: const Center(
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              hasImage
+                  ? OfflineImage(
+                      localPath: localPath,
+                      networkUrl: imageUrl,
+                      cacheKey: moment.mediaPath,
+                      fit: BoxFit.cover,
+                      memCacheHeight: 600,
+                    )
+                  : Container(
+                      color: Colors.grey[300],
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+              // Show play icon for videos
+              if (isVideo)
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.play_arrow,
+                      color: Colors.white,
+                      size: 32,
                     ),
                   ),
                 ),
+            ],
+          ),
         ),
       ),
     );

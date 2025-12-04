@@ -666,25 +666,28 @@ abstract class _$IsRecording extends $Notifier<bool> {
 
 /// Async conversation ID provider
 /// Gets or creates a conversation with a friend
+/// Cached locally to persist across app restarts
 
 @ProviderFor(conversationId)
 const conversationIdProvider = ConversationIdFamily._();
 
 /// Async conversation ID provider
 /// Gets or creates a conversation with a friend
+/// Cached locally to persist across app restarts
 
 final class ConversationIdProvider
     extends $FunctionalProvider<AsyncValue<String>, String, FutureOr<String>>
     with $FutureModifier<String>, $FutureProvider<String> {
   /// Async conversation ID provider
   /// Gets or creates a conversation with a friend
+  /// Cached locally to persist across app restarts
   const ConversationIdProvider._({
     required ConversationIdFamily super.from,
     required String super.argument,
   }) : super(
          retry: null,
          name: r'conversationIdProvider',
-         isAutoDispose: true,
+         isAutoDispose: false,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -721,10 +724,11 @@ final class ConversationIdProvider
   }
 }
 
-String _$conversationIdHash() => r'835c8b5e879879f45ad143c738f8e51d9c725daa';
+String _$conversationIdHash() => r'bfbf9c3e9607439d4f1c096c43c919701c2740f2';
 
 /// Async conversation ID provider
 /// Gets or creates a conversation with a friend
+/// Cached locally to persist across app restarts
 
 final class ConversationIdFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<String>, String> {
@@ -734,11 +738,12 @@ final class ConversationIdFamily extends $Family
         name: r'conversationIdProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: true,
+        isAutoDispose: false,
       );
 
   /// Async conversation ID provider
   /// Gets or creates a conversation with a friend
+  /// Cached locally to persist across app restarts
 
   ConversationIdProvider call(String friendId) =>
       ConversationIdProvider._(argument: friendId, from: this);

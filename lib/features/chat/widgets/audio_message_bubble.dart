@@ -126,7 +126,7 @@ class _AudioMessageBubbleState extends ConsumerState<AudioMessageBubble>
 
     return CustomBubbleSpecialThree(
       isSender: widget.isMe,
-      color: widget.isMe ? AppTheme.electricPurple : Colors.white,
+      color: widget.isMe ? AppTheme.primaryBlue : Colors.white,
       tail: true,
       child: Padding(
         padding: const EdgeInsets.all(12),

@@ -29,9 +29,9 @@ class Profile extends Equatable {
       displayName: json['display_name'] as String?,
       avatarUrl: json['avatar_url'] as String?,
       bio: json['bio'] as String?,
-      inviteCode: json['invite_code'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      inviteCode: json['invite_code'] as String? ?? '',
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
     );
   }
 

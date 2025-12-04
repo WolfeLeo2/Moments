@@ -65,8 +65,8 @@ class AppRouter {
             child: AddMomentPage(
               initialLatitude: latitude,
               initialLongitude: longitude,
-              imagePath: imagePath,
-              imagePaths: imagePaths,
+              mediaPath: imagePath,
+              mediaPaths: imagePaths,
             ),
           );
         },

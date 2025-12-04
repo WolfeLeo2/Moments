@@ -103,8 +103,23 @@ class IsRecording extends _$IsRecording {
 
 /// Async conversation ID provider
 /// Gets or creates a conversation with a friend
-@riverpod
+/// Cached locally to persist across app restarts
+@Riverpod(keepAlive: true)
 Future<String> conversationId(Ref ref, String friendId) async {
   final chatRepo = ref.watch(chatRepositoryProvider);
-  return chatRepo.getOrCreateConversation(friendId);
+  final storage = ref.watch(messageStorageProvider);
+
+  // 1. Try to get cached conversation ID first
+  final cachedId = await storage.getCachedConversationId(friendId);
+  if (cachedId != null) {
+    return cachedId;
+  }
+
+  // 2. Fetch from Supabase if not cached
+  final conversationId = await chatRepo.getOrCreateConversation(friendId);
+
+  // 3. Cache it for next time
+  await storage.cacheConversationId(friendId, conversationId);
+
+  return conversationId;
 }

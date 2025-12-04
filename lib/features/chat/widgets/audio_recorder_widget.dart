@@ -89,7 +89,7 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppTheme.electricPurple.withOpacity(0.1),
+        color: AppTheme.primaryBlue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
@@ -136,7 +136,7 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget> {
           IconButton(
             icon: const Icon(Icons.send),
             onPressed: _stopRecording,
-            color: AppTheme.electricPurple,
+            color: AppTheme.primaryBlue,
           ),
         ],
       ),

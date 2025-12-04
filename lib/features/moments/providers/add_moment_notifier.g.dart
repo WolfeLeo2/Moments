@@ -41,7 +41,7 @@ final class AddMomentProvider
   }
 }
 
-String _$addMomentHash() => r'b8643808fba9c8e83d1b8b8ba880cadcf97b336d';
+String _$addMomentHash() => r'8423924403ee81b62c6cc249ac1f109cc4f9b533';
 
 abstract class _$AddMoment extends $Notifier<AddMomentState> {
   AddMomentState build();

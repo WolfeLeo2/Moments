@@ -26,8 +26,8 @@ class PlaceGroup extends Equatable {
       centerLatitude: (json['center_latitude'] as num).toDouble(),
       centerLongitude: (json['center_longitude'] as num).toDouble(),
       radiusMeters: (json['radius_meters'] as num?)?.toDouble() ?? 100.0,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
     );
   }
 

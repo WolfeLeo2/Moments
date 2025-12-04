@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import '../../data/sources/supabase_config.dart';
 
 class MapCacheService {
   static const String _tileCacheDir = 'mapbox_tiles';
   static const String _imageCacheDir = 'moment_images';
+  static const String _fmtcStoreName = 'momentsMapTiles';
   static const int _maxCacheAge = 7; // days
   static const int _maxCacheSize = 100 * 1024 * 1024; // 100MB
 
@@ -20,6 +22,15 @@ class MapCacheService {
   late Directory _tileDir;
   late Directory _imageDir;
   bool _isInitialized = false;
+  bool _fmtcInitialized = false;
+  FMTCTileProvider? _tileProvider;
+
+  /// Gets the FMTC tile provider for flutter_map TileLayer.
+  /// Returns null if FMTC hasn't been initialized yet.
+  FMTCTileProvider? get tileProvider => _tileProvider;
+
+  /// Whether the tile caching system is ready.
+  bool get isTileCachingReady => _fmtcInitialized && _tileProvider != null;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -37,10 +48,76 @@ class MapCacheService {
 
       _isInitialized = true;
 
+      // Initialize FMTC for tile caching
+      await _initializeFMTC();
+
       // Clean up old cache entries
       await _cleanupOldCache();
     } catch (e) {
       print('Error initializing map cache: $e');
+    }
+  }
+
+  /// Initialize Flutter Map Tile Caching (FMTC) for efficient tile storage.
+  Future<void> _initializeFMTC() async {
+    if (_fmtcInitialized) return;
+
+    try {
+      // Initialize the ObjectBox backend for FMTC
+      await FMTCObjectBoxBackend().initialise();
+
+      // Create the map tile store if it doesn't exist
+      final store = FMTCStore(_fmtcStoreName);
+      await store.manage.create();
+
+      // Create the tile provider with browse caching strategy:
+      // - readUpdateCreate: reads from cache, updates existing tiles, creates new cached tiles
+      _tileProvider = FMTCTileProvider(
+        stores: const {_fmtcStoreName: BrowseStoreStrategy.readUpdateCreate},
+      );
+
+      _fmtcInitialized = true;
+      print('FMTC tile caching initialized successfully');
+    } catch (e) {
+      print('FMTC initialization failed (map will work without caching): $e');
+      _fmtcInitialized = false;
+    }
+  }
+
+  /// Get statistics about the tile cache.
+  Future<Map<String, dynamic>> getTileCacheStats() async {
+    if (!_fmtcInitialized) {
+      return {'initialized': false};
+    }
+
+    try {
+      final store = FMTCStore(_fmtcStoreName);
+      final stats = await store.stats.all;
+
+      return {
+        'initialized': true,
+        'storeName': _fmtcStoreName,
+        'tileCount': stats.length,
+        'sizeKB': stats.size / 1024,
+        'sizeMB': stats.size / (1024 * 1024),
+        'hits': stats.hits,
+        'misses': stats.misses,
+      };
+    } catch (e) {
+      return {'initialized': true, 'error': e.toString()};
+    }
+  }
+
+  /// Clear only the tile cache (not moment images).
+  Future<void> clearTileCache() async {
+    if (!_fmtcInitialized) return;
+
+    try {
+      final store = FMTCStore(_fmtcStoreName);
+      await store.manage.reset();
+      print('Tile cache cleared');
+    } catch (e) {
+      print('Failed to clear tile cache: $e');
     }
   }
 

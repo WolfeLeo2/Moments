@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,7 @@ import 'package:moments/features/chat/widgets/image_message_bubble.dart';
 import 'package:moments/features/chat/widgets/video_message_bubble.dart';
 import 'package:moments/features/chat/widgets/typing_indicator_bubble.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:icon_button_m3e/icon_button_m3e.dart';
 
 class ChatPage extends ConsumerStatefulWidget {
   final String friendId;
@@ -198,7 +200,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
             CircleAvatar(
               radius: 18,
               backgroundImage: widget.friendAvatarUrl != null
-                  ? NetworkImage(widget.friendAvatarUrl!)
+                  ? CachedNetworkImageProvider(widget.friendAvatarUrl!)
                   : null,
               backgroundColor: AppTheme.electricPurple.withValues(alpha: 0.2),
               child: widget.friendAvatarUrl == null
@@ -314,6 +316,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                               duration: const Duration(milliseconds: 300),
                               curve: Curves.easeOut,
                             );
+                            _scrollToBottom();
                           }
                         });
 
@@ -552,10 +555,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
                               : Row(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    IconButton(
+                                    IconButtonM3E(
+                                      variant: IconButtonM3EVariant.filled,
+                                      shape: IconButtonM3EShapeVariant.square,
                                       icon: const Icon(
                                         Icons.add,
-                                        color: AppTheme.electricPurple,
+                                        color: Colors.white,
                                       ),
                                       onPressed: () =>
                                           _pickMedia(conversationId),
@@ -622,10 +627,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                       ),
                                     ),
 
-                                    IconButton(
+                                    IconButtonM3E(
+                                      variant: IconButtonM3EVariant.filled,
                                       icon: const Icon(
                                         Icons.camera_alt_outlined,
-                                        color: AppTheme.electricPurple,
+                                        color: Colors.white,
                                       ),
                                       onPressed: () =>
                                           _pickCameraImage(conversationId),
@@ -638,12 +644,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                           ),
                                         );
 
-                                        return IconButton(
+                                        return IconButtonM3E(
+                                          variant: IconButtonM3EVariant.filled,
                                           icon: Icon(
                                             showSend
                                                 ? Icons.send
                                                 : Icons.mic_none_outlined,
-                                            color: AppTheme.electricPurple,
+                                            color: Colors.white,
                                           ),
                                           onPressed: showSend
                                               ? () =>
@@ -754,12 +761,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
   }
 
   String _formatDateHeader(DateTime date) {
+    // Ensure we're working with local time
+    final localDate = date.toLocal();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
-    final messageDate = DateTime(date.year, date.month, date.day);
+    final messageDate = DateTime(
+      localDate.year,
+      localDate.month,
+      localDate.day,
+    );
 
-    final timestring = DateFormat('h:mm a').format(date);
+    final timestring = DateFormat('h:mm a').format(localDate);
 
     if (messageDate == today) {
       return 'Today $timestring';

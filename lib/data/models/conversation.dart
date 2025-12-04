@@ -15,8 +15,8 @@ class Conversation extends Equatable {
   factory Conversation.fromJson(Map<String, dynamic> json) {
     return Conversation(
       id: json['id'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
     );
   }
 

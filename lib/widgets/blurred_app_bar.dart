@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Modern glassmorphic app bar with avatar popup menu and notification bell
 class BlurredAppBar extends StatefulWidget implements PreferredSizeWidget {
@@ -81,8 +82,8 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
                   Expanded(
                     child: Center(
                       child: Text(
-                        widget.title,
-                        style: const TextStyle(
+                        widget.title.toUpperCase(),
+                        style: GoogleFonts.rubikDoodleShadow(
                           fontSize: 24,
                           fontWeight: FontWeight.w900,
                           color: Colors.black87,

@@ -39,9 +39,9 @@ class Friendship extends Equatable {
       userId: json['user_id'] as String,
       friendId: json['friend_id'] as String,
       status: FriendshipStatus.fromString(json['status'] as String),
-      requestedAt: DateTime.parse(json['requested_at'] as String),
+      requestedAt: DateTime.parse(json['requested_at'] as String).toLocal(),
       respondedAt: json['responded_at'] != null
-          ? DateTime.parse(json['responded_at'] as String)
+          ? DateTime.parse(json['responded_at'] as String).toLocal()
           : null,
     );
   }

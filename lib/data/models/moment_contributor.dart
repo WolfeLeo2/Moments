@@ -41,9 +41,9 @@ class MomentContributor extends Equatable {
       momentId: json['moment_id'] as String,
       userId: json['user_id'] as String,
       role: ContributorRole.fromString(json['role'] as String),
-      invitedAt: DateTime.parse(json['invited_at'] as String),
+      invitedAt: DateTime.parse(json['invited_at'] as String).toLocal(),
       acceptedAt: json['accepted_at'] != null
-          ? DateTime.parse(json['accepted_at'] as String)
+          ? DateTime.parse(json['accepted_at'] as String).toLocal()
           : null,
     );
   }

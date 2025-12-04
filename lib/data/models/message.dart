@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:equatable/equatable.dart';
 
 /// Message type enum
@@ -47,6 +48,26 @@ class Message extends Equatable {
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
+    // Parse metadata - it could be null, a Map, or a JSON string
+    Map<String, dynamic>? parsedMetadata;
+    final rawMetadata = json['metadata'];
+    if (rawMetadata != null) {
+      if (rawMetadata is Map<String, dynamic>) {
+        parsedMetadata = rawMetadata;
+      } else if (rawMetadata is Map) {
+        parsedMetadata = Map<String, dynamic>.from(rawMetadata);
+      } else if (rawMetadata is String && rawMetadata.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(rawMetadata);
+          if (decoded is Map) {
+            parsedMetadata = Map<String, dynamic>.from(decoded);
+          }
+        } catch (_) {
+          // Ignore JSON decode errors
+        }
+      }
+    }
+
     return Message(
       id: json['id'] as String,
       conversationId: json['conversation_id'] as String,
@@ -55,9 +76,9 @@ class Message extends Equatable {
       messageType: MessageType.fromString(json['message_type'] as String),
       mediaUrl: json['media_url'] as String?,
       localMediaPath: json['local_media_path'] as String?,
-      metadata: json['metadata'] as Map<String, dynamic>?,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      metadata: parsedMetadata,
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
       isDeleted: json['is_deleted'] as bool? ?? false,
       isRead: json['is_read'] as bool? ?? false,
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:icon_button_m3e/icon_button_m3e.dart';
 import 'package:motor/motor.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -8,7 +9,11 @@ import 'package:avatar_stack/avatar_stack.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../data/models/moment.dart';
 import '../../../core/services/signed_url_cache.dart';
-import '../../../widgets/cached_image.dart';
+import '../../../core/services/moment_storage_service.dart';
+import '../../../core/services/video_controller_manager.dart';
+import '../../../widgets/offline_image.dart';
+import '../../../widgets/offline_video.dart';
+import '../../../widgets/share_bottom_sheet.dart';
 import 'dart:math' as math;
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
@@ -18,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/providers/moments_providers.dart';
 import 'dart:io';
+import 'package:button_m3e/button_m3e.dart';
 
 /// Details page showing moments in a carousel with spring animations
 class MomentDetailsPage extends ConsumerStatefulWidget {
@@ -41,7 +47,15 @@ class MomentDetailsPage extends ConsumerStatefulWidget {
 class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     with TickerProviderStateMixin {
   final Map<String, String> _imageUrls = {};
+  final Map<String, String> _localPaths = {}; // Local cached paths for images
+  final Map<String, String> _localVideoPaths =
+      {}; // Local cached paths for videos
   final Map<String, String> _userAvatars = {}; // User ID -> avatar URL
+  final MomentStorageService _storage = MomentStorageService();
+
+  // Video controller manager for hybrid prewarm approach
+  late final VideoControllerManager _videoManager;
+  int _currentPage = 0;
 
   // Motor spring controllers for each card
   final List<SingleMotionController> _scaleControllers = [];
@@ -58,6 +72,12 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   @override
   void initState() {
     super.initState();
+    _currentPage = widget.initialPage;
+    _videoManager = VideoControllerManager(
+      onControllerReady: () {
+        if (mounted) setState(() {});
+      },
+    );
     _loadImageUrls();
     _loadUserAvatars();
     _setupHeaderAnimations();
@@ -154,8 +174,41 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     }
   }
 
+  Widget _buildMediaContent(Moment moment, String? mediaUrl) {
+    final localPath = _localPaths[moment.id];
+    final localVideoPath = _localVideoPaths[moment.id];
+
+    // If video, show video player with offline support
+    if (moment.mediaType == 'video') {
+      return OfflineVideo(
+        localPath: localVideoPath,
+        networkUrl: mediaUrl,
+        autoPlay: false,
+        looping: false,
+        prewarmedController: _videoManager.getController(moment.id),
+      );
+    }
+
+    // Show image using offline-first approach
+    if (localPath != null || mediaUrl != null) {
+      return OfflineImage(
+        localPath: localPath,
+        networkUrl: mediaUrl,
+        cacheKey: moment.mediaPath,
+        fit: BoxFit.cover,
+      );
+    }
+
+    // Loading state
+    return Container(
+      color: Colors.grey[200],
+      child: const Center(child: CircularProgressIndicator()),
+    );
+  }
+
   @override
   void dispose() {
+    _videoManager.disposeAll();
     _headerScaleController.dispose();
     _headerOpacityController.dispose();
     for (var controller in _scaleControllers) {
@@ -168,6 +221,37 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   }
 
   Future<void> _loadImageUrls() async {
+    // First, load local cached images and videos
+    for (var moment in widget.moments) {
+      if (moment.mediaType == 'video') {
+        // Load local video path
+        final localVideoPath = await _storage.getLocalMediaPath(moment.id);
+        if (localVideoPath != null && mounted) {
+          setState(() {
+            _localVideoPaths[moment.id] = localVideoPath;
+          });
+        }
+        // Also load local thumbnail for preview
+        final localThumbPath = await _storage.getLocalMediaPath(
+          moment.id,
+          isThumbnail: true,
+        );
+        if (localThumbPath != null && mounted) {
+          setState(() {
+            _localPaths[moment.id] = localThumbPath;
+          });
+        }
+      } else {
+        // Load local image path
+        final localPath = await _storage.getLocalMediaPath(moment.id);
+        if (localPath != null && mounted) {
+          setState(() {
+            _localPaths[moment.id] = localPath;
+          });
+        }
+      }
+    }
+
     // Pre-populate with existing imageUrls (fallback)
     if (mounted) {
       setState(() {
@@ -179,32 +263,148 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       });
     }
 
-    final mediaPaths = widget.moments
-        .map((m) => m.mediaPath)
-        .where((path) => path != null && path.isNotEmpty)
-        .cast<String>()
-        .toList();
+    // Collect paths to load - use thumbnails for videos, media_path for images
+    final pathsToLoad = <String>[];
 
-    if (mediaPaths.isEmpty) return;
+    for (var moment in widget.moments) {
+      if (moment.mediaType == 'video') {
+        // For videos, load thumbnail for preview
+        if (moment.thumbnailPath != null && moment.thumbnailPath!.isNotEmpty) {
+          pathsToLoad.add(moment.thumbnailPath!);
+        }
+        // Also load the actual video URL for playback
+        if (moment.mediaPath != null && moment.mediaPath!.isNotEmpty) {
+          pathsToLoad.add(moment.mediaPath!);
+        }
+      } else {
+        // For images, just load media path
+        if (moment.mediaPath != null && moment.mediaPath!.isNotEmpty) {
+          pathsToLoad.add(moment.mediaPath!);
+        }
+      }
+    }
+
+    if (pathsToLoad.isEmpty) return;
 
     try {
-      final urls = await SignedUrlCache.getSignedUrlsBatch(mediaPaths);
+      final urls = await SignedUrlCache.getSignedUrlsBatch(pathsToLoad);
 
       if (mounted) {
         setState(() {
-          for (var i = 0; i < widget.moments.length; i++) {
-            final moment = widget.moments[i];
-            if (moment.mediaPath != null) {
-              final url = urls[moment.mediaPath];
-              if (url != null) {
-                _imageUrls[moment.id] = url;
+          for (var moment in widget.moments) {
+            if (moment.mediaType == 'video') {
+              // Store video URL for playback
+              if (moment.mediaPath != null) {
+                final videoUrl = urls[moment.mediaPath];
+                if (videoUrl != null) {
+                  _imageUrls[moment.id] = videoUrl;
+                }
+              }
+            } else {
+              // For images, use media URL
+              if (moment.mediaPath != null) {
+                final url = urls[moment.mediaPath];
+                if (url != null) {
+                  _imageUrls[moment.id] = url;
+                }
               }
             }
           }
         });
+
+        // Cache media to local storage in background
+        _cacheMediaInBackground(urls);
+
+        // Prewarm video controllers for current ± 1 window
+        _prewarmVideoControllers();
       }
     } catch (e) {
       debugPrint('Error loading signed URLs: $e');
+    }
+  }
+
+  /// Prewarm video controllers for the current page ± 1 window
+  void _prewarmVideoControllers() {
+    // Get indices in the ±1 window
+    final indices = <int>[];
+    for (int i = _currentPage - 1; i <= _currentPage + 1; i++) {
+      if (i >= 0 && i < widget.moments.length) {
+        indices.add(i);
+      }
+    }
+
+    // Collect video moment IDs and their info
+    final momentIds = <String>[];
+    final videoInfoMap = <String, VideoInfo>{};
+
+    for (final i in indices) {
+      final moment = widget.moments[i];
+      if (moment.mediaType != 'video') continue;
+
+      momentIds.add(moment.id);
+
+      // Prefer local path, fallback to network URL
+      final localPath = _localVideoPaths[moment.id];
+      final networkUrl = _imageUrls[moment.id];
+
+      if (localPath != null) {
+        videoInfoMap[moment.id] = VideoInfo(url: localPath, isLocal: true);
+      } else if (networkUrl != null) {
+        videoInfoMap[moment.id] = VideoInfo(url: networkUrl, isLocal: false);
+      }
+    }
+
+    if (momentIds.isNotEmpty) {
+      _videoManager.prewarm(momentIds: momentIds, videoInfoMap: videoInfoMap);
+    }
+  }
+
+  Future<void> _cacheMediaInBackground(Map<String, String> urls) async {
+    for (var moment in widget.moments) {
+      if (moment.mediaType == 'video') {
+        // Cache video if not already cached
+        if (!_localVideoPaths.containsKey(moment.id)) {
+          final videoUrl = _imageUrls[moment.id];
+          if (videoUrl != null) {
+            final localPath = await _storage.cacheMedia(moment.id, videoUrl);
+            if (localPath != null && mounted) {
+              setState(() {
+                _localVideoPaths[moment.id] = localPath;
+              });
+            }
+          }
+        }
+        // Cache video thumbnail if not already cached
+        if (!_localPaths.containsKey(moment.id) &&
+            moment.thumbnailPath != null) {
+          final thumbUrl = urls[moment.thumbnailPath];
+          if (thumbUrl != null) {
+            final localPath = await _storage.cacheMedia(
+              moment.id,
+              thumbUrl,
+              isThumbnail: true,
+            );
+            if (localPath != null && mounted) {
+              setState(() {
+                _localPaths[moment.id] = localPath;
+              });
+            }
+          }
+        }
+      } else {
+        // Cache image if not already cached
+        if (_localPaths.containsKey(moment.id)) continue;
+
+        final url = _imageUrls[moment.id];
+        if (url == null) continue;
+
+        final localPath = await _storage.cacheMedia(moment.id, url);
+        if (localPath != null && mounted) {
+          setState(() {
+            _localPaths[moment.id] = localPath;
+          });
+        }
+      }
     }
   }
 
@@ -336,6 +536,15 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       }
     }
     return contributorIds.toList();
+  }
+
+  void _showShareSheet(Moment moment, String? imageUrl) {
+    ShareBottomSheet.show(
+      context: context,
+      moment: moment,
+      imageUrl: imageUrl,
+      localImagePath: _localPaths[moment.id],
+    );
   }
 
   Future<void> _showDeleteDialog(Moment moment) async {
@@ -601,6 +810,10 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                   enlargeFactor: 0.2, // Subtle scale effect
                   enableInfiniteScroll: false,
                   initialPage: widget.initialPage,
+                  onPageChanged: (index, reason) {
+                    _currentPage = index;
+                    _prewarmVideoControllers();
+                  },
                 ),
                 itemBuilder: (context, index, realIndex) {
                   final moment = widget.moments[index];
@@ -657,19 +870,10 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                       aspectRatio: 4 / 5,
                                       child: ClipRRect(
                                         borderRadius: BorderRadius.circular(8),
-                                        child: imageUrl != null
-                                            ? CachedImage(
-                                                imageUrl: imageUrl,
-                                                cacheKey: moment.mediaPath,
-                                                fit: BoxFit.cover,
-                                              )
-                                            : Container(
-                                                color: Colors.grey[200],
-                                                child: const Center(
-                                                  child:
-                                                      CircularProgressIndicator(),
-                                                ),
-                                              ),
+                                        child: _buildMediaContent(
+                                          moment,
+                                          imageUrl,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -689,21 +893,45 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                             moment.caption!.isNotEmpty)
                                           Text(
                                             moment.caption!,
-                                            style: const TextStyle(
+                                            style: GoogleFonts.spaceMono(
                                               fontSize: 15,
-                                              height: 1.4,
                                               color: AppTheme.textDark,
                                             ),
                                             maxLines: 3,
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         const SizedBox(height: 4),
-                                        Text(
-                                          _formatDate(moment.timestamp),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: AppTheme.textGray,
-                                          ),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              _formatDate(moment.timestamp),
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: AppTheme.textGray,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            GestureDetector(
+                                              onTap: () => _showShareSheet(
+                                                moment,
+                                                imageUrl,
+                                              ),
+                                              child: ButtonM3E(
+                                                label: const Text('Share'),
+                                                style: ButtonM3EStyle.filled,
+                                                size: ButtonM3ESize.xs,
+                                                icon: const Icon(Icons.share),
+                                                shape: ButtonM3EShape.round,
+                                                onPressed: () =>
+                                                    _showShareSheet(
+                                                      moment,
+                                                      imageUrl,
+                                                    ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),

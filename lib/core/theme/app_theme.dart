@@ -14,6 +14,7 @@ class AppTheme {
   static const Color textDark = Color(0xFF000000);
   static const Color textGray = Color(0xFF718096);
   static const Color borderBlack = Color(0xFF000000);
+  static Color borderGray = Colors.grey[200]!;
 
   // Spacing Constants (8dp grid system)
   static const double spacing4 = 4.0;

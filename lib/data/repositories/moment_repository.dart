@@ -7,7 +7,7 @@ import '../models/moment.dart';
 
 import '../models/moment_group.dart';
 import '../sources/supabase_config.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
+import '../../core/services/media_compression_service.dart';
 
 class MomentRepository {
   static const _uuid = Uuid();
@@ -38,7 +38,7 @@ class MomentRepository {
 
       if (response == null) return null;
 
-      return Moment.fromJson(response as Map<String, dynamic>);
+      return Moment.fromJson(response);
     } catch (e) {
       throw Exception('Failed to fetch moment: $e');
     }
@@ -46,7 +46,7 @@ class MomentRepository {
 
   // Create new moment
   Future<Moment> createMoment(
-    File imageFile,
+    File mediaFile,
     String title,
     String caption,
     String locationName,
@@ -55,6 +55,8 @@ class MomentRepository {
     bool isPrivate = false,
     String? momentGroupId,
     String? description,
+    bool isVideo = false,
+    int? videoDuration,
   }) async {
     try {
       // Get current user ID
@@ -63,8 +65,23 @@ class MomentRepository {
         throw Exception('User not authenticated');
       }
 
-      // 1. Upload the image
-      final mediaPath = await _uploadImage(imageFile);
+      String mediaPath;
+      String? thumbnailPath;
+      int? duration;
+      String mediaType;
+
+      if (isVideo) {
+        // Handle video upload
+        final result = await _uploadVideo(mediaFile);
+        mediaPath = result['videoPath']!;
+        thumbnailPath = result['thumbnailPath'];
+        duration = result['duration'] as int?;
+        mediaType = 'video';
+      } else {
+        // Handle image upload
+        mediaPath = await _uploadImage(mediaFile);
+        mediaType = 'image';
+      }
 
       // 2. Create the moment entry
       final momentData = {
@@ -81,6 +98,9 @@ class MomentRepository {
         'moment_group_id': momentGroupId,
         'is_locked': false,
         'media_path': mediaPath,
+        'media_type': mediaType,
+        'duration': duration,
+        'thumbnail_path': thumbnailPath,
       };
 
       final response = await SupabaseConfig.momentsTable
@@ -111,9 +131,24 @@ class MomentRepository {
     }
   }
 
+  // Check if file is a video based on extension
+  bool _isVideoFile(File file) {
+    final extension = file.path.toLowerCase().split('.').last;
+    return [
+      'mp4',
+      'mov',
+      'avi',
+      'mkv',
+      '3gp',
+      'm4v',
+      'webm',
+    ].contains(extension);
+  }
+
   // Create multiple moments in a batch (Atomic DB operation)
+  // NOTE: This method now handles both images and videos properly
   Future<List<Moment>> createMomentsBatch(
-    List<File> imageFiles,
+    List<File> mediaFiles,
     String title,
     String caption,
     String locationName,
@@ -129,21 +164,43 @@ class MomentRepository {
         throw Exception('User not authenticated');
       }
 
-      // 1. Upload all images first
-      // We do this before DB transaction because we can't rollback storage easily inside DB transaction
-      final mediaPaths = await Future.wait(
-        imageFiles.map((file) => _uploadImage(file)),
-      );
+      // 1. Upload all media files first, detecting video vs image per file
+      final List<Map<String, dynamic>> mediaDataList = [];
 
-      // 2. Prepare payload for RPC
-      final momentsPayload = mediaPaths.map((path) {
+      for (final file in mediaFiles) {
+        if (_isVideoFile(file)) {
+          // Upload as video with thumbnail
+          final videoData = await _uploadVideo(file);
+          mediaDataList.add({
+            'media_path': videoData['videoPath'],
+            'media_type': 'video',
+            'thumbnail_path': videoData['thumbnailPath'],
+            'duration': videoData['duration'],
+          });
+        } else {
+          // Upload as image
+          final imagePath = await _uploadImage(file);
+          mediaDataList.add({
+            'media_path': imagePath,
+            'media_type': 'image',
+            'thumbnail_path': null,
+            'duration': null,
+          });
+        }
+      }
+
+      // 2. Prepare payload for RPC with full media data
+      final momentsPayload = mediaDataList.map((mediaData) {
         return {
           'title': title,
           'location': locationName,
           'latitude': latitude,
           'longitude': longitude,
           'caption': caption,
-          'media_path': path,
+          'media_path': mediaData['media_path'],
+          'media_type': mediaData['media_type'],
+          'thumbnail_path': mediaData['thumbnail_path'],
+          'duration': mediaData['duration'],
           'is_private': isPrivate,
         };
       }).toList();
@@ -202,7 +259,7 @@ class MomentRepository {
           .select()
           .single();
 
-      return Moment.fromJson(response as Map<String, dynamic>);
+      return Moment.fromJson(response);
     } catch (e) {
       throw Exception('Failed to update moment: $e');
     }
@@ -287,8 +344,10 @@ class MomentRepository {
         throw Exception('User must be authenticated to upload images');
       }
 
-      // Compress image
-      final compressedFile = await _compressImage(imageFile);
+      // Compress image using MediaCompressionService
+      final compressedFile = await MediaCompressionService.compressImage(
+        imageFile,
+      );
       final fileToUpload = compressedFile ?? imageFile;
 
       final fileName = '${_uuid.v4()}.jpg';
@@ -310,57 +369,64 @@ class MomentRepository {
     }
   }
 
-  // Compress image file
-  Future<File?> _compressImage(File file) async {
+  Future<Map<String, dynamic>> _uploadVideo(File videoFile) async {
     try {
-      final filePath = file.absolute.path;
-      // Find the last dot for file extension
-      final lastDotIndex = filePath.lastIndexOf('.');
-      if (lastDotIndex == -1) {
-        // No extension found, return original file
-        return file;
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User must be authenticated to upload videos');
       }
 
-      final extension = filePath.substring(lastDotIndex).toLowerCase();
-      final splitted = filePath.substring(0, lastDotIndex);
+      // Compress video using MediaCompressionService
+      final compressedFile = await MediaCompressionService.compressVideo(
+        videoFile,
+      );
+      final fileToUpload = compressedFile ?? videoFile;
 
-      // Determine output format and extension
-      CompressFormat format;
-      String outExtension;
-
-      if (extension == '.png') {
-        format = CompressFormat.png;
-        outExtension = '.png';
-      } else if (extension == '.heic' || extension == '.heif') {
-        // Convert HEIC to JPEG for better compatibility
-        format = CompressFormat.jpeg;
-        outExtension = '.jpg';
-      } else if (extension == '.webp') {
-        format = CompressFormat.webp;
-        outExtension = '.webp';
-      } else {
-        // Default to JPEG for .jpg, .jpeg, and unknown formats
-        format = CompressFormat.jpeg;
-        outExtension = '.jpg';
-      }
-
-      final outPath = '${splitted}_out$outExtension';
-
-      // Compress the file
-      final result = await FlutterImageCompress.compressAndGetFile(
-        file.absolute.path,
-        outPath,
-        quality: 70,
-        minWidth: 1920,
-        minHeight: 1920,
-        format: format,
+      // Get video duration
+      final duration = await MediaCompressionService.getVideoDuration(
+        fileToUpload,
       );
 
-      if (result == null) return file;
-      return File(result.path);
+      // Generate thumbnail
+      final thumbnailFile =
+          await MediaCompressionService.generateVideoThumbnail(fileToUpload);
+
+      // Upload video
+      final videoFileName = '${_uuid.v4()}.mp4';
+      final videoPath = '$userId/$videoFileName';
+
+      await SupabaseConfig.momentsBucket.upload(
+        videoPath,
+        fileToUpload,
+        fileOptions: const supabase_flutter.FileOptions(
+          cacheControl: '3600',
+          upsert: false,
+        ),
+      );
+
+      // Upload thumbnail if generated
+      String? thumbnailPath;
+      if (thumbnailFile != null) {
+        final thumbnailFileName = '${_uuid.v4()}_thumb.jpg';
+        thumbnailPath = '$userId/$thumbnailFileName';
+
+        await SupabaseConfig.momentsBucket.upload(
+          thumbnailPath,
+          thumbnailFile,
+          fileOptions: const supabase_flutter.FileOptions(
+            cacheControl: '3600',
+            upsert: false,
+          ),
+        );
+      }
+
+      return {
+        'videoPath': videoPath,
+        'thumbnailPath': thumbnailPath,
+        'duration': duration,
+      };
     } catch (e) {
-      print('Error compressing image: $e');
-      return file;
+      throw Exception('Failed to upload video: $e');
     }
   }
 

@@ -6,7 +6,9 @@ enum AddMomentStatus { initial, loading, success, error }
 
 class AddMomentState extends Equatable {
   final AddMomentStatus status;
-  final List<File> imageFiles;
+  final List<File> imageFiles; // Now also includes video files
+  final bool isVideo; // Whether this is a video moment
+  final int? videoDuration; // Duration in seconds for videos
   final double? latitude;
   final double? longitude;
   final String? locationName;
@@ -20,6 +22,8 @@ class AddMomentState extends Equatable {
   const AddMomentState({
     this.status = AddMomentStatus.initial,
     this.imageFiles = const [],
+    this.isVideo = false,
+    this.videoDuration,
     this.latitude,
     this.longitude,
     this.locationName,
@@ -34,6 +38,8 @@ class AddMomentState extends Equatable {
   AddMomentState copyWith({
     AddMomentStatus? status,
     List<File>? imageFiles,
+    bool? isVideo,
+    int? videoDuration,
     double? latitude,
     double? longitude,
     String? locationName,
@@ -47,6 +53,8 @@ class AddMomentState extends Equatable {
     return AddMomentState(
       status: status ?? this.status,
       imageFiles: imageFiles ?? this.imageFiles,
+      isVideo: isVideo ?? this.isVideo,
+      videoDuration: videoDuration ?? this.videoDuration,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       locationName: locationName ?? this.locationName,
@@ -63,6 +71,8 @@ class AddMomentState extends Equatable {
   List<Object?> get props => [
     status,
     imageFiles,
+    isVideo,
+    videoDuration,
     latitude,
     longitude,
     locationName,

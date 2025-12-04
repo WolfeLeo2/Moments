@@ -8,6 +8,58 @@ part of 'moments_providers.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
+/// Moment storage service provider
+
+@ProviderFor(momentStorage)
+const momentStorageProvider = MomentStorageProvider._();
+
+/// Moment storage service provider
+
+final class MomentStorageProvider
+    extends
+        $FunctionalProvider<
+          MomentStorageService,
+          MomentStorageService,
+          MomentStorageService
+        >
+    with $Provider<MomentStorageService> {
+  /// Moment storage service provider
+  const MomentStorageProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'momentStorageProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$momentStorageHash();
+
+  @$internal
+  @override
+  $ProviderElement<MomentStorageService> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  MomentStorageService create(Ref ref) {
+    return momentStorage(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(MomentStorageService value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<MomentStorageService>(value),
+    );
+  }
+}
+
+String _$momentStorageHash() => r'889ab6d9528dd7af2002c80267ff3c133ed47e2f';
+
 /// Moments repository provider
 
 @ProviderFor(momentRepository)
@@ -59,12 +111,16 @@ final class MomentRepositoryProvider
 
 String _$momentRepositoryHash() => r'24f02e1b7c50623b5eb9734aeea54b8d70efe9bd';
 
-/// Stream of all moments (realtime)
+/// Stream of all moments with offline-first approach
+/// 1. Immediately yields cached moments from SQLite
+/// 2. Then syncs with Supabase and yields updated moments
 
 @ProviderFor(momentsStream)
 const momentsStreamProvider = MomentsStreamProvider._();
 
-/// Stream of all moments (realtime)
+/// Stream of all moments with offline-first approach
+/// 1. Immediately yields cached moments from SQLite
+/// 2. Then syncs with Supabase and yields updated moments
 
 final class MomentsStreamProvider
     extends
@@ -74,7 +130,9 @@ final class MomentsStreamProvider
           Stream<List<Moment>>
         >
     with $FutureModifier<List<Moment>>, $StreamProvider<List<Moment>> {
-  /// Stream of all moments (realtime)
+  /// Stream of all moments with offline-first approach
+  /// 1. Immediately yields cached moments from SQLite
+  /// 2. Then syncs with Supabase and yields updated moments
   const MomentsStreamProvider._()
     : super(
         from: null,
@@ -101,7 +159,7 @@ final class MomentsStreamProvider
   }
 }
 
-String _$momentsStreamHash() => r'ce78e515a2f8ba64aa4a6fba80600f76e8fb5bdb';
+String _$momentsStreamHash() => r'97f0faa1f792bd8d95e935ee55dd7c56a6d7ce1c';
 
 /// Stream of shared moments (realtime - moments user is contributor to)
 
@@ -202,7 +260,7 @@ final class MomentDetailsProvider
   }
 }
 
-String _$momentDetailsHash() => r'99b681b43479d72429c3e286547c607a196e1144';
+String _$momentDetailsHash() => r'71d51b61e904bbefa256d97c6a2cecbf4d1a080b';
 
 /// Single moment details
 
