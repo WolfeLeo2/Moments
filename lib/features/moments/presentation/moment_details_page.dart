@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:icon_button_m3e/icon_button_m3e.dart';
 import 'package:motor/motor.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:avatar_stack/avatar_stack.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../data/models/moment.dart';
 import '../../../core/services/signed_url_cache.dart';
 import '../../../core/services/moment_storage_service.dart';
 import '../../../core/services/video_controller_manager.dart';
+import '../../../core/services/haptic_service.dart';
+import '../../../core/services/avatar_cache_service.dart';
 import '../../../widgets/offline_image.dart';
 import '../../../widgets/offline_video.dart';
 import '../../../widgets/share_bottom_sheet.dart';
@@ -24,14 +24,10 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/providers/moments_providers.dart';
 import 'dart:io';
 import 'package:button_m3e/button_m3e.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Details page showing moments in a carousel with spring animations
 class MomentDetailsPage extends ConsumerStatefulWidget {
-  final String locationName;
-  final List<Moment> moments;
-  final String? heroTag;
-  final int initialPage;
-
   const MomentDetailsPage({
     super.key,
     required this.locationName,
@@ -40,34 +36,56 @@ class MomentDetailsPage extends ConsumerStatefulWidget {
     this.initialPage = 0,
   });
 
+  final String? heroTag;
+  final int initialPage;
+  final String locationName;
+  final List<Moment> moments;
+
   @override
   ConsumerState<MomentDetailsPage> createState() => _MomentDetailsPageState();
 }
 
 class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     with TickerProviderStateMixin {
+  int _currentPage = 0;
+  double _headerOpacity = 0.0;
+  late SingleMotionController _headerOpacityController;
+  double _headerScale = 0.85; // Match carousel initial scale
+  // Motor spring controllers for header elements
+  late SingleMotionController _headerScaleController;
+
   final Map<String, String> _imageUrls = {};
+  bool _isUploading = false;
   final Map<String, String> _localPaths = {}; // Local cached paths for images
   final Map<String, String> _localVideoPaths =
       {}; // Local cached paths for videos
-  final Map<String, String> _userAvatars = {}; // User ID -> avatar URL
-  final MomentStorageService _storage = MomentStorageService();
 
-  // Video controller manager for hybrid prewarm approach
-  late final VideoControllerManager _videoManager;
-  int _currentPage = 0;
-
+  final List<double> _opacities = [];
+  final List<SingleMotionController> _opacityControllers = [];
+  final ImagePicker _picker = ImagePicker();
   // Motor spring controllers for each card
   final List<SingleMotionController> _scaleControllers = [];
-  final List<SingleMotionController> _opacityControllers = [];
-  final List<double> _scales = [];
-  final List<double> _opacities = [];
 
-  // Motor spring controllers for header elements
-  late SingleMotionController _headerScaleController;
-  late SingleMotionController _headerOpacityController;
-  double _headerScale = 0.85; // Match carousel initial scale
-  double _headerOpacity = 0.0;
+  final List<double> _scales = [];
+  final MomentStorageService _storage = MomentStorageService();
+  final AvatarCacheService _avatarCache = AvatarCacheService();
+  final Map<String, String> _userAvatars = {}; // User ID -> avatar URL
+  // Video controller manager for hybrid prewarm approach
+  late final VideoControllerManager _videoManager;
+
+  @override
+  void dispose() {
+    _videoManager.disposeAll();
+    _headerScaleController.dispose();
+    _headerOpacityController.dispose();
+    for (var controller in _scaleControllers) {
+      controller.dispose();
+    }
+    for (var controller in _opacityControllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -204,20 +222,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       color: Colors.grey[200],
       child: const Center(child: CircularProgressIndicator()),
     );
-  }
-
-  @override
-  void dispose() {
-    _videoManager.disposeAll();
-    _headerScaleController.dispose();
-    _headerOpacityController.dispose();
-    for (var controller in _scaleControllers) {
-      controller.dispose();
-    }
-    for (var controller in _opacityControllers) {
-      controller.dispose();
-    }
-    super.dispose();
   }
 
   Future<void> _loadImageUrls() async {
@@ -408,9 +412,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     }
   }
 
-  final ImagePicker _picker = ImagePicker();
-  bool _isUploading = false;
-
   Future<void> _handleAddPhotos() async {
     if (widget.moments.isEmpty) return;
 
@@ -451,6 +452,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         setState(() {
           _isUploading = false;
         });
+        HapticService.photoAdded();
         context.showSuccessSnackBar('Photos added successfully!');
       }
     } catch (e) {
@@ -458,6 +460,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         setState(() {
           _isUploading = false;
         });
+        HapticService.error();
         context.showErrorSnackBar('Error picking photos: $e');
       }
     }
@@ -473,22 +476,28 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
     if (userIds.isEmpty) return;
 
-    try {
-      // Fetch user metadata from Supabase auth
-      // Note: In production, you'd query a profiles table or admin API
-      // For now, we'll check current session and populate what we can
-      final currentUser = Supabase.instance.client.auth.currentUser;
+    // First, immediately populate from cache (sync)
+    final cachedAvatars = _avatarCache.getAvatarUrlsSync(userIds);
+    if (cachedAvatars.isNotEmpty && mounted) {
+      setState(() {
+        _userAvatars.addAll(cachedAvatars);
+      });
+    }
 
-      if (currentUser != null && userIds.contains(currentUser.id)) {
-        final avatarUrl = currentUser.userMetadata?['avatar_url'] as String?;
-        if (avatarUrl != null && mounted) {
-          setState(() {
-            _userAvatars[currentUser.id] = avatarUrl;
-          });
-        }
+    // Then fetch any missing avatars asynchronously
+    final missingIds = userIds.where((id) => !_userAvatars.containsKey(id)).toList();
+    if (missingIds.isEmpty) return;
+
+    try {
+      final fetchedAvatars = await _avatarCache.getAvatarUrls(missingIds);
+      
+      if (mounted && fetchedAvatars.isNotEmpty) {
+        setState(() {
+          _userAvatars.addAll(fetchedAvatars);
+        });
       }
     } catch (e) {
-      print('Error loading user avatars: $e');
+      debugPrint('Error loading user avatars: $e');
     }
   }
 
@@ -536,6 +545,100 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       }
     }
     return contributorIds.toList();
+  }
+
+  /// Get list of avatar ImageProviders to display (max 3)
+  List<ImageProvider> _getAvatarsToDisplay() {
+    final contributorIds = _getUniqueContributorIds();
+    final avatars = <CachedNetworkImageProvider>[];
+
+    for (final userId in contributorIds.take(3)) {
+      final avatarUrl = _userAvatars[userId];
+      if (avatarUrl != null && avatarUrl.isNotEmpty) {
+        avatars.add(CachedNetworkImageProvider(avatarUrl));
+      }
+    }
+    return avatars;
+  }
+
+  /// Get overflow count (contributors beyond the first 3)
+  int _getOverflowCount() {
+    final totalWithAvatars = _getUniqueContributorIds()
+        .where(
+          (id) => _userAvatars.containsKey(id) && _userAvatars[id]!.isNotEmpty,
+        )
+        .length;
+    return totalWithAvatars > 3 ? totalWithAvatars - 3 : 0;
+  }
+
+  /// Calculate avatar stack width based on number of avatars
+  Widget _buildAvatarStack() {
+    final avatars = _getAvatarsToDisplay();
+    final overflowCount = _getOverflowCount();
+
+    // Combine avatars and overflow into a list of widgets
+    final items = <Widget>[];
+    for (final avatar in avatars) {
+      items.add(
+        Container(
+          width: 40.sp,
+          height: 40.sp,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2),
+            image: DecorationImage(
+              image: avatar,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (overflowCount > 0) {
+      items.add(
+        Container(
+          width: 40.sp,
+          height: 40.sp,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2),
+            color: Colors.black87,
+          ),
+          child: Center(
+            child: Text(
+              '+$overflowCount',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14.sp,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    final double size = 40.sp;
+    final double overlap = 15.sp; // Amount they overlap
+    final double shift = size - overlap; // 25.sp
+    final double width = size + (items.length - 1) * shift;
+
+    return SizedBox(
+      width: width,
+      height: size,
+      child: Stack(
+        children: List.generate(items.length, (index) {
+          return Positioned(
+            left: index * shift,
+            top: 0,
+            child: items[index],
+          );
+        }),
+      ),
+    );
   }
 
   void _showShareSheet(Moment moment, String? imageUrl) {
@@ -658,8 +761,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                           IconButton(
                             icon: SvgPicture.asset(
                               'assets/icons/Left arrow.svg',
-                              width: 34,
-                              height: 34,
+                              width: 34.w,
+                              height: 34.h,
                             ),
                             onPressed: () => Navigator.pop(context),
                           ),
@@ -690,11 +793,11 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                                   .toUpperCase()
                                             : 'MOMENT',
                                         style: GoogleFonts.bebasNeue(
-                                          fontSize: 28,
-                                          letterSpacing: 1.5,
+                                          fontSize: 28.sp,
+                                          letterSpacing: 1.5.sp,
                                           fontWeight: FontWeight.w600,
                                           color: Colors.black,
-                                          height: 1.2,
+                                          height: 1.2.h,
                                         ),
                                         textAlign: TextAlign.center,
                                         maxLines: 1,
@@ -751,46 +854,14 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                     ),
 
                     // Avatar stack of contributors
-                    if (_getUniqueContributorIds().isNotEmpty)
-                      Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6.0),
-                          child: SizedBox(
-                            width: MediaQuery.of(context).size.width * 0.1,
-                            height: 40,
-                            child: AvatarStack(
-                              height: 40,
-                              avatars: _getUniqueContributorIds()
-                                  .take(5)
-                                  .map((userId) {
-                                    final avatarUrl = _userAvatars[userId];
-                                    if (avatarUrl != null &&
-                                        avatarUrl.isNotEmpty) {
-                                      return CachedNetworkImageProvider(
-                                        avatarUrl,
-                                      );
-                                    }
-                                    // Return null for users without avatars
-                                    return null;
-                                  })
-                                  .whereType<ImageProvider>()
-                                  .toList(),
-                              borderWidth: 1,
-                              borderColor: AppTheme.borderBlack,
-                              infoWidgetBuilder: (surplus, context) {
-                                return Center(
-                                  child: Text(
-                                    '+$surplus',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
+                    if (_getAvatarsToDisplay().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildAvatarStack(),
+                          ],
                         ),
                       ),
                   ],
@@ -800,11 +871,11 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
             // Carousel with spring animations using carousel_slider - fixed height
             SizedBox(
-              height: availableHeight - 270, // Subtract header/avatar space
+              height: availableHeight - 270.h, // Subtract header/avatar space
               child: CarouselSlider.builder(
                 itemCount: widget.moments.length,
                 options: CarouselOptions(
-                  height: availableHeight - 200,
+                  height: availableHeight - 200.h,
                   viewportFraction: 0.7, // 70% viewport for nice peek effect
                   enlargeCenterPage: true,
                   enlargeFactor: 0.2, // Subtle scale effect
@@ -813,6 +884,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                   onPageChanged: (index, reason) {
                     _currentPage = index;
                     _prewarmVideoControllers();
+                    // Haptic feedback on card snap
+                    HapticService.cardSnap();
                   },
                 ),
                 itemBuilder: (context, index, realIndex) {
@@ -829,7 +902,10 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                   final rotation = (((index * 37) % 5) - 2) * 0.5;
 
                   return GestureDetector(
-                    onLongPress: () => _showDeleteDialog(moment),
+                    onLongPress: () {
+                      HapticService.longPress();
+                      _showDeleteDialog(moment);
+                    },
                     child: Transform.scale(
                       scale: scale,
                       child: Opacity(
@@ -851,17 +927,17 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                   Container(
                                     decoration: BoxDecoration(
                                       color: Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(12.r),
                                       border: Border.all(
                                         color: Colors.white,
-                                        width: 6,
+                                        width: 6.w,
                                       ),
                                       boxShadow: [
                                         BoxShadow(
                                           color: Colors.black.withValues(
                                             alpha: 0.15,
                                           ),
-                                          blurRadius: 24,
+                                          blurRadius: 24.r,
                                           offset: const Offset(0, 12),
                                         ),
                                       ],
@@ -869,7 +945,9 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                     child: AspectRatio(
                                       aspectRatio: 4 / 5,
                                       child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
+                                        borderRadius: BorderRadius.circular(
+                                          8.r,
+                                        ),
                                         child: _buildMediaContent(
                                           moment,
                                           imageUrl,
@@ -894,7 +972,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                           Text(
                                             moment.caption!,
                                             style: GoogleFonts.spaceMono(
-                                              fontSize: 15,
+                                              fontSize: 15.sp,
                                               color: AppTheme.textDark,
                                             ),
                                             maxLines: 3,
@@ -908,7 +986,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                             Text(
                                               _formatDate(moment.timestamp),
                                               style: TextStyle(
-                                                fontSize: 12,
+                                                fontSize: 12.sp,
                                                 color: AppTheme.textGray,
                                               ),
                                             ),

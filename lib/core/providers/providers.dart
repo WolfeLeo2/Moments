@@ -1,9 +1,11 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/services/auth_service.dart';
+import 'package:moments/core/services/avatar_cache_service.dart';
 import 'package:moments/data/repositories/social_repository.dart';
 import 'package:moments/data/models/profile.dart';
 import 'package:moments/data/models/friendship.dart';
+import 'package:moments/core/providers/moments_providers.dart';
 
 part 'providers.g.dart';
 
@@ -41,12 +43,43 @@ Future<Profile?> currentUserProfile(Ref ref) async {
 // FRIENDS & REQUESTS
 // ============================================
 
-/// List of current user's friends
-@riverpod
-Future<List<Profile>> friendsList(Ref ref) async {
+/// List of current user's friends with offline support
+final friendsListProvider = StreamProvider<List<Profile>>((ref) async* {
   final socialRepo = ref.watch(socialRepositoryProvider);
-  return socialRepo.getFriendsProfiles();
-}
+  final storage = ref.watch(momentStorageProvider);
+  final avatarCache = AvatarCacheService();
+
+  // 1. Load cached friends immediately
+  final cachedProfiles = await storage.getProfiles();
+  if (cachedProfiles.isNotEmpty) {
+    // Populate avatar cache from stored profiles
+    for (final profile in cachedProfiles) {
+      if (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty) {
+        avatarCache.updateCache(profile.id, profile.avatarUrl!);
+      }
+    }
+    yield cachedProfiles;
+  }
+
+  // 2. Fetch fresh data and update cache
+  try {
+    final friends = await socialRepo.getFriendsProfiles();
+    await storage.saveProfiles(friends);
+    
+    // Update avatar cache with fresh data
+    for (final profile in friends) {
+      if (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty) {
+        avatarCache.updateCache(profile.id, profile.avatarUrl!);
+      }
+    }
+    
+    yield friends;
+  } catch (e) {
+    // If network fails and we have cache, we're good. 
+    // If no cache, rethrow
+    if (cachedProfiles.isEmpty) rethrow;
+  }
+});
 
 /// Pending friend requests
 @riverpod

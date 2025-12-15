@@ -149,6 +149,55 @@ class MessageStorageService {
     await batch.commit(noResult: true);
   }
 
+  /// Get last message for a conversation from local storage
+  Future<Message?> getLastMessage(String conversationId) async {
+    final db = await database;
+    final results = await db.query(
+      'messages',
+      where: 'conversation_id = ? AND is_deleted = 0',
+      whereArgs: [conversationId],
+      orderBy: 'created_at DESC',
+      limit: 1,
+    );
+
+    if (results.isEmpty) return null;
+
+    final row = results.first;
+    // Parse metadata from JSON string
+    Map<String, dynamic>? parsedMetadata;
+    final rawMetadata = row['metadata'];
+    if (rawMetadata != null &&
+        rawMetadata is String &&
+        rawMetadata.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawMetadata);
+        if (decoded is Map) {
+          parsedMetadata = Map<String, dynamic>.from(decoded);
+        }
+      } catch (_) {
+        // Ignore JSON decode errors
+      }
+    }
+
+    return Message(
+      id: row['id'] as String,
+      conversationId: row['conversation_id'] as String,
+      senderId: row['sender_id'] as String,
+      content: row['content'] as String,
+      messageType: _parseMessageType(row['message_type'] as String),
+      mediaUrl: row['media_url'] as String?,
+      metadata: parsedMetadata,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        row['created_at'] as int,
+      ),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(
+        row['created_at'] as int,
+      ),
+      isRead: (row['is_read'] as int) == 1,
+      isDeleted: (row['is_deleted'] as int) == 1,
+    );
+  }
+
   /// Clear stored messages for a conversation
   Future<void> clearConversation(String conversationId) async {
     final db = await database;

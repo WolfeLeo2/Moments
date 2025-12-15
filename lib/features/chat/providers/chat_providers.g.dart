@@ -191,24 +191,30 @@ final class MessagesStreamFamily extends $Family
 }
 
 /// Get last message for a conversation
+/// First checks SQLite for instant display, then validates with Supabase
+/// Uses keepAlive to prevent rebuilds when navigating away
 
 @ProviderFor(lastMessage)
 const lastMessageProvider = LastMessageFamily._();
 
 /// Get last message for a conversation
+/// First checks SQLite for instant display, then validates with Supabase
+/// Uses keepAlive to prevent rebuilds when navigating away
 
 final class LastMessageProvider
     extends
         $FunctionalProvider<AsyncValue<Message?>, Message?, FutureOr<Message?>>
     with $FutureModifier<Message?>, $FutureProvider<Message?> {
   /// Get last message for a conversation
+  /// First checks SQLite for instant display, then validates with Supabase
+  /// Uses keepAlive to prevent rebuilds when navigating away
   const LastMessageProvider._({
     required LastMessageFamily super.from,
     required String super.argument,
   }) : super(
          retry: null,
          name: r'lastMessageProvider',
-         isAutoDispose: true,
+         isAutoDispose: false,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -245,9 +251,11 @@ final class LastMessageProvider
   }
 }
 
-String _$lastMessageHash() => r'f0087042dc5cc41ab4982a76dcacb8e5acb8347f';
+String _$lastMessageHash() => r'e21e432b4db08c37e844b896ca8319ebdd8635bd';
 
 /// Get last message for a conversation
+/// First checks SQLite for instant display, then validates with Supabase
+/// Uses keepAlive to prevent rebuilds when navigating away
 
 final class LastMessageFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<Message?>, String> {
@@ -257,10 +265,12 @@ final class LastMessageFamily extends $Family
         name: r'lastMessageProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: true,
+        isAutoDispose: false,
       );
 
   /// Get last message for a conversation
+  /// First checks SQLite for instant display, then validates with Supabase
+  /// Uses keepAlive to prevent rebuilds when navigating away
 
   LastMessageProvider call(String conversationId) =>
       LastMessageProvider._(argument: conversationId, from: this);
@@ -270,23 +280,29 @@ final class LastMessageFamily extends $Family
 }
 
 /// Get conversation ID with a friend
+/// Uses SQLite cache for instant display, validates with network in background
+/// Uses keepAlive to prevent rebuilds when navigating away
 
 @ProviderFor(conversationWithFriend)
 const conversationWithFriendProvider = ConversationWithFriendFamily._();
 
 /// Get conversation ID with a friend
+/// Uses SQLite cache for instant display, validates with network in background
+/// Uses keepAlive to prevent rebuilds when navigating away
 
 final class ConversationWithFriendProvider
     extends $FunctionalProvider<AsyncValue<String?>, String?, FutureOr<String?>>
     with $FutureModifier<String?>, $FutureProvider<String?> {
   /// Get conversation ID with a friend
+  /// Uses SQLite cache for instant display, validates with network in background
+  /// Uses keepAlive to prevent rebuilds when navigating away
   const ConversationWithFriendProvider._({
     required ConversationWithFriendFamily super.from,
     required String super.argument,
   }) : super(
          retry: null,
          name: r'conversationWithFriendProvider',
-         isAutoDispose: true,
+         isAutoDispose: false,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -325,9 +341,11 @@ final class ConversationWithFriendProvider
 }
 
 String _$conversationWithFriendHash() =>
-    r'2827e27c2321b33933e74d867e208e29a1fbc520';
+    r'7ab54a18cd6ab4c0da8c263dc6204e3003fcb205';
 
 /// Get conversation ID with a friend
+/// Uses SQLite cache for instant display, validates with network in background
+/// Uses keepAlive to prevent rebuilds when navigating away
 
 final class ConversationWithFriendFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<String?>, String> {
@@ -337,10 +355,12 @@ final class ConversationWithFriendFamily extends $Family
         name: r'conversationWithFriendProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: true,
+        isAutoDispose: false,
       );
 
   /// Get conversation ID with a friend
+  /// Uses SQLite cache for instant display, validates with network in background
+  /// Uses keepAlive to prevent rebuilds when navigating away
 
   ConversationWithFriendProvider call(String friendId) =>
       ConversationWithFriendProvider._(argument: friendId, from: this);

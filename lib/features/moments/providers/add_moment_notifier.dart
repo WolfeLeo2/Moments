@@ -177,6 +177,37 @@ class AddMoment extends _$AddMoment {
     }
   }
 
+  /// Update image paths after editing
+  /// Used when images are edited with stickers/text and saved as new files
+  void updateImagePaths(List<String> editedPaths) {
+    // Create new file list, replacing originals with edited versions
+    final newFiles = <File>[];
+    int editedIndex = 0;
+
+    for (final originalFile in state.imageFiles) {
+      final originalPath = originalFile.path.toLowerCase();
+      final isVideo = originalPath.endsWith('.mp4') ||
+                      originalPath.endsWith('.mov') ||
+                      originalPath.endsWith('.avi') ||
+                      originalPath.endsWith('.mkv') ||
+                      originalPath.endsWith('.3gp');
+      
+      if (isVideo) {
+        // Videos are not edited, keep original
+        newFiles.add(originalFile);
+      } else if (editedIndex < editedPaths.length) {
+        // Replace with edited version
+        newFiles.add(File(editedPaths[editedIndex]));
+        editedIndex++;
+      } else {
+        // Fallback to original
+        newFiles.add(originalFile);
+      }
+    }
+    
+    state = state.copyWith(imageFiles: newFiles);
+  }
+
   Future<bool> createMoment({
     required String title,
     required String caption,

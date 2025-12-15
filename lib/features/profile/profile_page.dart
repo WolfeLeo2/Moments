@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/providers/moments_providers.dart';
 import '../moments/presentation/year_in_review_page.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
@@ -98,21 +99,24 @@ class ProfilePage extends ConsumerWidget {
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
+                    decoration: ShapeDecoration(
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [Color(0xFF1DB954), Color(0xFF191414)],
                       ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
+                      shape: RoundedSuperellipseBorder(
+                      borderRadius: BorderRadiusGeometry.all(Radius.circular(20.sp)),
+                      ),
+                      shadows: [
                         BoxShadow(
-                          color: const Color(0xFF1DB954).withOpacity(0.3),
-                          blurRadius: 20,
+                          color: const Color(0xFF1DB954).withValues(alpha:0.6),
+                          blurRadius: 50.r,
                           offset: const Offset(0, 10),
                         ),
                       ],
                     ),
+
                     child: Row(
                       children: [
                         Expanded(
@@ -158,10 +162,10 @@ class ProfilePage extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(width: 16),
-                        const Icon(
+                        Icon(
                           Icons.auto_awesome,
                           color: Colors.white,
-                          size: 48,
+                          size: 48.sp,
                         ),
                       ],
                     ),
@@ -179,7 +183,7 @@ class ProfilePage extends ConsumerWidget {
 
             // Settings section
             _buildSectionHeader('Settings'),
-            const SizedBox(height: 12),
+            SizedBox(height: 12.h),
 
             _buildSettingsTile(
               context: context,
@@ -200,7 +204,7 @@ class ProfilePage extends ConsumerWidget {
               onTap: () {},
             ),
 
-            const SizedBox(height: 24),
+            SizedBox(height: 24.h),
 
             // Logout button
             SizedBox(
@@ -222,10 +226,10 @@ class ProfilePage extends ConsumerWidget {
                 ),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: const BorderSide(color: Colors.red),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  shape: RoundedSuperellipseBorder(
+                    borderRadius: BorderRadiusGeometry.all(Radius.circular(12)),
                   ),
+                  side: const BorderSide(color: Colors.red),
                 ),
               ),
             ),
@@ -241,9 +245,9 @@ class ProfilePage extends ConsumerWidget {
       child: Text(
         title.toUpperCase(),
         style: GoogleFonts.inter(
-          fontSize: 12,
+          fontSize: 12.sp,
           fontWeight: FontWeight.w600,
-          color: Colors.grey[500],
+          color: Colors.black87,
           letterSpacing: 1.5,
         ),
       ),
@@ -258,22 +262,26 @@ class ProfilePage extends ConsumerWidget {
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
+      decoration: ShapeDecoration(
         color: AppTheme.cardWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        border: Border.all(color: AppTheme.borderGray),
+        shape: RoundedSuperellipseBorder(
+        borderRadius: BorderRadiusGeometry.all(Radius.circular(12.sp)),
+        side: BorderSide(color: AppTheme.borderBlack),
+      ),
       ),
       child: ListTile(
-        leading: HugeIcon(icon: icon, size: 22, color: Colors.black87),
+        leading: HugeIcon(icon: icon, size: 22.sp, color: Colors.black87),
         title: Text(
           title,
-          style: GoogleFonts.rubik(fontSize: 16, color: Colors.black),
+          style: GoogleFonts.rubik(fontSize: 16.sp, color: Colors.black),
         ),
 
         trailing: const Icon(Icons.chevron_right, color: Colors.grey),
         onTap: onTap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        shape: RoundedSuperellipseBorder(
+          borderRadius: BorderRadiusGeometry.all(
+            Radius.circular(AppTheme.radiusMedium),
+          ),
         ),
       ),
     );

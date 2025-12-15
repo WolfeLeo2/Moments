@@ -13,6 +13,7 @@ class BlurredAppBar extends StatefulWidget implements PreferredSizeWidget {
   final VoidCallback? onProfilePressed;
   final VoidCallback? onFriendsPressed;
   final VoidCallback? onNotificationsPressed;
+  final VoidCallback? onGalleryPressed;
   final String? profileImageUrl;
   final int notificationCount;
 
@@ -24,6 +25,7 @@ class BlurredAppBar extends StatefulWidget implements PreferredSizeWidget {
     this.onProfilePressed,
     this.onFriendsPressed,
     this.onNotificationsPressed,
+    this.onGalleryPressed,
     this.profileImageUrl,
     this.notificationCount = 0,
   });
@@ -92,6 +94,18 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
                       ),
                     ),
                   ),
+
+                  // Gallery Button
+                  if (widget.onGalleryPressed != null)
+                    IconButton(
+                      onPressed: widget.onGalleryPressed,
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedDashboardSquare02,
+                        color: Colors.black87,
+                        size: 26,
+                      ),
+                      tooltip: 'Gallery',
+                    ),
 
                   IconButton(
                     onPressed: widget.onNotificationsPressed,

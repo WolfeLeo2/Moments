@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/data/repositories/chat_repository.dart';
@@ -38,17 +39,69 @@ Stream<List<Message>> messagesStream(Ref ref, String conversationId) async* {
 }
 
 /// Get last message for a conversation
-@riverpod
+/// First checks SQLite for instant display, then validates with Supabase
+/// Uses keepAlive to prevent rebuilds when navigating away
+@Riverpod(keepAlive: true)
 Future<Message?> lastMessage(Ref ref, String conversationId) async {
+  final storage = ref.watch(messageStorageProvider);
   final chatRepo = ref.watch(chatRepositoryProvider);
-  return chatRepo.getLastMessage(conversationId);
+  
+  // 1. First try to get from local SQLite storage (instant, offline-capable)
+  final localMessage = await storage.getLastMessage(conversationId);
+  
+  // 2. Also fetch from Supabase in background to ensure we have latest
+  // This will update the cache for next time
+  try {
+    final networkMessage = await chatRepo.getLastMessage(conversationId);
+    
+    // If network has a newer message, save it and return it
+    if (networkMessage != null) {
+      // Save to local storage
+      await storage.saveMessages(conversationId, [networkMessage]);
+      
+      // Return whichever is newer
+      if (localMessage == null || 
+          networkMessage.createdAt.isAfter(localMessage.createdAt)) {
+        return networkMessage;
+      }
+    }
+  } catch (e) {
+    // Network error - that's fine, use local data
+    debugPrint('lastMessage: Network fetch failed, using local: $e');
+  }
+  
+  // Return local message (may be null if no messages exist)
+  return localMessage;
 }
 
 /// Get conversation ID with a friend
-@riverpod
+/// Uses SQLite cache for instant display, validates with network in background
+/// Uses keepAlive to prevent rebuilds when navigating away
+@Riverpod(keepAlive: true)
 Future<String?> conversationWithFriend(Ref ref, String friendId) async {
+  final storage = ref.watch(messageStorageProvider);
   final chatRepo = ref.watch(chatRepositoryProvider);
-  return chatRepo.getConversationWithFriend(friendId);
+  
+  // 1. First try to get cached conversation ID (instant, offline-capable)
+  final cachedConversationId = await storage.getCachedConversationId(friendId);
+  if (cachedConversationId != null) {
+    return cachedConversationId;
+  }
+  
+  // 2. If not cached, fetch from Supabase
+  try {
+    final conversationId = await chatRepo.getConversationWithFriend(friendId);
+    
+    // Cache it for next time
+    if (conversationId != null) {
+      await storage.cacheConversationId(friendId, conversationId);
+    }
+    
+    return conversationId;
+  } catch (e) {
+    debugPrint('conversationWithFriend: Network fetch failed: $e');
+    return null;
+  }
 }
 
 /// Show send button state for each conversation

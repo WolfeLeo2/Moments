@@ -1,12 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/providers/providers.dart';
 
-/// Stream of real-time friends list changes
-final friendsRealtimeProvider = StreamProvider((ref) {
-  final socialRepo = ref.watch(socialRepositoryProvider);
-  return socialRepo.streamFriends();
-});
-
 /// Stream of real-time pending friend requests
 final pendingRequestsRealtimeProvider = StreamProvider((ref) {
   final socialRepo = ref.watch(socialRepositoryProvider);

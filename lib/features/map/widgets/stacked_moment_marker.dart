@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:avatar_stack/avatar_stack.dart';
 import 'package:moments/core/theme/app_theme.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:moments/core/services/haptic_service.dart';
+import 'package:moments/core/services/avatar_cache_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
@@ -35,6 +36,11 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
   final Map<String, String> _userAvatars = {}; // User ID -> avatar URL
   bool _isPressed = false;
   final MomentStorageService _storage = MomentStorageService();
+  final AvatarCacheService _avatarCache = AvatarCacheService();
+  
+  // Track which moments we've loaded to avoid redundant loads
+  Set<String> _loadedMomentIds = {};
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -48,36 +54,86 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
   }
 
   @override
+  void didUpdateWidget(StackedMomentMarker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Check if moments have changed
+    final newIds = widget.moments.take(4).map((m) => m.id).toSet();
+    final oldIds = oldWidget.moments.take(4).map((m) => m.id).toSet();
+    
+    // Only reload if the moment IDs have actually changed
+    if (!newIds.difference(oldIds).isEmpty || !oldIds.difference(newIds).isEmpty) {
+      // Clear data for moments that are no longer displayed
+      final removedIds = oldIds.difference(newIds);
+      for (final id in removedIds) {
+        _imageUrls.remove(id);
+        _localPaths.remove(id);
+        _loadedMomentIds.remove(id);
+      }
+      
+      // Load new moments that we haven't loaded yet
+      _loadImages();
+    }
+  }
+
+  @override
   void dispose() {
     _pressController.dispose();
     super.dispose();
   }
 
   Future<void> _loadImages() async {
-    // First, check for locally cached images
-    for (var moment in widget.moments.take(4)) {
-      final isThumbnail = moment.mediaType == 'video';
-      final localPath = await _storage.getLocalMediaPath(
-        moment.id,
-        isThumbnail: isThumbnail,
-      );
+    // Prevent concurrent loads
+    if (_isLoading) return;
+    _isLoading = true;
+    
+    try {
+      // First, check for locally cached images (only for moments not already loaded)
+      final newLocalPaths = <String, String>{};
+      
+      for (var moment in widget.moments.take(4)) {
+        // Skip if we already have this moment's local path
+        if (_localPaths.containsKey(moment.id)) continue;
+        if (_loadedMomentIds.contains(moment.id)) continue;
+        
+        final isThumbnail = moment.mediaType == 'video';
+        final localPath = await _storage.getLocalMediaPath(
+          moment.id,
+          isThumbnail: isThumbnail,
+        );
 
-      if (localPath != null && mounted) {
+        if (localPath != null) {
+          newLocalPaths[moment.id] = localPath;
+        }
+        
+        _loadedMomentIds.add(moment.id);
+      }
+      
+      // Batch update all local paths in a single setState
+      if (newLocalPaths.isNotEmpty && mounted) {
         setState(() {
-          _localPaths[moment.id] = localPath;
+          _localPaths.addAll(newLocalPaths);
         });
       }
-    }
 
-    // Then load network URLs (for fallback and caching)
-    await _loadNetworkUrls();
+      // Then load network URLs (for fallback and caching)
+      await _loadNetworkUrls();
+    } finally {
+      _isLoading = false;
+    }
   }
 
   Future<void> _loadNetworkUrls() async {
     // Collect paths to load - use thumbnails for videos, media_path for images
+    // Skip moments that already have URLs or local paths
     final pathsToLoad = <String>[];
 
     for (var moment in widget.moments.take(4)) {
+      // Skip if we already have a URL or local path for this moment
+      if (_imageUrls.containsKey(moment.id) || _localPaths.containsKey(moment.id)) {
+        continue;
+      }
+      
       // For videos, only load thumbnail
       if (moment.mediaType == 'video') {
         if (moment.thumbnailPath != null && moment.thumbnailPath!.isNotEmpty) {
@@ -93,37 +149,46 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
     if (pathsToLoad.isEmpty) return;
 
-    final urls = await SignedUrlCache.getSignedUrlsBatch(pathsToLoad);
+    try {
+      final urls = await SignedUrlCache.getSignedUrlsBatch(pathsToLoad);
 
-    if (mounted) {
-      setState(() {
-        for (var moment in widget.moments.take(4)) {
-          if (moment.mediaType == 'video') {
-            // For videos, use thumbnail URL
-            if (moment.thumbnailPath != null) {
-              final thumbUrl = urls[moment.thumbnailPath];
-              if (thumbUrl != null) {
-                _imageUrls[moment.id] = thumbUrl;
+      if (mounted) {
+        setState(() {
+          for (var moment in widget.moments.take(4)) {
+            // Skip if already have this moment
+            if (_imageUrls.containsKey(moment.id)) continue;
+            
+            if (moment.mediaType == 'video') {
+              // For videos, use thumbnail URL
+              if (moment.thumbnailPath != null) {
+                final thumbUrl = urls[moment.thumbnailPath];
+                if (thumbUrl != null) {
+                  _imageUrls[moment.id] = thumbUrl;
+                }
               }
-            }
-          } else {
-            // For images, use media URL
-            if (moment.mediaPath != null) {
-              final url = urls[moment.mediaPath];
-              if (url != null) {
-                _imageUrls[moment.id] = url;
+            } else {
+              // For images, use media URL
+              if (moment.mediaPath != null) {
+                final url = urls[moment.mediaPath];
+                if (url != null) {
+                  _imageUrls[moment.id] = url;
+                }
               }
             }
           }
-        }
-      });
+        });
 
-      // Cache images to local storage in background
-      _cacheImagesInBackground(urls);
+        // Cache images to local storage in background
+        _cacheImagesInBackground(urls);
+      }
+    } catch (e) {
+      debugPrint('Error loading network URLs: $e');
     }
   }
 
   Future<void> _cacheImagesInBackground(Map<String, String> urls) async {
+    final newLocalPaths = <String, String>{};
+    
     for (var moment in widget.moments.take(4)) {
       // Skip if already cached locally
       if (_localPaths.containsKey(moment.id)) continue;
@@ -138,11 +203,16 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
         isThumbnail: isThumbnail,
       );
 
-      if (localPath != null && mounted) {
-        setState(() {
-          _localPaths[moment.id] = localPath;
-        });
+      if (localPath != null) {
+        newLocalPaths[moment.id] = localPath;
       }
+    }
+    
+    // Batch update all local paths in a single setState
+    if (newLocalPaths.isNotEmpty && mounted) {
+      setState(() {
+        _localPaths.addAll(newLocalPaths);
+      });
     }
   }
 
@@ -156,28 +226,25 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
     if (userIds.isEmpty) return;
 
+    // First, immediately populate from cache (sync - no network, no delay)
+    final cachedAvatars = _avatarCache.getAvatarUrlsSync(userIds);
+    if (cachedAvatars.isNotEmpty && mounted) {
+      setState(() {
+        _userAvatars.addAll(cachedAvatars);
+      });
+    }
+
+    // Then fetch any missing avatars asynchronously
+    final missingIds = userIds.where((id) => !_userAvatars.containsKey(id)).toList();
+    if (missingIds.isEmpty) return;
+
     try {
-      // Fetch profiles for all users involved
-      final response = await Supabase.instance.client
-          .from('profiles')
-          .select('id, avatar_url')
-          .inFilter('id', userIds);
-
-      if (mounted) {
-        final avatarMap = <String, String>{};
-        for (final record in response) {
-          final userId = record['id'] as String;
-          final avatarUrl = record['avatar_url'] as String?;
-          if (avatarUrl != null && avatarUrl.isNotEmpty) {
-            avatarMap[userId] = avatarUrl;
-          }
-        }
-
-        if (avatarMap.isNotEmpty) {
-          setState(() {
-            _userAvatars.addAll(avatarMap);
-          });
-        }
+      final fetchedAvatars = await _avatarCache.getAvatarUrls(missingIds);
+      
+      if (mounted && fetchedAvatars.isNotEmpty) {
+        setState(() {
+          _userAvatars.addAll(fetchedAvatars);
+        });
       }
     } catch (e) {
       debugPrint('Error loading user avatars: $e');
@@ -249,6 +316,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
       onTapUp: (_) {
         setState(() => _isPressed = false);
         _pressController.reverse();
+        HapticService.mediumTap();
         widget.onTap();
       },
       onTapCancel: () {
@@ -401,85 +469,150 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
   }
 
   Widget _buildFloatingBadges() {
-    // Get unique contributors with avatars
-    final contributorsWithAvatars = widget.moments
+    // Get ALL unique contributors with avatars (for counting overflow)
+    final allContributorsWithAvatars = widget.moments
         .where((m) => m.userId != null && _userAvatars.containsKey(m.userId))
         .map((m) => m.userId!)
         .toSet()
-        .take(3)
         .toList();
+    
+    // Only display first 3 avatars
+    final displayAvatars = allContributorsWithAvatars.take(3).toList();
+    final overflowCount = allContributorsWithAvatars.length > 3 
+        ? allContributorsWithAvatars.length - 3 
+        : 0;
 
     // Calculate date range
     final dates = widget.moments.map((m) => m.timestamp).toList()..sort();
     final firstDate = dates.first;
-    final lastDate = dates.last;
-    final dateLabel = _formatDateRange(firstDate, lastDate);
 
-    return Positioned(
-      top: -8,
-      right: -8,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Avatar stack - only show if we have real avatars
-          if (contributorsWithAvatars.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: SizedBox(
-                width: 32,
-                height: 32,
-                child: AvatarStack(
-                  height: 32,
-                  avatars: contributorsWithAvatars
-                      .map(
-                        (id) => CachedNetworkImageProvider(_userAvatars[id]!),
-                      )
-                      .toList(),
-                  borderColor: Colors.white,
-                  borderWidth: 1,
-                ),
-              ),
-            ),
-
-          const SizedBox(height: 8),
-
-          // Date badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Text(
-              dateLabel,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // College-style date sticker on top-left
+        Positioned(
+          top: -18,
+          left: -12,
+          child: _buildCollegeDateSticker(firstDate),
+        ),
+        
+        // Avatar stack on top-right
+        if (displayAvatars.isNotEmpty)
+          Positioned(
+            top: -8,
+            right: -35,
+            child: SizedBox(
+              width: 80,
+              height: 36,
+              child: AvatarStack(
+                height: 36,
+                avatars: displayAvatars
+                    .map((id) => CachedNetworkImageProvider(_userAvatars[id]!))
+                    .toList(),
+                borderColor: Colors.white,
+                borderWidth: 2,
+                infoWidgetBuilder: overflowCount > 0
+                    ? (surplus, _) => CircleAvatar(
+                          radius: 18,
+                          backgroundColor: Colors.black87,
+                          child: Text(
+                            '+$overflowCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        )
+                    : null,
               ),
             ),
           ),
-        ],
+      ],
+    );
+  }
+  
+  /// Build a calendar-style date sticker (red top with month, white bottom with day)
+  Widget _buildCollegeDateSticker(DateTime date) {
+    final month = _getMonthAbbr(date.month);
+    final day = date.day.toString();
+    
+    return Transform.rotate(
+      angle: 0.08, // Slight tilt for that casual sticker look
+      child: Container(
+        width: 40,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: AppTheme.borderBlack,
+            width: 2,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black,
+              offset: Offset(2, 2),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Top red part with month
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              decoration: const BoxDecoration(
+                color: Color(0xFFE53935), // Red
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  topRight: Radius.circular(4),
+                ),
+              ),
+              child: Text(
+                month,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.bebasNeue(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  height: 1.0,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            // Bottom white part with day
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(4),
+                  bottomRight: Radius.circular(4),
+                ),
+              ),
+              child: Text(
+                day,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.bangers(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: AppTheme.borderBlack,
+                  height: 1.0,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+  
+  String _getMonthAbbr(int month) {
+    const months = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 
+                    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    return months[month];
   }
 
   Widget _buildTitleBadge() {
@@ -512,15 +645,4 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     );
   }
 
-  String _formatDateRange(DateTime start, DateTime end) {
-    if (start.year == end.year &&
-        start.month == end.month &&
-        start.day == end.day) {
-      return '${start.day}/${start.month}';
-    } else if (start.year == end.year && start.month == end.month) {
-      return '${start.day}-${end.day}/${start.month}';
-    } else {
-      return '${start.day}/${start.month}-${end.day}/${end.month}';
-    }
-  }
 }

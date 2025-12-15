@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,7 @@ import '../../../data/models/friendship.dart';
 import '../../../data/models/profile.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Page for managing friends and friend requests
 class FriendsPage extends ConsumerStatefulWidget {
@@ -57,7 +59,8 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
       if (mounted) {
         context.showSuccessSnackBar('Friend request sent!');
         // Invalidate cache to refresh lists
-        invalidateFriendsCache(ref);
+        ref.invalidate(friendsListProvider);
+        ref.invalidate(pendingRequestsProvider);
       }
     } catch (e) {
       if (mounted) {
@@ -73,7 +76,8 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
           .acceptRequest(friendshipId);
       if (mounted) {
         context.showSuccessSnackBar('Friend request accepted!');
-        invalidateFriendsCache(ref);
+        ref.invalidate(friendsListProvider);
+        ref.invalidate(pendingRequestsProvider);
       }
     } catch (e) {
       if (mounted) {
@@ -89,7 +93,8 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
           .rejectRequest(friendshipId);
       if (mounted) {
         context.showSuccessSnackBar('Friend request rejected');
-        invalidateFriendsCache(ref);
+        ref.invalidate(friendsListProvider);
+        ref.invalidate(pendingRequestsProvider);
       }
     } catch (e) {
       if (mounted) {
@@ -407,7 +412,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(currentUserProfileProvider);
-    final friendsAsync = ref.watch(friendsRealtimeProvider);
+    final friendsAsync = ref.watch(friendsListProvider);
     final requestsAsync = ref.watch(pendingRequestsRealtimeProvider);
 
     return Scaffold(
@@ -419,8 +424,8 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
           leading: IconButton(
             icon: SvgPicture.asset(
               'assets/icons/Left arrow.svg',
-              width: 34,
-              height: 34,
+              width: 34.w,
+              height: 34.h,
             ),
             onPressed: () {
               Navigator.pop(context);
@@ -523,7 +528,9 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
                     decoration: ShapeDecoration(
                       color: Colors.white,
                       shape: RoundedSuperellipseBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadiusGeometry.all(
+                          Radius.circular(12.sp),
+                        ),
                         side: BorderSide(
                           color: Colors.black,
                           width: AppTheme.borderThin,
@@ -941,7 +948,7 @@ class _RequestCardState extends ConsumerState<_RequestCard>
                           radius: 26,
                           backgroundColor: Colors.grey[200],
                           backgroundImage: profile.avatarUrl != null
-                              ? NetworkImage(profile.avatarUrl!)
+                              ? CachedNetworkImageProvider(profile.avatarUrl!)
                               : null,
                           child: profile.avatarUrl == null
                               ? HugeIcon(
@@ -1086,7 +1093,6 @@ class _FriendCard extends StatefulWidget {
 class _FriendCardState extends State<_FriendCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  bool _isHovered = false;
 
   @override
   void initState() {
@@ -1122,15 +1128,12 @@ class _FriendCardState extends State<_FriendCard>
           ),
         );
       },
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: 1.0 + (_controller.value * 0.02),
-              child: Container(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: 1.0 + (_controller.value * 0.02),
+            child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
@@ -1184,7 +1187,7 @@ class _FriendCardState extends State<_FriendCard>
                                 radius: 28,
                                 backgroundColor: Colors.grey[200],
                                 backgroundImage: widget.friend.avatarUrl != null
-                                    ? NetworkImage(widget.friend.avatarUrl!)
+                                    ? CachedNetworkImageProvider(widget.friend.avatarUrl!)
                                     : null,
                                 child: widget.friend.avatarUrl == null
                                     ? HugeIcon(
@@ -1361,7 +1364,6 @@ class _FriendCardState extends State<_FriendCard>
             );
           },
         ),
-      ),
     );
   }
 }

@@ -609,13 +609,13 @@ class _YearInReviewPageState extends State<YearInReviewPage>
                   child: Column(
                     children: [
                       _buildSummaryRow(
-                        icon: Icons.photo_library,
+                        icon: Icons.photo_album_outlined,
                         label: 'Total Moments',
                         value: '${_stats.totalMoments}',
                       ),
                       const Divider(height: 24),
                       _buildSummaryRow(
-                        icon: Icons.place,
+                        icon: Icons.location_pin,
                         label: 'Places Visited',
                         value: '${_stats.uniqueLocations}',
                       ),
@@ -628,7 +628,7 @@ class _YearInReviewPageState extends State<YearInReviewPage>
                       ),
                       const Divider(height: 24),
                       _buildSummaryRow(
-                        icon: Icons.local_fire_department,
+                        icon: Icons.local_fire_department_outlined,
                         label: 'Best Streak',
                         value: '${_stats.longestStreak} days',
                       ),

@@ -6,7 +6,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/router/app_router.dart';
 import '../../../widgets/spring_button.dart';
-import 'package:simple_icons/simple_icons.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

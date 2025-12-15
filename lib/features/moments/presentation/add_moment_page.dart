@@ -5,8 +5,10 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:moments/core/utils/extensions.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/constants.dart';
+import '../../../core/services/haptic_service.dart';
 import '../../../widgets/spring_button.dart';
 import '../../../widgets/video_player_widget.dart';
+import '../../editor/presentation/image_editor_page.dart';
 import '../providers/add_moment_notifier.dart';
 import '../providers/add_moment_state.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -73,8 +75,42 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
         );
 
     if (success && mounted) {
+      HapticService.success();
       context.showSuccessSnackBar(AppConstants.momentCreated);
       Navigator.of(context).pop(true);
+    }
+  }
+
+  void _openEditor(int imageIndex, AddMomentState state) async {
+    HapticService.lightTap();
+    
+    // Get image paths (filter out videos for the editor)
+    final imagePaths = state.imageFiles
+        .where((f) {
+          final path = f.path.toLowerCase();
+          return !path.endsWith('.mp4') &&
+                 !path.endsWith('.mov') &&
+                 !path.endsWith('.avi') &&
+                 !path.endsWith('.mkv') &&
+                 !path.endsWith('.3gp');
+        })
+        .map((f) => f.path)
+        .toList();
+    
+    if (imagePaths.isEmpty) return;
+    
+    // Open the editor
+    final editedPaths = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(
+        builder: (context) => ImageEditorPage(
+          imagePaths: imagePaths,
+        ),
+      ),
+    );
+    
+    // If we got edited paths back, update the state
+    if (editedPaths != null && editedPaths.isNotEmpty) {
+      ref.read(addMomentProvider.notifier).updateImagePaths(editedPaths);
     }
   }
 
@@ -604,6 +640,28 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                   )
                 else
                   Image.file(File(file.path), fit: BoxFit.cover),
+                // Edit Button (only for images)
+                if (!isVideoFile)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: GestureDetector(
+                      onTap: () => _openEditor(index, state),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryBlue.withValues(alpha: 0.9),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1),
+                        ),
+                        child: const Icon(
+                          Icons.edit,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ),
                 // Delete Button
                 Positioned(
                   top: 0,

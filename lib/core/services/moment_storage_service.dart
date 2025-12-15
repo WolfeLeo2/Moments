@@ -5,6 +5,8 @@ import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:moments/data/models/moment.dart';
+import 'package:moments/data/models/profile.dart';
+import 'package:moments/data/models/friendship.dart';
 
 /// Moment storage service for persistent local data storage
 /// Stores moments and their media locally for offline access
@@ -42,7 +44,7 @@ class MomentStorageService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         // Table for moments metadata
         await db.execute('''
@@ -94,6 +96,61 @@ class MomentStorageService {
             last_accessed INTEGER NOT NULL
           )
         ''');
+
+        // Table for profiles
+        await db.execute('''
+          CREATE TABLE profiles (
+            id TEXT PRIMARY KEY,
+            username TEXT,
+            display_name TEXT,
+            avatar_url TEXT,
+            bio TEXT,
+            invite_code TEXT,
+            created_at INTEGER,
+            updated_at INTEGER
+          )
+        ''');
+
+        // Table for friendships
+        await db.execute('''
+          CREATE TABLE friendships (
+            id TEXT PRIMARY KEY,
+            user_id_1 TEXT NOT NULL,
+            user_id_2 TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at INTEGER,
+            updated_at INTEGER
+          )
+        ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // Add profiles table
+          await db.execute('''
+            CREATE TABLE profiles (
+              id TEXT PRIMARY KEY,
+              username TEXT,
+              display_name TEXT,
+              avatar_url TEXT,
+              bio TEXT,
+              invite_code TEXT,
+              created_at INTEGER,
+              updated_at INTEGER
+            )
+          ''');
+
+          // Add friendships table
+          await db.execute('''
+            CREATE TABLE friendships (
+              id TEXT PRIMARY KEY,
+              user_id_1 TEXT NOT NULL,
+              user_id_2 TEXT NOT NULL,
+              status TEXT NOT NULL,
+              created_at INTEGER,
+              updated_at INTEGER
+            )
+          ''');
+        }
       },
     );
   }
@@ -293,10 +350,35 @@ class MomentStorageService {
         results.first[isThumbnail ? 'local_thumbnail_path' : 'local_media_path']
             as String?;
 
+    if (path == null) return null;
+
     // Verify file exists
-    if (path != null && await File(path).exists()) {
+    if (await File(path).exists()) {
       return path;
     }
+
+    // Fallback: Check if file exists in media directory with expected filename
+    // This handles cases where absolute paths change (e.g. iOS/Android app updates/reinstalls)
+    try {
+      final dir = await mediaDirectory;
+      final filename = basename(path);
+      final newPath = join(dir.path, filename);
+      
+      if (await File(newPath).exists()) {
+        // Update the database with the correct path
+        await db.update(
+          'moments',
+          {isThumbnail ? 'local_thumbnail_path' : 'local_media_path': newPath},
+          where: 'id = ?',
+          whereArgs: [momentId],
+        );
+        debugPrint('🔄 Updated path for moment $momentId: $newPath');
+        return newPath;
+      }
+    } catch (e) {
+      debugPrint('Error checking fallback path: $e');
+    }
+
     return null;
   }
 
@@ -403,5 +485,95 @@ class MomentStorageService {
       isLocked: (row['is_locked'] as int) == 1,
       isPrivate: (row['is_private'] as int) == 1,
     );
+  }
+
+  // ============================================
+  // FRIENDS & PROFILES STORAGE
+  // ============================================
+
+  /// Save profiles to local storage
+  Future<void> saveProfiles(List<Profile> profiles) async {
+    final db = await database;
+    final batch = db.batch();
+
+    for (final profile in profiles) {
+      batch.insert(
+        'profiles',
+        {
+          'id': profile.id,
+          'username': profile.username,
+          'display_name': profile.displayName,
+          'avatar_url': profile.avatarUrl,
+          'bio': profile.bio,
+          'invite_code': profile.inviteCode,
+          'created_at': profile.createdAt.millisecondsSinceEpoch,
+          'updated_at': profile.updatedAt.millisecondsSinceEpoch,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+
+    await batch.commit(noResult: true);
+  }
+
+  /// Get profiles from local storage
+  Future<List<Profile>> getProfiles() async {
+    final db = await database;
+    final results = await db.query('profiles');
+
+    return results.map((row) {
+      return Profile(
+        id: row['id'] as String,
+        username: row['username'] as String?,
+        displayName: row['display_name'] as String?,
+        avatarUrl: row['avatar_url'] as String?,
+        bio: row['bio'] as String?,
+        inviteCode: row['invite_code'] as String? ?? '',
+        createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(row['updated_at'] as int),
+      );
+    }).toList();
+  }
+
+  /// Save friendships to local storage
+  Future<void> saveFriendships(List<Friendship> friendships) async {
+    final db = await database;
+    final batch = db.batch();
+
+    for (final friendship in friendships) {
+      batch.insert(
+        'friendships',
+        {
+          'id': friendship.id,
+          'user_id_1': friendship.userId,
+          'user_id_2': friendship.friendId,
+          'status': friendship.status.name,
+          'created_at': friendship.requestedAt.millisecondsSinceEpoch,
+          'updated_at': friendship.respondedAt?.millisecondsSinceEpoch,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+
+    await batch.commit(noResult: true);
+  }
+
+  /// Get friendships from local storage
+  Future<List<Friendship>> getFriendships() async {
+    final db = await database;
+    final results = await db.query('friendships');
+
+    return results.map((row) {
+      return Friendship(
+        id: row['id'] as String,
+        userId: row['user_id_1'] as String,
+        friendId: row['user_id_2'] as String,
+        status: FriendshipStatus.fromString(row['status'] as String),
+        requestedAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
+        respondedAt: row['updated_at'] != null
+            ? DateTime.fromMillisecondsSinceEpoch(row['updated_at'] as int)
+            : null,
+      );
+    }).toList();
   }
 }

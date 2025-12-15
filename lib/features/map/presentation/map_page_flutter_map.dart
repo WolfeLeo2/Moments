@@ -11,12 +11,14 @@ import '../../../core/utils/extensions.dart';
 import '../../../core/services/geocoding_service.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/map_cache_service.dart';
+import '../../../core/services/haptic_service.dart';
 import '../../../core/providers/moments_providers.dart';
 import '../../../data/models/moment.dart';
 import '../../../widgets/blurred_app_bar.dart';
 import '../../../widgets/spring_button.dart';
 import '../../moments/presentation/add_moment_page.dart';
 import '../../moments/presentation/moment_details_page.dart';
+import '../../moments/presentation/timeline_gallery_page.dart';
 import '../../social/presentation/friends_page.dart';
 import '../../profile/profile_page.dart';
 import '../widgets/stacked_moment_marker.dart';
@@ -32,11 +34,12 @@ class MapPage extends ConsumerStatefulWidget {
 }
 
 class _MapPageState extends ConsumerState<MapPage> {
-  final MapController _mapController = MapController();
-  final MapCacheService _mapCacheService = MapCacheService();
-  geo.Position? _currentPosition;
-  String _cityName = 'Loading...';
   final AuthService _authService = AuthService();
+  String _cityName = 'Loading...';
+  geo.Position? _currentPosition;
+  final MapCacheService _mapCacheService = MapCacheService();
+  final MapController _mapController = MapController();
+  double _currentZoom = 14.0; // Track current zoom level for clustering
 
   @override
   void initState() {
@@ -73,7 +76,32 @@ class _MapPageState extends ConsumerState<MapPage> {
     try {
       bool serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw Exception('Location services are disabled');
+        // Show dialog to enable location services
+        if (mounted) {
+          final shouldOpenSettings = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Location Services Disabled'),
+              content: const Text(
+                'Please enable location services to see your current position on the map.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('CANCEL'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('ENABLE'),
+                ),
+              ],
+            ),
+          );
+          if (shouldOpenSettings == true) {
+            await geo.Geolocator.openLocationSettings();
+          }
+        }
+        return;
       }
 
       geo.LocationPermission permission =
@@ -81,12 +109,37 @@ class _MapPageState extends ConsumerState<MapPage> {
       if (permission == geo.LocationPermission.denied) {
         permission = await geo.Geolocator.requestPermission();
         if (permission == geo.LocationPermission.denied) {
-          throw Exception('Location permissions are denied');
+          return; // User denied, don't throw
         }
       }
 
       if (permission == geo.LocationPermission.deniedForever) {
-        throw Exception('Location permissions are permanently denied');
+        // Show dialog to open app settings
+        if (mounted) {
+          final shouldOpenSettings = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Location Permission Required'),
+              content: const Text(
+                'Location permission is permanently denied. Please enable it in app settings to see your current position.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('CANCEL'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('OPEN SETTINGS'),
+                ),
+              ],
+            ),
+          );
+          if (shouldOpenSettings == true) {
+            await geo.Geolocator.openAppSettings();
+          }
+        }
+        return;
       }
 
       final position = await geo.Geolocator.getCurrentPosition(
@@ -108,31 +161,285 @@ class _MapPageState extends ConsumerState<MapPage> {
 
   List<Map<String, dynamic>> _groupMomentsByPlace(List<Moment> moments) {
     final groups = <Map<String, dynamic>>[];
-    final placeMap = <String, List<Moment>>{};
-
+    
+    // First, group by moment_group_id for moments that have one
+    final groupedMoments = <String, List<Moment>>{};
+    final ungroupedMoments = <Moment>[];
+    
     for (final moment in moments) {
-      final placeName = _extractPlaceName(moment.location);
-      if (placeMap.containsKey(placeName)) {
-        placeMap[placeName]!.add(moment);
+      if (moment.momentGroupId != null) {
+        // Group by moment_group_id
+        if (groupedMoments.containsKey(moment.momentGroupId)) {
+          groupedMoments[moment.momentGroupId]!.add(moment);
+        } else {
+          groupedMoments[moment.momentGroupId!] = [moment];
+        }
       } else {
-        placeMap[placeName] = [moment];
+        // No group ID - treat as standalone
+        ungroupedMoments.add(moment);
       }
     }
-
-    for (final entry in placeMap.entries) {
-      final moments = entry.value;
-      final placeName = entry.key;
-      final firstMoment = moments.first;
+    
+    // Add grouped moments
+    for (final entry in groupedMoments.entries) {
+      final groupMoments = entry.value;
+      final firstMoment = groupMoments.first;
+      final placeName = _extractPlaceName(firstMoment.location);
 
       groups.add({
         'placeName': placeName,
-        'moments': moments,
+        'moments': groupMoments,
         'lat': firstMoment.latitude,
         'lng': firstMoment.longitude,
+        'groupId': entry.key,
+        'isCluster': false,
+        'clusterCount': 1,
       });
     }
+    
+    // Add ungrouped moments - each as its own marker, but group by location for nearby ones
+    final locationGroups = <String, List<Moment>>{};
+    for (final moment in ungroupedMoments) {
+      // Use a location key based on truncated lat/lng to group nearby moments
+      final locationKey = '${moment.latitude.toStringAsFixed(4)}_${moment.longitude.toStringAsFixed(4)}';
+      if (locationGroups.containsKey(locationKey)) {
+        locationGroups[locationKey]!.add(moment);
+      } else {
+        locationGroups[locationKey] = [moment];
+      }
+    }
+    
+    for (final entry in locationGroups.entries) {
+      final locationMoments = entry.value;
+      final firstMoment = locationMoments.first;
+      final placeName = _extractPlaceName(firstMoment.location);
 
+      groups.add({
+        'placeName': placeName,
+        'moments': locationMoments,
+        'lat': firstMoment.latitude,
+        'lng': firstMoment.longitude,
+        'groupId': 'loc_${entry.key}',
+        'isCluster': false,
+        'clusterCount': 1,
+      });
+    }
+    
+    // Apply zoom-aware clustering
+    return _applyZoomClustering(groups);
+  }
+  
+  /// Apply zoom-aware clustering to group nearby moment groups
+  /// At low zoom levels, cluster more aggressively
+  List<Map<String, dynamic>> _applyZoomClustering(List<Map<String, dynamic>> groups) {
+    if (groups.length <= 1) return groups;
+    
+    // Calculate clustering threshold based on zoom level
+    // At zoom 5 (country view): cluster groups ~100km apart
+    // At zoom 10 (city view): cluster groups ~5km apart
+    // At zoom 14+ (street view): minimal clustering
+    final double clusterThreshold = _calculateClusterThreshold(_currentZoom);
+    
+    if (clusterThreshold <= 0) {
+      // At high zoom, just apply minor offsets but no clustering
+      return _applyProximityOffsets(groups);
+    }
+    
+    final clustered = <Map<String, dynamic>>[];
+    final processed = <int>{};
+    
+    for (int i = 0; i < groups.length; i++) {
+      if (processed.contains(i)) continue;
+      
+      final baseLat = groups[i]['lat'] as double;
+      final baseLng = groups[i]['lng'] as double;
+      final clusterMembers = <Map<String, dynamic>>[groups[i]];
+      processed.add(i);
+      
+      // Find all groups close to this one
+      for (int j = i + 1; j < groups.length; j++) {
+        if (processed.contains(j)) continue;
+        
+        final otherLat = groups[j]['lat'] as double;
+        final otherLng = groups[j]['lng'] as double;
+        
+        final latDiff = (baseLat - otherLat).abs();
+        final lngDiff = (baseLng - otherLng).abs();
+        
+        if (latDiff < clusterThreshold && lngDiff < clusterThreshold) {
+          clusterMembers.add(groups[j]);
+          processed.add(j);
+        }
+      }
+      
+      if (clusterMembers.length > 1) {
+        // Create a cluster from multiple groups
+        final allMoments = <Moment>[];
+        double totalLat = 0, totalLng = 0;
+        
+        for (final member in clusterMembers) {
+          allMoments.addAll(member['moments'] as List<Moment>);
+          totalLat += member['lat'] as double;
+          totalLng += member['lng'] as double;
+        }
+        
+        // Use centroid for cluster position
+        final centerLat = totalLat / clusterMembers.length;
+        final centerLng = totalLng / clusterMembers.length;
+        
+        clustered.add({
+          'placeName': '${clusterMembers.length} locations',
+          'moments': allMoments,
+          'lat': centerLat,
+          'lng': centerLng,
+          'groupId': 'cluster_${clusterMembers.map((m) => m['groupId']).join('_')}',
+          'isCluster': true,
+          'clusterCount': clusterMembers.length,
+        });
+      } else {
+        // Single group, no clustering needed
+        clustered.add(groups[i]);
+      }
+    }
+    
+    return clustered;
+  }
+  
+  /// Calculate the clustering threshold based on zoom level
+  double _calculateClusterThreshold(double zoom) {
+    // Zoom levels:
+    // 3-5: World/continent view -> cluster aggressively (threshold ~5 degrees)
+    // 6-8: Country view -> moderate clustering (threshold ~1 degree)
+    // 9-11: Region/city view -> light clustering (threshold ~0.1 degrees)
+    // 12-15: Neighborhood view -> very light clustering for nearby groups
+    // 16+: Street view -> no clustering (threshold 0)
+    
+    if (zoom >= 16) return 0; // No clustering at street level
+    if (zoom >= 14) return 0.002; // ~200m - still cluster very close groups
+    if (zoom >= 12) return 0.005; // ~500m
+    if (zoom >= 10) return 0.02; // ~2km
+    if (zoom >= 8) return 0.1; // ~10km
+    if (zoom >= 6) return 0.5; // ~50km
+    if (zoom >= 4) return 2.0; // ~200km
+    return 5.0; // ~500km at world view
+  }
+  
+  /// Apply small lat/lng offsets to groups that are very close to each other
+  /// This prevents markers from stacking directly on top of each other
+  List<Map<String, dynamic>> _applyProximityOffsets(List<Map<String, dynamic>> groups) {
+    if (groups.length <= 1) return groups;
+    
+    const double proximityThreshold = 0.0005; // ~50 meters
+    const double offsetStep = 0.0003; // ~30 meters offset
+    
+    // Track which groups have been processed
+    final processed = <int>{};
+    
+    for (int i = 0; i < groups.length; i++) {
+      if (processed.contains(i)) continue;
+      
+      final baseLat = groups[i]['lat'] as double;
+      final baseLng = groups[i]['lng'] as double;
+      
+      // Find all groups close to this one
+      final nearbyIndices = <int>[i];
+      for (int j = i + 1; j < groups.length; j++) {
+        if (processed.contains(j)) continue;
+        
+        final otherLat = groups[j]['lat'] as double;
+        final otherLng = groups[j]['lng'] as double;
+        
+        final latDiff = (baseLat - otherLat).abs();
+        final lngDiff = (baseLng - otherLng).abs();
+        
+        if (latDiff < proximityThreshold && lngDiff < proximityThreshold) {
+          nearbyIndices.add(j);
+        }
+      }
+      
+      // If multiple groups are close, spread them out in a circular pattern
+      if (nearbyIndices.length > 1) {
+        for (int k = 0; k < nearbyIndices.length; k++) {
+          final idx = nearbyIndices[k];
+          processed.add(idx);
+          
+          // Calculate offset based on position in cluster (alternating pattern)
+          final latOffset = offsetStep * k * (k % 2 == 0 ? 1 : -1) * 0.5;
+          final lngOffset = offsetStep * k * (k % 2 == 0 ? -1 : 1) * 0.7;
+          
+          groups[idx]['lat'] = (groups[idx]['lat'] as double) + latOffset;
+          groups[idx]['lng'] = (groups[idx]['lng'] as double) + lngOffset;
+        }
+      } else {
+        processed.add(i);
+      }
+    }
+    
     return groups;
+  }
+
+  /// Build cluster badge showing number of locations and moments
+  Widget _buildClusterBadge(int locationCount, int momentCount) {
+    return Transform.rotate(
+      angle: 0.05, // Slight tilt for neubrutalism style
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryBlue,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppTheme.borderBlack,
+            width: 2,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black,
+              offset: Offset(2, 2),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.location_on,
+              color: Colors.white,
+              size: 12,
+            ),
+            const SizedBox(width: 2),
+            Text(
+              '$locationCount',
+              style: GoogleFonts.bangers(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            Container(
+              width: 1,
+              height: 10,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              color: Colors.white.withValues(alpha: 0.5),
+            ),
+            const Icon(
+              Icons.photo_library,
+              color: Colors.white,
+              size: 12,
+            ),
+            const SizedBox(width: 2),
+            Text(
+              '$momentCount',
+              style: GoogleFonts.bangers(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   String _extractPlaceName(String location) {
@@ -148,6 +455,9 @@ class _MapPageState extends ConsumerState<MapPage> {
     String placeName,
     int markerIndex,
   ) {
+    // Haptic feedback on tap
+    HapticService.mediumTap();
+    
     // Use moments in chronological order (newest first, as they come from database)
     Navigator.of(context)
         .push(
@@ -348,12 +658,21 @@ class _MapPageState extends ConsumerState<MapPage> {
 
             profileImageUrl: _authService.currentUserPhotoUrl,
             onFriendsPressed: () {
+              HapticService.lightTap();
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const FriendsPage()),
               );
             },
+            onGalleryPressed: () {
+              HapticService.lightTap();
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const TimelineGalleryPage()),
+              );
+            },
             onProfilePressed: () {
+              HapticService.lightTap();
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const ProfilePage()),
@@ -375,6 +694,14 @@ class _MapPageState extends ConsumerState<MapPage> {
                   initialZoom: 18.0,
                   minZoom: 5.0,
                   maxZoom: 22.0,
+                  onPositionChanged: (position, hasGesture) {
+                    // Track zoom level for dynamic clustering
+                    if (position.zoom != _currentZoom) {
+                      setState(() {
+                        _currentZoom = position.zoom;
+                      });
+                    }
+                  },
                 ),
                 children: [
                   // Mapbox Streets v11 - 512px tiles for better performance
@@ -427,16 +754,38 @@ class _MapPageState extends ConsumerState<MapPage> {
                       final lat = placeGroup['lat'] as double;
                       final lng = placeGroup['lng'] as double;
                       final placeName = placeGroup['placeName'] as String;
+                      final isCluster = placeGroup['isCluster'] as bool? ?? false;
+                      final clusterCount = placeGroup['clusterCount'] as int? ?? 1;
+                      
+                      // Create a stable key based on moment IDs to prevent unnecessary rebuilds
+                      final markerKey = moments.map((m) => m.id).join('_');
 
                       return Marker(
                         point: LatLng(lat, lng),
-                        width: 140,
-                        height: 180,
-                        child: StackedMomentMarker(
-                          moments: moments,
-                          onTap: () =>
-                              _onPlaceMarkerTapped(moments, placeName, 0),
-                          heroTag: null,
+                        width: 160, // Slightly wider for cluster badge
+                        height: 200, // Taller for cluster badge
+                        key: ValueKey(markerKey),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            StackedMomentMarker(
+                              key: ValueKey('marker_$markerKey'),
+                              moments: moments,
+                              onTap: () =>
+                                  _onPlaceMarkerTapped(moments, placeName, 0),
+                              heroTag: null,
+                            ),
+                            // Cluster count badge (only show if multiple groups clustered)
+                            if (isCluster && clusterCount > 1)
+                              Positioned(
+                                bottom: -5,
+                                left: 0,
+                                right: 0,
+                                child: Center(
+                                  child: _buildClusterBadge(clusterCount, moments.length),
+                                ),
+                              ),
+                          ],
                         ),
                       );
                     }).toList(),
@@ -543,10 +892,10 @@ class _MapPageState extends ConsumerState<MapPage> {
 
 // Animated FAB Widget with Motor animations
 class _AnimatedFAB extends StatefulWidget {
+  const _AnimatedFAB({required this.onCameraTap, required this.onGalleryTap});
+
   final VoidCallback onCameraTap;
   final VoidCallback onGalleryTap;
-
-  const _AnimatedFAB({required this.onCameraTap, required this.onGalleryTap});
 
   @override
   State<_AnimatedFAB> createState() => _AnimatedFABState();
@@ -554,17 +903,24 @@ class _AnimatedFAB extends StatefulWidget {
 
 class _AnimatedFABState extends State<_AnimatedFAB>
     with SingleTickerProviderStateMixin {
-  bool _isExpanded = false;
-  late final AnimationController _controller;
-  late final Animation<double> _heightAnimation;
-  late final Animation<double> _widthAnimation;
-  late final Animation<double> _opacityAnimation;
-
   // FAB dimensions - grow both width and height
   static const double _collapsedHeight = 60.0;
+
+  static const double _collapsedWidth = 198.0; // Stable width for resting FAB
   static const double _expandedHeight =
       80.0; // Proportional height for 2 buttons
-  static const double _collapsedWidth = 198.0; // Stable width for resting FAB
+
+  late final AnimationController _controller;
+  late final Animation<double> _heightAnimation;
+  bool _isExpanded = false;
+  late final Animation<double> _opacityAnimation;
+  late final Animation<double> _widthAnimation;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -602,13 +958,8 @@ class _AnimatedFABState extends State<_AnimatedFAB>
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
   void _toggleExpansion() {
+    HapticService.lightTap();
     setState(() {
       _isExpanded = !_isExpanded;
       if (_isExpanded) {
@@ -620,63 +971,15 @@ class _AnimatedFABState extends State<_AnimatedFAB>
   }
 
   void _handleCameraTap() {
+    HapticService.mediumTap();
     _toggleExpansion();
     Future.delayed(const Duration(milliseconds: 300), widget.onCameraTap);
   }
 
   void _handleGalleryTap() {
+    HapticService.mediumTap();
     _toggleExpansion();
     Future.delayed(const Duration(milliseconds: 300), widget.onGalleryTap);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        // Switch content only after width has grown past a threshold to avoid cramped layout
-        final showExpanded =
-            _isExpanded && _widthAnimation.value >= (_collapsedWidth + 40);
-
-        return Align(
-          alignment: Alignment.bottomCenter,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minWidth: _collapsedWidth,
-              maxWidth: _widthAnimation.value,
-            ),
-            child: SpringButton(
-              onTap: _toggleExpansion,
-              scaleFactor: 0.95,
-              child: Container(
-                width: _widthAnimation.value,
-                height: _heightAnimation.value,
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryBlue,
-                  border: Border.all(color: Colors.black, width: 2.5),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black,
-                      offset: Offset(4, 4),
-                      blurRadius: 0,
-                    ),
-                  ],
-                ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 150),
-                  switchInCurve: Curves.easeOut,
-                  switchOutCurve: Curves.easeIn,
-                  child: showExpanded
-                      ? _buildExpandedContent()
-                      : _buildCollapsedContent(),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 
   Widget _buildCollapsedContent() {
@@ -830,6 +1133,56 @@ class _AnimatedFABState extends State<_AnimatedFAB>
           ),
         ],
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        // Switch content only after width has grown past a threshold to avoid cramped layout
+        final showExpanded =
+            _isExpanded && _widthAnimation.value >= (_collapsedWidth + 40);
+
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: _collapsedWidth,
+              maxWidth: _widthAnimation.value,
+            ),
+            child: SpringButton(
+              onTap: _toggleExpansion,
+              scaleFactor: 0.95,
+              child: Container(
+                width: _widthAnimation.value,
+                height: _heightAnimation.value,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryBlue,
+                  border: Border.all(color: Colors.black, width: 2.5),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black,
+                      offset: Offset(4, 4),
+                      blurRadius: 0,
+                    ),
+                  ],
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 150),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  child: showExpanded
+                      ? _buildExpandedContent()
+                      : _buildCollapsedContent(),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

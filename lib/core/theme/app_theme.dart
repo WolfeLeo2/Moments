@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class AppTheme {
   // Neubrutalism Color Palette
@@ -27,16 +28,16 @@ class AppTheme {
   static const double spacing64 = 64.0;
 
   // Border Radius (Neubrutalism style)
-  static const double radiusSmall = 8.0;
-  static const double radiusMedium = 12.0;
-  static const double radiusLarge = 16.0;
-  static const double radiusCircle = 50.0;
-  static const double radiusMomentCard = 4.0;
+  static double radiusSmall = 8.0.r;
+  static double radiusMedium = 12.0.r;
+  static double radiusLarge = 16.0.r;
+  static double radiusCircle = 50.0.r;
+  static double radiusMomentCard = 4.0.r;
 
   // Border widths
-  static const double borderThin = 2.0;
-  static const double borderMedium = 2.5;
-  static const double borderThick = 3.0;
+  static double borderThin = 2.0.w;
+  static double borderMedium = 2.5.w;
+  static double borderThick = 3.0.w;
 
   // Neubrutalism Shadows (hard shadows with no blur)
   static List<BoxShadow> get brutalShadow => [
@@ -77,7 +78,7 @@ class AppTheme {
           ),
           textStyle: GoogleFonts.inter(
             fontWeight: FontWeight.w600,
-            fontSize: 16,
+            fontSize: 16.sp,
           ),
         ),
       ),

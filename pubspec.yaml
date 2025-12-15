@@ -61,10 +61,8 @@ dependencies:
 
   # UI & Fonts
   google_fonts: ^6.2.1
-  simple_icons: ^14.6.1
   hugeicons: ^1.1.1
   flutter_svg: ^2.2.2
-  chat_bubbles: ^1.7.0
 
   # Navigation
   go_router: ^14.1.4
@@ -86,6 +84,7 @@ dependencies:
   flutter_map_tile_caching: ^10.1.1
   share_plus: ^10.1.2
   flutter_image_compress: ^2.4.0
+  flutter_screenutil: ^5.9.3
 
   # Audio & Voice Notes
   just_audio: ^0.9.40

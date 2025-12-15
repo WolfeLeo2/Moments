@@ -183,50 +183,6 @@ final class CurrentUserProfileProvider
 String _$currentUserProfileHash() =>
     r'fd95b4c2e4e9c6f2e8c123ebd71e6a7ae0f65ae9';
 
-/// List of current user's friends
-
-@ProviderFor(friendsList)
-const friendsListProvider = FriendsListProvider._();
-
-/// List of current user's friends
-
-final class FriendsListProvider
-    extends
-        $FunctionalProvider<
-          AsyncValue<List<Profile>>,
-          List<Profile>,
-          FutureOr<List<Profile>>
-        >
-    with $FutureModifier<List<Profile>>, $FutureProvider<List<Profile>> {
-  /// List of current user's friends
-  const FriendsListProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'friendsListProvider',
-        isAutoDispose: true,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$friendsListHash();
-
-  @$internal
-  @override
-  $FutureProviderElement<List<Profile>> $createElement(
-    $ProviderPointer pointer,
-  ) => $FutureProviderElement(pointer);
-
-  @override
-  FutureOr<List<Profile>> create(Ref ref) {
-    return friendsList(ref);
-  }
-}
-
-String _$friendsListHash() => r'4d6c7c6dd14a658444ab86a23571378b05a6be62';
-
 /// Pending friend requests
 
 @ProviderFor(pendingRequests)
