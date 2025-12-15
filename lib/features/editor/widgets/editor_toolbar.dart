@@ -9,7 +9,7 @@ class EditorToolbar extends StatelessWidget {
   final VoidCallback onStickerTap;
   final VoidCallback onTextTap;
   final VoidCallback onPreview;
-  
+
   const EditorToolbar({
     super.key,
     required this.controller,
@@ -27,9 +27,7 @@ class EditorToolbar extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           decoration: BoxDecoration(
             color: AppTheme.backgroundBeige,
-            border: Border(
-              top: BorderSide(color: Colors.grey.shade200),
-            ),
+            border: Border(top: BorderSide(color: Colors.grey.shade200)),
           ),
           child: SafeArea(
             top: false,
@@ -67,7 +65,7 @@ class EditorToolbar extends StatelessWidget {
                     ),
                   ],
                 ),
-                
+
                 // Preview button
                 _buildPreviewButton(onPreview),
               ],
@@ -77,7 +75,7 @@ class EditorToolbar extends StatelessWidget {
       },
     );
   }
-  
+
   Widget _buildToolButton({
     required IconData icon,
     required String label,
@@ -109,7 +107,7 @@ class EditorToolbar extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildPreviewButton(VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -118,16 +116,9 @@ class EditorToolbar extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppTheme.primaryBlue,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: AppTheme.borderBlack,
-            width: 2,
-          ),
+          border: Border.all(color: AppTheme.borderBlack, width: 2),
           boxShadow: const [
-            BoxShadow(
-              color: Colors.black,
-              offset: Offset(2, 2),
-              blurRadius: 0,
-            ),
+            BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
           ],
         ),
         child: Text(
@@ -146,11 +137,8 @@ class EditorToolbar extends StatelessWidget {
 /// Drawing tools toolbar (shown when in draw mode)
 class DrawingToolbar extends StatelessWidget {
   final EditorController controller;
-  
-  const DrawingToolbar({
-    super.key,
-    required this.controller,
-  });
+
+  const DrawingToolbar({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -207,7 +195,7 @@ class DrawingToolbar extends StatelessWidget {
       },
     );
   }
-  
+
   Widget _buildColorOption(Color color) {
     final isSelected = controller.drawingColor == color;
     return GestureDetector(
@@ -224,12 +212,7 @@ class DrawingToolbar extends StatelessWidget {
             width: isSelected ? 3 : 1,
           ),
           boxShadow: color == Colors.white
-              ? [
-                  BoxShadow(
-                    color: Colors.grey.shade300,
-                    blurRadius: 2,
-                  ),
-                ]
+              ? [BoxShadow(color: Colors.grey.shade300, blurRadius: 2)]
               : null,
         ),
       ),

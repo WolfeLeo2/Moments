@@ -161,11 +161,11 @@ class _MapPageState extends ConsumerState<MapPage> {
 
   List<Map<String, dynamic>> _groupMomentsByPlace(List<Moment> moments) {
     final groups = <Map<String, dynamic>>[];
-    
+
     // First, group by moment_group_id for moments that have one
     final groupedMoments = <String, List<Moment>>{};
     final ungroupedMoments = <Moment>[];
-    
+
     for (final moment in moments) {
       if (moment.momentGroupId != null) {
         // Group by moment_group_id
@@ -179,7 +179,7 @@ class _MapPageState extends ConsumerState<MapPage> {
         ungroupedMoments.add(moment);
       }
     }
-    
+
     // Add grouped moments
     for (final entry in groupedMoments.entries) {
       final groupMoments = entry.value;
@@ -196,19 +196,20 @@ class _MapPageState extends ConsumerState<MapPage> {
         'clusterCount': 1,
       });
     }
-    
+
     // Add ungrouped moments - each as its own marker, but group by location for nearby ones
     final locationGroups = <String, List<Moment>>{};
     for (final moment in ungroupedMoments) {
       // Use a location key based on truncated lat/lng to group nearby moments
-      final locationKey = '${moment.latitude.toStringAsFixed(4)}_${moment.longitude.toStringAsFixed(4)}';
+      final locationKey =
+          '${moment.latitude.toStringAsFixed(4)}_${moment.longitude.toStringAsFixed(4)}';
       if (locationGroups.containsKey(locationKey)) {
         locationGroups[locationKey]!.add(moment);
       } else {
         locationGroups[locationKey] = [moment];
       }
     }
-    
+
     for (final entry in locationGroups.entries) {
       final locationMoments = entry.value;
       final firstMoment = locationMoments.first;
@@ -224,75 +225,78 @@ class _MapPageState extends ConsumerState<MapPage> {
         'clusterCount': 1,
       });
     }
-    
+
     // Apply zoom-aware clustering
     return _applyZoomClustering(groups);
   }
-  
+
   /// Apply zoom-aware clustering to group nearby moment groups
   /// At low zoom levels, cluster more aggressively
-  List<Map<String, dynamic>> _applyZoomClustering(List<Map<String, dynamic>> groups) {
+  List<Map<String, dynamic>> _applyZoomClustering(
+    List<Map<String, dynamic>> groups,
+  ) {
     if (groups.length <= 1) return groups;
-    
+
     // Calculate clustering threshold based on zoom level
     // At zoom 5 (country view): cluster groups ~100km apart
     // At zoom 10 (city view): cluster groups ~5km apart
     // At zoom 14+ (street view): minimal clustering
     final double clusterThreshold = _calculateClusterThreshold(_currentZoom);
-    
+
     if (clusterThreshold <= 0) {
       // At high zoom, just apply minor offsets but no clustering
       return _applyProximityOffsets(groups);
     }
-    
+
     final clustered = <Map<String, dynamic>>[];
     final processed = <int>{};
-    
+
     for (int i = 0; i < groups.length; i++) {
       if (processed.contains(i)) continue;
-      
+
       final baseLat = groups[i]['lat'] as double;
       final baseLng = groups[i]['lng'] as double;
       final clusterMembers = <Map<String, dynamic>>[groups[i]];
       processed.add(i);
-      
+
       // Find all groups close to this one
       for (int j = i + 1; j < groups.length; j++) {
         if (processed.contains(j)) continue;
-        
+
         final otherLat = groups[j]['lat'] as double;
         final otherLng = groups[j]['lng'] as double;
-        
+
         final latDiff = (baseLat - otherLat).abs();
         final lngDiff = (baseLng - otherLng).abs();
-        
+
         if (latDiff < clusterThreshold && lngDiff < clusterThreshold) {
           clusterMembers.add(groups[j]);
           processed.add(j);
         }
       }
-      
+
       if (clusterMembers.length > 1) {
         // Create a cluster from multiple groups
         final allMoments = <Moment>[];
         double totalLat = 0, totalLng = 0;
-        
+
         for (final member in clusterMembers) {
           allMoments.addAll(member['moments'] as List<Moment>);
           totalLat += member['lat'] as double;
           totalLng += member['lng'] as double;
         }
-        
+
         // Use centroid for cluster position
         final centerLat = totalLat / clusterMembers.length;
         final centerLng = totalLng / clusterMembers.length;
-        
+
         clustered.add({
           'placeName': '${clusterMembers.length} locations',
           'moments': allMoments,
           'lat': centerLat,
           'lng': centerLng,
-          'groupId': 'cluster_${clusterMembers.map((m) => m['groupId']).join('_')}',
+          'groupId':
+              'cluster_${clusterMembers.map((m) => m['groupId']).join('_')}',
           'isCluster': true,
           'clusterCount': clusterMembers.length,
         });
@@ -301,10 +305,10 @@ class _MapPageState extends ConsumerState<MapPage> {
         clustered.add(groups[i]);
       }
     }
-    
+
     return clustered;
   }
-  
+
   /// Calculate the clustering threshold based on zoom level
   double _calculateClusterThreshold(double zoom) {
     // Zoom levels:
@@ -313,7 +317,7 @@ class _MapPageState extends ConsumerState<MapPage> {
     // 9-11: Region/city view -> light clustering (threshold ~0.1 degrees)
     // 12-15: Neighborhood view -> very light clustering for nearby groups
     // 16+: Street view -> no clustering (threshold 0)
-    
+
     if (zoom >= 16) return 0; // No clustering at street level
     if (zoom >= 14) return 0.002; // ~200m - still cluster very close groups
     if (zoom >= 12) return 0.005; // ~500m
@@ -323,50 +327,52 @@ class _MapPageState extends ConsumerState<MapPage> {
     if (zoom >= 4) return 2.0; // ~200km
     return 5.0; // ~500km at world view
   }
-  
+
   /// Apply small lat/lng offsets to groups that are very close to each other
   /// This prevents markers from stacking directly on top of each other
-  List<Map<String, dynamic>> _applyProximityOffsets(List<Map<String, dynamic>> groups) {
+  List<Map<String, dynamic>> _applyProximityOffsets(
+    List<Map<String, dynamic>> groups,
+  ) {
     if (groups.length <= 1) return groups;
-    
+
     const double proximityThreshold = 0.0005; // ~50 meters
     const double offsetStep = 0.0003; // ~30 meters offset
-    
+
     // Track which groups have been processed
     final processed = <int>{};
-    
+
     for (int i = 0; i < groups.length; i++) {
       if (processed.contains(i)) continue;
-      
+
       final baseLat = groups[i]['lat'] as double;
       final baseLng = groups[i]['lng'] as double;
-      
+
       // Find all groups close to this one
       final nearbyIndices = <int>[i];
       for (int j = i + 1; j < groups.length; j++) {
         if (processed.contains(j)) continue;
-        
+
         final otherLat = groups[j]['lat'] as double;
         final otherLng = groups[j]['lng'] as double;
-        
+
         final latDiff = (baseLat - otherLat).abs();
         final lngDiff = (baseLng - otherLng).abs();
-        
+
         if (latDiff < proximityThreshold && lngDiff < proximityThreshold) {
           nearbyIndices.add(j);
         }
       }
-      
+
       // If multiple groups are close, spread them out in a circular pattern
       if (nearbyIndices.length > 1) {
         for (int k = 0; k < nearbyIndices.length; k++) {
           final idx = nearbyIndices[k];
           processed.add(idx);
-          
+
           // Calculate offset based on position in cluster (alternating pattern)
           final latOffset = offsetStep * k * (k % 2 == 0 ? 1 : -1) * 0.5;
           final lngOffset = offsetStep * k * (k % 2 == 0 ? -1 : 1) * 0.7;
-          
+
           groups[idx]['lat'] = (groups[idx]['lat'] as double) + latOffset;
           groups[idx]['lng'] = (groups[idx]['lng'] as double) + lngOffset;
         }
@@ -374,7 +380,7 @@ class _MapPageState extends ConsumerState<MapPage> {
         processed.add(i);
       }
     }
-    
+
     return groups;
   }
 
@@ -387,26 +393,15 @@ class _MapPageState extends ConsumerState<MapPage> {
         decoration: BoxDecoration(
           color: AppTheme.primaryBlue,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppTheme.borderBlack,
-            width: 2,
-          ),
+          border: Border.all(color: AppTheme.borderBlack, width: 2),
           boxShadow: const [
-            BoxShadow(
-              color: Colors.black,
-              offset: Offset(2, 2),
-              blurRadius: 0,
-            ),
+            BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
           ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.location_on,
-              color: Colors.white,
-              size: 12,
-            ),
+            const Icon(Icons.location_on, color: Colors.white, size: 12),
             const SizedBox(width: 2),
             Text(
               '$locationCount',
@@ -422,11 +417,7 @@ class _MapPageState extends ConsumerState<MapPage> {
               margin: const EdgeInsets.symmetric(horizontal: 4),
               color: Colors.white.withValues(alpha: 0.5),
             ),
-            const Icon(
-              Icons.photo_library,
-              color: Colors.white,
-              size: 12,
-            ),
+            const Icon(Icons.photo_library, color: Colors.white, size: 12),
             const SizedBox(width: 2),
             Text(
               '$momentCount',
@@ -457,7 +448,7 @@ class _MapPageState extends ConsumerState<MapPage> {
   ) {
     // Haptic feedback on tap
     HapticService.mediumTap();
-    
+
     // Use moments in chronological order (newest first, as they come from database)
     Navigator.of(context)
         .push(
@@ -668,7 +659,9 @@ class _MapPageState extends ConsumerState<MapPage> {
               HapticService.lightTap();
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const TimelineGalleryPage()),
+                MaterialPageRoute(
+                  builder: (context) => const TimelineGalleryPage(),
+                ),
               );
             },
             onProfilePressed: () {
@@ -754,9 +747,11 @@ class _MapPageState extends ConsumerState<MapPage> {
                       final lat = placeGroup['lat'] as double;
                       final lng = placeGroup['lng'] as double;
                       final placeName = placeGroup['placeName'] as String;
-                      final isCluster = placeGroup['isCluster'] as bool? ?? false;
-                      final clusterCount = placeGroup['clusterCount'] as int? ?? 1;
-                      
+                      final isCluster =
+                          placeGroup['isCluster'] as bool? ?? false;
+                      final clusterCount =
+                          placeGroup['clusterCount'] as int? ?? 1;
+
                       // Create a stable key based on moment IDs to prevent unnecessary rebuilds
                       final markerKey = moments.map((m) => m.id).join('_');
 
@@ -782,7 +777,10 @@ class _MapPageState extends ConsumerState<MapPage> {
                                 left: 0,
                                 right: 0,
                                 child: Center(
-                                  child: _buildClusterBadge(clusterCount, moments.length),
+                                  child: _buildClusterBadge(
+                                    clusterCount,
+                                    moments.length,
+                                  ),
                                 ),
                               ),
                           ],

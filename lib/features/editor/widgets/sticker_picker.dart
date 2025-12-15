@@ -6,31 +6,232 @@ import 'package:google_fonts/google_fonts.dart';
 /// Sticker picker bottom sheet
 class StickerPicker extends StatefulWidget {
   final EditorController controller;
-  
-  const StickerPicker({
-    super.key,
-    required this.controller,
-  });
+
+  const StickerPicker({super.key, required this.controller});
 
   @override
   State<StickerPicker> createState() => _StickerPickerState();
 }
 
-class _StickerPickerState extends State<StickerPicker> with SingleTickerProviderStateMixin {
+class _StickerPickerState extends State<StickerPicker>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
+
   // Emoji categories
   static const Map<String, List<String>> _emojiCategories = {
-    'Smileys': ['😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😍', '🥰', '😘', '😜', '🤪', '😎', '🤩', '🥳', '😤', '😱', '🤯', '😴', '🤢', '🤮'],
-    'Gestures': ['👍', '👎', '👊', '✊', '🤛', '🤜', '🤝', '👏', '🙌', '👐', '🤲', '🤞', '✌️', '🤟', '🤘', '👌', '🤌', '👈', '👉', '👆', '👇', '☝️', '✋', '🤚', '🖐️'],
-    'Hearts': ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '❤️‍🩹', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟'],
-    'Animals': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🙈', '🙉', '🙊', '🐔', '🐧', '🐦', '🦅', '🦆', '🦉', '🐺'],
-    'Food': ['🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🍜', '🍝', '🍣'],
-    'Travel': ['✈️', '🚗', '🚕', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🛵', '🏍️', '🚲', '🛴', '🚁', '🛸', '🚀', '🛶', '⛵', '🚤', '🛳️', '⛴️', '🗼', '🗽', '🏰', '🗿'],
-    'Activities': ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🥊', '🎯', '⛳', '🎿', '🛷', '🥌', '🎮', '🎲', '🎭', '🎨', '🎬'],
-    'Objects': ['📱', '💻', '🖥️', '📷', '📸', '🎥', '📺', '🔮', '💎', '💰', '💳', '🎁', '🏆', '🥇', '🥈', '🥉', '🎖️', '🏅', '🔑', '🔒', '💡', '📚', '✏️', '🖊️', '🎯'],
+    'Smileys': [
+      '😀',
+      '😃',
+      '😄',
+      '😁',
+      '😅',
+      '😂',
+      '🤣',
+      '😊',
+      '😇',
+      '🙂',
+      '😉',
+      '😍',
+      '🥰',
+      '😘',
+      '😜',
+      '🤪',
+      '😎',
+      '🤩',
+      '🥳',
+      '😤',
+      '😱',
+      '🤯',
+      '😴',
+      '🤢',
+      '🤮',
+    ],
+    'Gestures': [
+      '👍',
+      '👎',
+      '👊',
+      '✊',
+      '🤛',
+      '🤜',
+      '🤝',
+      '👏',
+      '🙌',
+      '👐',
+      '🤲',
+      '🤞',
+      '✌️',
+      '🤟',
+      '🤘',
+      '👌',
+      '🤌',
+      '👈',
+      '👉',
+      '👆',
+      '👇',
+      '☝️',
+      '✋',
+      '🤚',
+      '🖐️',
+    ],
+    'Hearts': [
+      '❤️',
+      '🧡',
+      '💛',
+      '💚',
+      '💙',
+      '💜',
+      '🖤',
+      '🤍',
+      '🤎',
+      '💔',
+      '❤️‍🔥',
+      '❤️‍🩹',
+      '💕',
+      '💞',
+      '💓',
+      '💗',
+      '💖',
+      '💘',
+      '💝',
+      '💟',
+    ],
+    'Animals': [
+      '🐶',
+      '🐱',
+      '🐭',
+      '🐹',
+      '🐰',
+      '🦊',
+      '🐻',
+      '🐼',
+      '🐨',
+      '🐯',
+      '🦁',
+      '🐮',
+      '🐷',
+      '🐸',
+      '🐵',
+      '🙈',
+      '🙉',
+      '🙊',
+      '🐔',
+      '🐧',
+      '🐦',
+      '🦅',
+      '🦆',
+      '🦉',
+      '🐺',
+    ],
+    'Food': [
+      '🍎',
+      '🍐',
+      '🍊',
+      '🍋',
+      '🍌',
+      '🍉',
+      '🍇',
+      '🍓',
+      '🫐',
+      '🍒',
+      '🍑',
+      '🥭',
+      '🍍',
+      '🥥',
+      '🥝',
+      '🍔',
+      '🍟',
+      '🍕',
+      '🌭',
+      '🥪',
+      '🌮',
+      '🌯',
+      '🍜',
+      '🍝',
+      '🍣',
+    ],
+    'Travel': [
+      '✈️',
+      '🚗',
+      '🚕',
+      '🚌',
+      '🚎',
+      '🏎️',
+      '🚓',
+      '🚑',
+      '🚒',
+      '🛵',
+      '🏍️',
+      '🚲',
+      '🛴',
+      '🚁',
+      '🛸',
+      '🚀',
+      '🛶',
+      '⛵',
+      '🚤',
+      '🛳️',
+      '⛴️',
+      '🗼',
+      '🗽',
+      '🏰',
+      '🗿',
+    ],
+    'Activities': [
+      '⚽',
+      '🏀',
+      '🏈',
+      '⚾',
+      '🥎',
+      '🎾',
+      '🏐',
+      '🏉',
+      '🥏',
+      '🎱',
+      '🪀',
+      '🏓',
+      '🏸',
+      '🏒',
+      '🥊',
+      '🎯',
+      '⛳',
+      '🎿',
+      '🛷',
+      '🥌',
+      '🎮',
+      '🎲',
+      '🎭',
+      '🎨',
+      '🎬',
+    ],
+    'Objects': [
+      '📱',
+      '💻',
+      '🖥️',
+      '📷',
+      '📸',
+      '🎥',
+      '📺',
+      '🔮',
+      '💎',
+      '💰',
+      '💳',
+      '🎁',
+      '🏆',
+      '🥇',
+      '🥈',
+      '🥉',
+      '🎖️',
+      '🏅',
+      '🔑',
+      '🔒',
+      '💡',
+      '📚',
+      '✏️',
+      '🖊️',
+      '🎯',
+    ],
   };
-  
+
   @override
   void initState() {
     super.initState();
@@ -39,7 +240,7 @@ class _StickerPickerState extends State<StickerPicker> with SingleTickerProvider
       vsync: this,
     );
   }
-  
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -66,7 +267,7 @@ class _StickerPickerState extends State<StickerPicker> with SingleTickerProvider
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          
+
           // Title
           Padding(
             padding: const EdgeInsets.all(16),
@@ -78,7 +279,7 @@ class _StickerPickerState extends State<StickerPicker> with SingleTickerProvider
               ),
             ),
           ),
-          
+
           // Category tabs
           TabBar(
             controller: _tabController,
@@ -90,7 +291,7 @@ class _StickerPickerState extends State<StickerPicker> with SingleTickerProvider
               return Tab(text: category);
             }).toList(),
           ),
-          
+
           // Emoji grid
           Expanded(
             child: TabBarView(
@@ -144,7 +345,7 @@ class TextInputDialog extends StatefulWidget {
   final EditorController controller;
   final String? initialText;
   final String? editingItemId;
-  
+
   const TextInputDialog({
     super.key,
     required this.controller,
@@ -162,7 +363,7 @@ class _TextInputDialogState extends State<TextInputDialog> {
   String _selectedFont = 'Bangers';
   bool _hasBackground = false;
   Color _backgroundColor = Colors.black;
-  
+
   static const List<String> _fonts = [
     'Bangers',
     'Bebas Neue',
@@ -171,7 +372,7 @@ class _TextInputDialogState extends State<TextInputDialog> {
     'Permanent Marker',
     'Dancing Script',
   ];
-  
+
   static const List<Color> _colors = [
     Colors.white,
     Colors.black,
@@ -183,13 +384,13 @@ class _TextInputDialogState extends State<TextInputDialog> {
     Colors.purple,
     Colors.pink,
   ];
-  
+
   @override
   void initState() {
     super.initState();
     _textController = TextEditingController(text: widget.initialText ?? '');
   }
-  
+
   @override
   void dispose() {
     _textController.dispose();
@@ -225,7 +426,7 @@ class _TextInputDialogState extends State<TextInputDialog> {
                 ),
               ),
               const SizedBox(height: 20),
-              
+
               // Text input
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -247,7 +448,7 @@ class _TextInputDialogState extends State<TextInputDialog> {
                 ),
               ),
               const SizedBox(height: 20),
-              
+
               // Font selector
               Text(
                 'Font',
@@ -272,17 +473,23 @@ class _TextInputDialogState extends State<TextInputDialog> {
                         margin: const EdgeInsets.only(right: 8),
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         decoration: BoxDecoration(
-                          color: isSelected ? AppTheme.borderBlack : Colors.grey[100],
+                          color: isSelected
+                              ? AppTheme.borderBlack
+                              : Colors.grey[100],
                           borderRadius: BorderRadius.circular(22),
                           border: Border.all(
-                            color: isSelected ? AppTheme.borderBlack : Colors.grey.shade300,
+                            color: isSelected
+                                ? AppTheme.borderBlack
+                                : Colors.grey.shade300,
                           ),
                         ),
                         child: Center(
                           child: Text(
                             'Aa',
                             style: _getFontStyle(font).copyWith(
-                              color: isSelected ? Colors.white : AppTheme.borderBlack,
+                              color: isSelected
+                                  ? Colors.white
+                                  : AppTheme.borderBlack,
                               fontSize: 18,
                             ),
                           ),
@@ -293,7 +500,7 @@ class _TextInputDialogState extends State<TextInputDialog> {
                 ),
               ),
               const SizedBox(height: 20),
-              
+
               // Color selector
               Text(
                 'Text Color',
@@ -317,11 +524,18 @@ class _TextInputDialogState extends State<TextInputDialog> {
                         color: color,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: isSelected ? AppTheme.primaryBlue : Colors.grey.shade300,
+                          color: isSelected
+                              ? AppTheme.primaryBlue
+                              : Colors.grey.shade300,
                           width: isSelected ? 3 : 1,
                         ),
                         boxShadow: color == Colors.white
-                            ? [BoxShadow(color: Colors.grey.shade200, blurRadius: 2)]
+                            ? [
+                                BoxShadow(
+                                  color: Colors.grey.shade200,
+                                  blurRadius: 2,
+                                ),
+                              ]
                             : null,
                       ),
                     ),
@@ -329,7 +543,7 @@ class _TextInputDialogState extends State<TextInputDialog> {
                 }).toList(),
               ),
               const SizedBox(height: 20),
-              
+
               // Background toggle
               Row(
                 children: [
@@ -345,12 +559,13 @@ class _TextInputDialogState extends State<TextInputDialog> {
                   Switch(
                     value: _hasBackground,
                     activeColor: AppTheme.primaryBlue,
-                    onChanged: (value) => setState(() => _hasBackground = value),
+                    onChanged: (value) =>
+                        setState(() => _hasBackground = value),
                   ),
                 ],
               ),
               const SizedBox(height: 20),
-              
+
               // Add button
               GestureDetector(
                 onTap: () {
@@ -360,14 +575,16 @@ class _TextInputDialogState extends State<TextInputDialog> {
                         widget.editingItemId!,
                         text: _textController.text,
                         textColor: _selectedColor,
-                        backgroundColor: _hasBackground ? _backgroundColor : null,
+                        backgroundColor: _hasBackground
+                            ? _backgroundColor
+                            : null,
                         fontFamily: _selectedFont,
                       );
                     } else {
                       widget.controller.setTextColor(_selectedColor);
                       widget.controller.setTextFontFamily(_selectedFont);
                       widget.controller.addText(_textController.text);
-                      
+
                       // Update background if needed
                       if (_hasBackground) {
                         final item = widget.controller.selectedItem;
@@ -414,7 +631,7 @@ class _TextInputDialogState extends State<TextInputDialog> {
       ),
     );
   }
-  
+
   TextStyle _getFontStyle(String fontFamily) {
     switch (fontFamily) {
       case 'Bangers':

@@ -65,17 +65,17 @@ final friendsListProvider = StreamProvider<List<Profile>>((ref) async* {
   try {
     final friends = await socialRepo.getFriendsProfiles();
     await storage.saveProfiles(friends);
-    
+
     // Update avatar cache with fresh data
     for (final profile in friends) {
       if (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty) {
         avatarCache.updateCache(profile.id, profile.avatarUrl!);
       }
     }
-    
+
     yield friends;
   } catch (e) {
-    // If network fails and we have cache, we're good. 
+    // If network fails and we have cache, we're good.
     // If no cache, rethrow
     if (cachedProfiles.isEmpty) rethrow;
   }

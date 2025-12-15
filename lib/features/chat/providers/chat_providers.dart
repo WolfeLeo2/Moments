@@ -45,22 +45,22 @@ Stream<List<Message>> messagesStream(Ref ref, String conversationId) async* {
 Future<Message?> lastMessage(Ref ref, String conversationId) async {
   final storage = ref.watch(messageStorageProvider);
   final chatRepo = ref.watch(chatRepositoryProvider);
-  
+
   // 1. First try to get from local SQLite storage (instant, offline-capable)
   final localMessage = await storage.getLastMessage(conversationId);
-  
+
   // 2. Also fetch from Supabase in background to ensure we have latest
   // This will update the cache for next time
   try {
     final networkMessage = await chatRepo.getLastMessage(conversationId);
-    
+
     // If network has a newer message, save it and return it
     if (networkMessage != null) {
       // Save to local storage
       await storage.saveMessages(conversationId, [networkMessage]);
-      
+
       // Return whichever is newer
-      if (localMessage == null || 
+      if (localMessage == null ||
           networkMessage.createdAt.isAfter(localMessage.createdAt)) {
         return networkMessage;
       }
@@ -69,7 +69,7 @@ Future<Message?> lastMessage(Ref ref, String conversationId) async {
     // Network error - that's fine, use local data
     debugPrint('lastMessage: Network fetch failed, using local: $e');
   }
-  
+
   // Return local message (may be null if no messages exist)
   return localMessage;
 }
@@ -81,22 +81,22 @@ Future<Message?> lastMessage(Ref ref, String conversationId) async {
 Future<String?> conversationWithFriend(Ref ref, String friendId) async {
   final storage = ref.watch(messageStorageProvider);
   final chatRepo = ref.watch(chatRepositoryProvider);
-  
+
   // 1. First try to get cached conversation ID (instant, offline-capable)
   final cachedConversationId = await storage.getCachedConversationId(friendId);
   if (cachedConversationId != null) {
     return cachedConversationId;
   }
-  
+
   // 2. If not cached, fetch from Supabase
   try {
     final conversationId = await chatRepo.getConversationWithFriend(friendId);
-    
+
     // Cache it for next time
     if (conversationId != null) {
       await storage.cacheConversationId(friendId, conversationId);
     }
-    
+
     return conversationId;
   } catch (e) {
     debugPrint('conversationWithFriend: Network fetch failed: $e');

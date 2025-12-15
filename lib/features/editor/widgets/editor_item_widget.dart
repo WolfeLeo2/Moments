@@ -10,7 +10,7 @@ class EditorItemWidget extends StatefulWidget {
   final bool isSelected;
   final EditorController controller;
   final VoidCallback onTap;
-  
+
   const EditorItemWidget({
     super.key,
     required this.item,
@@ -27,7 +27,7 @@ class _EditorItemWidgetState extends State<EditorItemWidget> {
   double _initialRotation = 0;
   double _initialScale = 1;
   Offset _rotateScaleStart = Offset.zero;
-  
+
   @override
   Widget build(BuildContext context) {
     return Positioned(
@@ -48,7 +48,7 @@ class _EditorItemWidgetState extends State<EditorItemWidget> {
                 onPanUpdate: _onPanUpdate,
                 child: _buildItemContent(),
               ),
-              
+
               // Selection handles (only when selected)
               if (widget.isSelected) ...[
                 // Delete button
@@ -80,7 +80,7 @@ class _EditorItemWidgetState extends State<EditorItemWidget> {
                     ),
                   ),
                 ),
-                
+
                 // Rotate/Scale handle - LARGER for easier interaction
                 Positioned(
                   bottom: -24,
@@ -111,16 +111,13 @@ class _EditorItemWidgetState extends State<EditorItemWidget> {
                     ),
                   ),
                 ),
-                
+
                 // Selection border
                 Positioned.fill(
                   child: IgnorePointer(
                     child: Container(
                       decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Colors.blue,
-                          width: 2,
-                        ),
+                        border: Border.all(color: Colors.blue, width: 2),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -133,7 +130,7 @@ class _EditorItemWidgetState extends State<EditorItemWidget> {
       ),
     );
   }
-  
+
   Widget _buildItemContent() {
     switch (widget.item.type) {
       case EditorItemType.sticker:
@@ -144,15 +141,12 @@ class _EditorItemWidgetState extends State<EditorItemWidget> {
         return _buildDrawing(widget.item as DrawingItem);
     }
   }
-  
+
   Widget _buildSticker(StickerItem sticker) {
     if (sticker.isEmoji && sticker.emojiChar != null) {
-      return Text(
-        sticker.emojiChar!,
-        style: const TextStyle(fontSize: 64),
-      );
+      return Text(sticker.emojiChar!, style: const TextStyle(fontSize: 64));
     }
-    
+
     // Network or asset sticker
     if (sticker.assetPath.startsWith('http')) {
       return Image.network(
@@ -163,7 +157,7 @@ class _EditorItemWidgetState extends State<EditorItemWidget> {
         errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 64),
       );
     }
-    
+
     return Image.asset(
       sticker.assetPath,
       width: 100,
@@ -172,10 +166,10 @@ class _EditorItemWidgetState extends State<EditorItemWidget> {
       errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 64),
     );
   }
-  
+
   Widget _buildText(TextItem textItem) {
     final textStyle = _getTextStyle(textItem);
-    
+
     Widget textWidget;
     if (textItem.hasOutline) {
       textWidget = Stack(
@@ -192,11 +186,7 @@ class _EditorItemWidgetState extends State<EditorItemWidget> {
             textAlign: textItem.textAlign,
           ),
           // Fill
-          Text(
-            textItem.text,
-            style: textStyle,
-            textAlign: textItem.textAlign,
-          ),
+          Text(textItem.text, style: textStyle, textAlign: textItem.textAlign),
         ],
       );
     } else {
@@ -206,7 +196,7 @@ class _EditorItemWidgetState extends State<EditorItemWidget> {
         textAlign: textItem.textAlign,
       );
     }
-    
+
     if (textItem.backgroundColor != null) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -217,10 +207,10 @@ class _EditorItemWidgetState extends State<EditorItemWidget> {
         child: textWidget,
       );
     }
-    
+
     return textWidget;
   }
-  
+
   TextStyle _getTextStyle(TextItem textItem) {
     // Map font families to Google Fonts
     switch (textItem.fontFamily) {
@@ -268,10 +258,10 @@ class _EditorItemWidgetState extends State<EditorItemWidget> {
         );
     }
   }
-  
+
   Widget _buildDrawing(DrawingItem drawing) {
     if (drawing.points.isEmpty) return const SizedBox();
-    
+
     return CustomPaint(
       painter: DrawingPainter(
         points: drawing.points,
@@ -281,42 +271,44 @@ class _EditorItemWidgetState extends State<EditorItemWidget> {
       size: const Size(300, 300),
     );
   }
-  
+
   void _onPanStart(DragStartDetails details) {
     // Position tracking not needed - we use delta in onPanUpdate
   }
-  
+
   void _onPanUpdate(DragUpdateDetails details) {
     final newPosition = widget.item.position + details.delta;
     widget.controller.updateItemPosition(widget.item.id, newPosition);
   }
-  
+
   void _onRotateScaleStart(DragStartDetails details) {
     _rotateScaleStart = details.globalPosition;
     _initialRotation = widget.item.rotation;
     _initialScale = widget.item.scale;
   }
-  
+
   void _onRotateScaleUpdate(DragUpdateDetails details) {
     // Calculate center of the item
     final center = widget.item.position + const Offset(50, 50);
-    
+
     // Vector from center to start position
     final startVector = _rotateScaleStart - center;
     // Vector from center to current position
     final currentVector = details.globalPosition - center;
-    
+
     // Calculate rotation change
     final startAngle = math.atan2(startVector.dy, startVector.dx);
     final currentAngle = math.atan2(currentVector.dy, currentVector.dx);
     final newRotation = _initialRotation + (currentAngle - startAngle);
-    
+
     // Calculate scale change
     final startDistance = startVector.distance;
     final currentDistance = currentVector.distance;
-    final scaleFactor = startDistance > 0 ? currentDistance / startDistance : 1.0;
+    final scaleFactor = startDistance > 0
+        ? currentDistance / startDistance
+        : 1.0;
     final newScale = _initialScale * scaleFactor;
-    
+
     widget.controller.updateItemTransform(
       widget.item.id,
       rotation: newRotation,
@@ -330,38 +322,38 @@ class DrawingPainter extends CustomPainter {
   final List<Offset> points;
   final Color color;
   final double strokeWidth;
-  
+
   DrawingPainter({
     required this.points,
     required this.color,
     required this.strokeWidth,
   });
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     if (points.length < 2) return;
-    
+
     final paint = Paint()
       ..color = color
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;
-    
+
     final path = Path();
     path.moveTo(points.first.dx, points.first.dy);
-    
+
     for (int i = 1; i < points.length; i++) {
       path.lineTo(points[i].dx, points[i].dy);
     }
-    
+
     canvas.drawPath(path, paint);
   }
-  
+
   @override
   bool shouldRepaint(DrawingPainter oldDelegate) {
     return points != oldDelegate.points ||
-           color != oldDelegate.color ||
-           strokeWidth != oldDelegate.strokeWidth;
+        color != oldDelegate.color ||
+        strokeWidth != oldDelegate.strokeWidth;
   }
 }

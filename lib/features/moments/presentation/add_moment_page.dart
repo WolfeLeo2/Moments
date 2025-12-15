@@ -83,31 +83,29 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
 
   void _openEditor(int imageIndex, AddMomentState state) async {
     HapticService.lightTap();
-    
+
     // Get image paths (filter out videos for the editor)
     final imagePaths = state.imageFiles
         .where((f) {
           final path = f.path.toLowerCase();
           return !path.endsWith('.mp4') &&
-                 !path.endsWith('.mov') &&
-                 !path.endsWith('.avi') &&
-                 !path.endsWith('.mkv') &&
-                 !path.endsWith('.3gp');
+              !path.endsWith('.mov') &&
+              !path.endsWith('.avi') &&
+              !path.endsWith('.mkv') &&
+              !path.endsWith('.3gp');
         })
         .map((f) => f.path)
         .toList();
-    
+
     if (imagePaths.isEmpty) return;
-    
+
     // Open the editor
     final editedPaths = await Navigator.of(context).push<List<String>>(
       MaterialPageRoute(
-        builder: (context) => ImageEditorPage(
-          imagePaths: imagePaths,
-        ),
+        builder: (context) => ImageEditorPage(imagePaths: imagePaths),
       ),
     );
-    
+
     // If we got edited paths back, update the state
     if (editedPaths != null && editedPaths.isNotEmpty) {
       ref.read(addMomentProvider.notifier).updateImagePaths(editedPaths);

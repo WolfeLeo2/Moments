@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Types of items that can be added to the editor canvas
-enum EditorItemType {
-  sticker,
-  text,
-  drawing,
-}
+enum EditorItemType { sticker, text, drawing }
 
 /// Base class for all editor items (stickers, text, drawings)
 class EditorItem {
@@ -15,7 +11,7 @@ class EditorItem {
   double rotation; // in radians
   double scale;
   int zIndex; // Layer order
-  
+
   EditorItem({
     required this.id,
     required this.type,
@@ -24,7 +20,7 @@ class EditorItem {
     this.scale = 1.0,
     this.zIndex = 0,
   });
-  
+
   EditorItem copyWith({
     Offset? position,
     double? rotation,
@@ -40,7 +36,7 @@ class StickerItem extends EditorItem {
   final String assetPath; // Local asset or network URL
   final bool isEmoji;
   final String? emojiChar; // If isEmoji, the actual emoji character
-  
+
   StickerItem({
     required super.id,
     required super.position,
@@ -51,7 +47,7 @@ class StickerItem extends EditorItem {
     this.isEmoji = false,
     this.emojiChar,
   }) : super(type: EditorItemType.sticker);
-  
+
   @override
   StickerItem copyWith({
     Offset? position,
@@ -84,7 +80,7 @@ class TextItem extends EditorItem {
   TextAlign textAlign;
   bool hasOutline;
   Color outlineColor;
-  
+
   TextItem({
     required super.id,
     required super.position,
@@ -101,7 +97,7 @@ class TextItem extends EditorItem {
     this.hasOutline = true,
     this.outlineColor = Colors.black,
   }) : super(type: EditorItemType.text);
-  
+
   @override
   TextItem copyWith({
     Offset? position,
@@ -142,7 +138,7 @@ class DrawingItem extends EditorItem {
   final List<Offset> points;
   final Color color;
   final double strokeWidth;
-  
+
   DrawingItem({
     required super.id,
     required super.position,
@@ -153,7 +149,7 @@ class DrawingItem extends EditorItem {
     this.color = Colors.white,
     this.strokeWidth = 5.0,
   }) : super(type: EditorItemType.drawing);
-  
+
   @override
   DrawingItem copyWith({
     Offset? position,

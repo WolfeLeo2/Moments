@@ -186,12 +186,13 @@ class AddMoment extends _$AddMoment {
 
     for (final originalFile in state.imageFiles) {
       final originalPath = originalFile.path.toLowerCase();
-      final isVideo = originalPath.endsWith('.mp4') ||
-                      originalPath.endsWith('.mov') ||
-                      originalPath.endsWith('.avi') ||
-                      originalPath.endsWith('.mkv') ||
-                      originalPath.endsWith('.3gp');
-      
+      final isVideo =
+          originalPath.endsWith('.mp4') ||
+          originalPath.endsWith('.mov') ||
+          originalPath.endsWith('.avi') ||
+          originalPath.endsWith('.mkv') ||
+          originalPath.endsWith('.3gp');
+
       if (isVideo) {
         // Videos are not edited, keep original
         newFiles.add(originalFile);
@@ -204,7 +205,7 @@ class AddMoment extends _$AddMoment {
         newFiles.add(originalFile);
       }
     }
-    
+
     state = state.copyWith(imageFiles: newFiles);
   }
 

@@ -5,7 +5,7 @@ import '../../data/sources/supabase_config.dart';
 /// Signed URLs expire after 24 hours, so we cache them for 23 hours
 class SignedUrlCache {
   static final Map<String, (String url, DateTime expiry)> _cache = {};
-  
+
   // Track paths that have failed to avoid repeated failures
   static final Map<String, DateTime> _failedPaths = {};
   static const Duration _failureCooldown = Duration(minutes: 5);
@@ -14,11 +14,12 @@ class SignedUrlCache {
   static Future<String?> getSignedUrl(String mediaPath) async {
     // Check if this path recently failed
     final failedAt = _failedPaths[mediaPath];
-    if (failedAt != null && DateTime.now().difference(failedAt) < _failureCooldown) {
+    if (failedAt != null &&
+        DateTime.now().difference(failedAt) < _failureCooldown) {
       debugPrint('Skipping recently failed path: $mediaPath');
       return null;
     }
-    
+
     final cached = _cache[mediaPath];
 
     // Return cached URL if it exists and hasn't expired
@@ -38,7 +39,7 @@ class SignedUrlCache {
         signedUrl,
         DateTime.now().add(const Duration(hours: 23)),
       );
-      
+
       // Clear from failed paths if it was there
       _failedPaths.remove(mediaPath);
 
@@ -60,10 +61,11 @@ class SignedUrlCache {
     final uncachedPaths = mediaPaths.where((path) {
       // Check failed paths
       final failedAt = _failedPaths[path];
-      if (failedAt != null && DateTime.now().difference(failedAt) < _failureCooldown) {
+      if (failedAt != null &&
+          DateTime.now().difference(failedAt) < _failureCooldown) {
         return false;
       }
-      
+
       // Check cache
       final cached = _cache[path];
       if (cached != null && cached.$2.isAfter(DateTime.now())) {

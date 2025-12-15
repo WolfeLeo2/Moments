@@ -187,12 +187,8 @@ class MessageStorageService {
       messageType: _parseMessageType(row['message_type'] as String),
       mediaUrl: row['media_url'] as String?,
       metadata: parsedMetadata,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(
-        row['created_at'] as int,
-      ),
-      updatedAt: DateTime.fromMillisecondsSinceEpoch(
-        row['created_at'] as int,
-      ),
+      createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
       isRead: (row['is_read'] as int) == 1,
       isDeleted: (row['is_deleted'] as int) == 1,
     );

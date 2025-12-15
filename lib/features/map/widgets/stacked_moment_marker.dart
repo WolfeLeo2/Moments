@@ -37,7 +37,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
   bool _isPressed = false;
   final MomentStorageService _storage = MomentStorageService();
   final AvatarCacheService _avatarCache = AvatarCacheService();
-  
+
   // Track which moments we've loaded to avoid redundant loads
   Set<String> _loadedMomentIds = {};
   bool _isLoading = false;
@@ -56,13 +56,14 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
   @override
   void didUpdateWidget(StackedMomentMarker oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
+
     // Check if moments have changed
     final newIds = widget.moments.take(4).map((m) => m.id).toSet();
     final oldIds = oldWidget.moments.take(4).map((m) => m.id).toSet();
-    
+
     // Only reload if the moment IDs have actually changed
-    if (!newIds.difference(oldIds).isEmpty || !oldIds.difference(newIds).isEmpty) {
+    if (!newIds.difference(oldIds).isEmpty ||
+        !oldIds.difference(newIds).isEmpty) {
       // Clear data for moments that are no longer displayed
       final removedIds = oldIds.difference(newIds);
       for (final id in removedIds) {
@@ -70,7 +71,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
         _localPaths.remove(id);
         _loadedMomentIds.remove(id);
       }
-      
+
       // Load new moments that we haven't loaded yet
       _loadImages();
     }
@@ -86,16 +87,16 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     // Prevent concurrent loads
     if (_isLoading) return;
     _isLoading = true;
-    
+
     try {
       // First, check for locally cached images (only for moments not already loaded)
       final newLocalPaths = <String, String>{};
-      
+
       for (var moment in widget.moments.take(4)) {
         // Skip if we already have this moment's local path
         if (_localPaths.containsKey(moment.id)) continue;
         if (_loadedMomentIds.contains(moment.id)) continue;
-        
+
         final isThumbnail = moment.mediaType == 'video';
         final localPath = await _storage.getLocalMediaPath(
           moment.id,
@@ -105,10 +106,10 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
         if (localPath != null) {
           newLocalPaths[moment.id] = localPath;
         }
-        
+
         _loadedMomentIds.add(moment.id);
       }
-      
+
       // Batch update all local paths in a single setState
       if (newLocalPaths.isNotEmpty && mounted) {
         setState(() {
@@ -130,10 +131,11 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
     for (var moment in widget.moments.take(4)) {
       // Skip if we already have a URL or local path for this moment
-      if (_imageUrls.containsKey(moment.id) || _localPaths.containsKey(moment.id)) {
+      if (_imageUrls.containsKey(moment.id) ||
+          _localPaths.containsKey(moment.id)) {
         continue;
       }
-      
+
       // For videos, only load thumbnail
       if (moment.mediaType == 'video') {
         if (moment.thumbnailPath != null && moment.thumbnailPath!.isNotEmpty) {
@@ -157,7 +159,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
           for (var moment in widget.moments.take(4)) {
             // Skip if already have this moment
             if (_imageUrls.containsKey(moment.id)) continue;
-            
+
             if (moment.mediaType == 'video') {
               // For videos, use thumbnail URL
               if (moment.thumbnailPath != null) {
@@ -188,7 +190,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
   Future<void> _cacheImagesInBackground(Map<String, String> urls) async {
     final newLocalPaths = <String, String>{};
-    
+
     for (var moment in widget.moments.take(4)) {
       // Skip if already cached locally
       if (_localPaths.containsKey(moment.id)) continue;
@@ -207,7 +209,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
         newLocalPaths[moment.id] = localPath;
       }
     }
-    
+
     // Batch update all local paths in a single setState
     if (newLocalPaths.isNotEmpty && mounted) {
       setState(() {
@@ -235,12 +237,14 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     }
 
     // Then fetch any missing avatars asynchronously
-    final missingIds = userIds.where((id) => !_userAvatars.containsKey(id)).toList();
+    final missingIds = userIds
+        .where((id) => !_userAvatars.containsKey(id))
+        .toList();
     if (missingIds.isEmpty) return;
 
     try {
       final fetchedAvatars = await _avatarCache.getAvatarUrls(missingIds);
-      
+
       if (mounted && fetchedAvatars.isNotEmpty) {
         setState(() {
           _userAvatars.addAll(fetchedAvatars);
@@ -475,11 +479,11 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
         .map((m) => m.userId!)
         .toSet()
         .toList();
-    
+
     // Only display first 3 avatars
     final displayAvatars = allContributorsWithAvatars.take(3).toList();
-    final overflowCount = allContributorsWithAvatars.length > 3 
-        ? allContributorsWithAvatars.length - 3 
+    final overflowCount = allContributorsWithAvatars.length > 3
+        ? allContributorsWithAvatars.length - 3
         : 0;
 
     // Calculate date range
@@ -495,7 +499,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
           left: -12,
           child: _buildCollegeDateSticker(firstDate),
         ),
-        
+
         // Avatar stack on top-right
         if (displayAvatars.isNotEmpty)
           Positioned(
@@ -513,17 +517,17 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
                 borderWidth: 2,
                 infoWidgetBuilder: overflowCount > 0
                     ? (surplus, _) => CircleAvatar(
-                          radius: 18,
-                          backgroundColor: Colors.black87,
-                          child: Text(
-                            '+$overflowCount',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        radius: 18,
+                        backgroundColor: Colors.black87,
+                        child: Text(
+                          '+$overflowCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
                           ),
-                        )
+                        ),
+                      )
                     : null,
               ),
             ),
@@ -531,28 +535,21 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
       ],
     );
   }
-  
+
   /// Build a calendar-style date sticker (red top with month, white bottom with day)
   Widget _buildCollegeDateSticker(DateTime date) {
     final month = _getMonthAbbr(date.month);
     final day = date.day.toString();
-    
+
     return Transform.rotate(
       angle: 0.08, // Slight tilt for that casual sticker look
       child: Container(
         width: 40,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: AppTheme.borderBlack,
-            width: 2,
-          ),
+          border: Border.all(color: AppTheme.borderBlack, width: 2),
           boxShadow: const [
-            BoxShadow(
-              color: Colors.black,
-              offset: Offset(2, 2),
-              blurRadius: 0,
-            ),
+            BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
           ],
         ),
         child: Column(
@@ -608,10 +605,23 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
       ),
     );
   }
-  
+
   String _getMonthAbbr(int month) {
-    const months = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 
-                    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const months = [
+      '',
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
+    ];
     return months[month];
   }
 
@@ -644,5 +654,4 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
       ),
     );
   }
-
 }

@@ -5,17 +5,17 @@ import 'package:cached_network_image/cached_network_image.dart';
 /// Cache for file existence checks to avoid repeated async calls
 class _FileExistenceCache {
   static final Map<String, bool> _cache = {};
-  
+
   static bool? get(String path) => _cache[path];
-  
+
   static void set(String path, bool exists) {
     _cache[path] = exists;
   }
-  
+
   static void invalidate(String path) {
     _cache.remove(path);
   }
-  
+
   static void clear() {
     _cache.clear();
   }
@@ -102,7 +102,7 @@ class _OfflineImageState extends State<OfflineImage> {
     // Check file system
     final exists = await File(widget.localPath!).exists();
     _FileExistenceCache.set(widget.localPath!, exists);
-    
+
     if (mounted) {
       setState(() {
         _localFileExists = exists;
@@ -162,8 +162,10 @@ class _OfflineImageState extends State<OfflineImage> {
       fadeInDuration: Duration.zero, // No fade to prevent flash
       fadeOutDuration: Duration.zero,
       placeholderFadeInDuration: Duration.zero,
-      placeholder: (context, url) => widget.placeholder ?? _defaultPlaceholder(),
-      errorWidget: (context, url, error) => widget.errorWidget ?? _defaultError(),
+      placeholder: (context, url) =>
+          widget.placeholder ?? _defaultPlaceholder(),
+      errorWidget: (context, url, error) =>
+          widget.errorWidget ?? _defaultError(),
     );
   }
 

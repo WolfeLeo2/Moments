@@ -363,7 +363,7 @@ class MomentStorageService {
       final dir = await mediaDirectory;
       final filename = basename(path);
       final newPath = join(dir.path, filename);
-      
+
       if (await File(newPath).exists()) {
         // Update the database with the correct path
         await db.update(
@@ -497,20 +497,16 @@ class MomentStorageService {
     final batch = db.batch();
 
     for (final profile in profiles) {
-      batch.insert(
-        'profiles',
-        {
-          'id': profile.id,
-          'username': profile.username,
-          'display_name': profile.displayName,
-          'avatar_url': profile.avatarUrl,
-          'bio': profile.bio,
-          'invite_code': profile.inviteCode,
-          'created_at': profile.createdAt.millisecondsSinceEpoch,
-          'updated_at': profile.updatedAt.millisecondsSinceEpoch,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      batch.insert('profiles', {
+        'id': profile.id,
+        'username': profile.username,
+        'display_name': profile.displayName,
+        'avatar_url': profile.avatarUrl,
+        'bio': profile.bio,
+        'invite_code': profile.inviteCode,
+        'created_at': profile.createdAt.millisecondsSinceEpoch,
+        'updated_at': profile.updatedAt.millisecondsSinceEpoch,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
     await batch.commit(noResult: true);
@@ -529,8 +525,12 @@ class MomentStorageService {
         avatarUrl: row['avatar_url'] as String?,
         bio: row['bio'] as String?,
         inviteCode: row['invite_code'] as String? ?? '',
-        createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
-        updatedAt: DateTime.fromMillisecondsSinceEpoch(row['updated_at'] as int),
+        createdAt: DateTime.fromMillisecondsSinceEpoch(
+          row['created_at'] as int,
+        ),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(
+          row['updated_at'] as int,
+        ),
       );
     }).toList();
   }
@@ -541,18 +541,14 @@ class MomentStorageService {
     final batch = db.batch();
 
     for (final friendship in friendships) {
-      batch.insert(
-        'friendships',
-        {
-          'id': friendship.id,
-          'user_id_1': friendship.userId,
-          'user_id_2': friendship.friendId,
-          'status': friendship.status.name,
-          'created_at': friendship.requestedAt.millisecondsSinceEpoch,
-          'updated_at': friendship.respondedAt?.millisecondsSinceEpoch,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      batch.insert('friendships', {
+        'id': friendship.id,
+        'user_id_1': friendship.userId,
+        'user_id_2': friendship.friendId,
+        'status': friendship.status.name,
+        'created_at': friendship.requestedAt.millisecondsSinceEpoch,
+        'updated_at': friendship.respondedAt?.millisecondsSinceEpoch,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
     await batch.commit(noResult: true);
@@ -569,7 +565,9 @@ class MomentStorageService {
         userId: row['user_id_1'] as String,
         friendId: row['user_id_2'] as String,
         status: FriendshipStatus.fromString(row['status'] as String),
-        requestedAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
+        requestedAt: DateTime.fromMillisecondsSinceEpoch(
+          row['created_at'] as int,
+        ),
         respondedAt: row['updated_at'] != null
             ? DateTime.fromMillisecondsSinceEpoch(row['updated_at'] as int)
             : null,

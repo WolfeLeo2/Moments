@@ -485,12 +485,14 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     }
 
     // Then fetch any missing avatars asynchronously
-    final missingIds = userIds.where((id) => !_userAvatars.containsKey(id)).toList();
+    final missingIds = userIds
+        .where((id) => !_userAvatars.containsKey(id))
+        .toList();
     if (missingIds.isEmpty) return;
 
     try {
       final fetchedAvatars = await _avatarCache.getAvatarUrls(missingIds);
-      
+
       if (mounted && fetchedAvatars.isNotEmpty) {
         setState(() {
           _userAvatars.addAll(fetchedAvatars);
@@ -586,10 +588,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 2),
-            image: DecorationImage(
-              image: avatar,
-              fit: BoxFit.cover,
-            ),
+            image: DecorationImage(image: avatar, fit: BoxFit.cover),
           ),
         ),
       );
@@ -631,11 +630,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       height: size,
       child: Stack(
         children: List.generate(items.length, (index) {
-          return Positioned(
-            left: index * shift,
-            top: 0,
-            child: items[index],
-          );
+          return Positioned(left: index * shift, top: 0, child: items[index]);
         }),
       ),
     );
@@ -859,9 +854,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                         padding: const EdgeInsets.symmetric(vertical: 6.0),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _buildAvatarStack(),
-                          ],
+                          children: [_buildAvatarStack()],
                         ),
                       ),
                   ],

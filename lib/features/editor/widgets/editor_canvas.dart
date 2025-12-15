@@ -9,7 +9,7 @@ class EditorCanvas extends StatelessWidget {
   final EditorController controller;
   final double width;
   final double height;
-  
+
   const EditorCanvas({
     super.key,
     required this.controller,
@@ -45,10 +45,10 @@ class EditorCanvas extends StatelessWidget {
                 children: [
                   // Background image
                   _buildImage(),
-                  
+
                   // Editor items (stickers, text, drawings)
                   ..._buildItems(),
-                  
+
                   // Current drawing path (while drawing)
                   if (controller.mode == EditorMode.draw &&
                       controller.currentDrawingPoints.isNotEmpty)
@@ -60,7 +60,7 @@ class EditorCanvas extends StatelessWidget {
                       ),
                       size: Size(width, height),
                     ),
-                  
+
                   // Drawing gesture detector (when in draw mode)
                   if (controller.mode == EditorMode.draw)
                     GestureDetector(
@@ -73,13 +73,11 @@ class EditorCanvas extends StatelessWidget {
                       onPanEnd: (_) {
                         controller.endDrawing();
                       },
-                      child: Container(
-                        color: Colors.transparent,
-                      ),
+                      child: Container(color: Colors.transparent),
                     ),
-                  
+
                   // Tap to deselect (when in select mode)
-                  if (controller.mode == EditorMode.select && 
+                  if (controller.mode == EditorMode.select &&
                       controller.selectedItemId != null)
                     Positioned.fill(
                       child: GestureDetector(
@@ -98,10 +96,10 @@ class EditorCanvas extends StatelessWidget {
       },
     );
   }
-  
+
   Widget _buildImage() {
     final imagePath = controller.currentImagePath;
-    
+
     if (imagePath.startsWith('http')) {
       return Image.network(
         imagePath,
@@ -114,7 +112,7 @@ class EditorCanvas extends StatelessWidget {
         ),
       );
     }
-    
+
     return Image.file(
       File(imagePath),
       fit: BoxFit.cover,
@@ -126,12 +124,12 @@ class EditorCanvas extends StatelessWidget {
       ),
     );
   }
-  
+
   List<Widget> _buildItems() {
     // Sort items by zIndex for proper layering
     final sortedItems = List<EditorItem>.from(controller.currentItems)
       ..sort((a, b) => a.zIndex.compareTo(b.zIndex));
-    
+
     return sortedItems.map((item) {
       return EditorItemWidget(
         key: ValueKey(item.id),

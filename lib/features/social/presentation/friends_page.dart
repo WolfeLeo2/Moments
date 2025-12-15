@@ -1134,236 +1134,233 @@ class _FriendCardState extends State<_FriendCard>
           return Transform.scale(
             scale: 1.0 + (_controller.value * 0.02),
             child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Colors.white, Colors.grey[50] ?? Colors.white],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.black,
-                    width: AppTheme.borderMedium,
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black,
-                      offset: Offset(4, 4),
-                      blurRadius: 0,
-                    ),
-                  ],
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.white, Colors.grey[50] ?? Colors.white],
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      // Avatar with multiple rings
-                      Stack(
-                        children: [
-                          Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  AppTheme.primaryBlue,
-                                  AppTheme.electricPurple,
-                                ],
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.black,
+                  width: AppTheme.borderMedium,
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black,
+                    offset: Offset(4, 4),
+                    blurRadius: 0,
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    // Avatar with multiple rings
+                    Stack(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                AppTheme.primaryBlue,
+                                AppTheme.electricPurple,
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.primaryBlue.withOpacity(0.4),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
                               ),
+                            ],
+                          ),
+                          padding: const EdgeInsets.all(3),
+                          child: CircleAvatar(
+                            radius: 30,
+                            backgroundColor: Colors.white,
+                            child: CircleAvatar(
+                              radius: 28,
+                              backgroundColor: Colors.grey[200],
+                              backgroundImage: widget.friend.avatarUrl != null
+                                  ? CachedNetworkImageProvider(
+                                      widget.friend.avatarUrl!,
+                                    )
+                                  : null,
+                              child: widget.friend.avatarUrl == null
+                                  ? HugeIcon(
+                                      icon: HugeIcons.strokeRoundedUser,
+                                      size: 32,
+                                      color: Colors.grey[400],
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        ),
+                        // Online status indicator
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              color: AppTheme.vibrantGreen,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppTheme.primaryBlue.withOpacity(0.4),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 4),
+                                  color: AppTheme.vibrantGreen.withOpacity(0.6),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
                                 ),
                               ],
                             ),
-                            padding: const EdgeInsets.all(3),
-                            child: CircleAvatar(
-                              radius: 30,
-                              backgroundColor: Colors.white,
-                              child: CircleAvatar(
-                                radius: 28,
-                                backgroundColor: Colors.grey[200],
-                                backgroundImage: widget.friend.avatarUrl != null
-                                    ? CachedNetworkImageProvider(widget.friend.avatarUrl!)
-                                    : null,
-                                child: widget.friend.avatarUrl == null
-                                    ? HugeIcon(
-                                        icon: HugeIcons.strokeRoundedUser,
-                                        size: 32,
-                                        color: Colors.grey[400],
-                                      )
-                                    : null,
-                              ),
-                            ),
                           ),
-                          // Online status indicator
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                              width: 16,
-                              height: 16,
-                              decoration: BoxDecoration(
-                                color: AppTheme.vibrantGreen,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppTheme.vibrantGreen.withOpacity(
-                                      0.6,
-                                    ),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 16),
+                    // Friend info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.friend.displayName ?? 'Unknown',
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.black87,
+                              letterSpacing: -0.3,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 6),
+                          // Last message preview with inline timestamp
+                          Consumer(
+                            builder: (context, ref, child) {
+                              final conversationAsync = ref.watch(
+                                conversationWithFriendProvider(
+                                  widget.friend.id,
+                                ),
+                              );
+
+                              return conversationAsync.when(
+                                data: (conversationId) {
+                                  if (conversationId == null) {
+                                    return Text(
+                                      'Say something 👋',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey[500],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    );
+                                  }
+
+                                  final lastMessageAsync = ref.watch(
+                                    lastMessageProvider(conversationId),
+                                  );
+
+                                  return lastMessageAsync.when(
+                                    data: (lastMessage) {
+                                      if (lastMessage == null) {
+                                        return Text(
+                                          'Say something 👋',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey[500],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        );
+                                      }
+
+                                      final timeAgo =
+                                          _FriendCard._formatTimeAgo(
+                                            lastMessage.createdAt,
+                                          );
+
+                                      return Text(
+                                        '${lastMessage.content} • $timeAgo',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      );
+                                    },
+                                    loading: () => Text(
+                                      'Say something 👋',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey[500],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    error: (_, __) => Text(
+                                      'Say something 👋',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[500],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                loading: () => Text(
+                                  'Say something 👋',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey[500],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                error: (_, __) => Text(
+                                  'Say something 👋',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey[500],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
-                      const SizedBox(width: 16),
-                      // Friend info
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.friend.displayName ?? 'Unknown',
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.black87,
-                                letterSpacing: -0.3,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 6),
-                            // Last message preview with inline timestamp
-                            Consumer(
-                              builder: (context, ref, child) {
-                                final conversationAsync = ref.watch(
-                                  conversationWithFriendProvider(
-                                    widget.friend.id,
-                                  ),
-                                );
-
-                                return conversationAsync.when(
-                                  data: (conversationId) {
-                                    if (conversationId == null) {
-                                      return Text(
-                                        'Say something 👋',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey[500],
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      );
-                                    }
-
-                                    final lastMessageAsync = ref.watch(
-                                      lastMessageProvider(conversationId),
-                                    );
-
-                                    return lastMessageAsync.when(
-                                      data: (lastMessage) {
-                                        if (lastMessage == null) {
-                                          return Text(
-                                            'Say something 👋',
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: Colors.grey[500],
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          );
-                                        }
-
-                                        final timeAgo =
-                                            _FriendCard._formatTimeAgo(
-                                              lastMessage.createdAt,
-                                            );
-
-                                        return Text(
-                                          '${lastMessage.content} • $timeAgo',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.grey[600],
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        );
-                                      },
-                                      loading: () => Text(
-                                        'Say something 👋',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey[500],
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      error: (_, __) => Text(
-                                        'Say something 👋',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[500],
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  loading: () => Text(
-                                    'Say something 👋',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[500],
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  error: (_, __) => Text(
-                                    'Say something 👋',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[500],
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
+                    ),
+                    // Action button
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryBlue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppTheme.primaryBlue.withOpacity(0.3),
+                          width: 1.5,
                         ),
                       ),
-                      // Action button
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryBlue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: AppTheme.primaryBlue.withOpacity(0.3),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: HugeIcon(
-                          icon: HugeIcons.strokeRoundedMessage01,
-                          size: 20,
-                          color: AppTheme.primaryBlue,
-                        ),
+                      child: HugeIcon(
+                        icon: HugeIcons.strokeRoundedMessage01,
+                        size: 20,
+                        color: AppTheme.primaryBlue,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

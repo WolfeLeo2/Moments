@@ -20,7 +20,7 @@ void main() async {
 
   // Initialize map tile caching (async, non-blocking)
   MapCacheService().initialize();
-  
+
   // Initialize avatar caching (async, non-blocking)
   // This loads cached avatars from SQLite so they're ready immediately
   AvatarCacheService().initialize();
@@ -36,7 +36,7 @@ void main() async {
   );
 
   // 💡 Call the new root widget.
-  runApp(const MomentsRootApp()); 
+  runApp(const MomentsRootApp());
 }
 
 // -------------------------------------------------------------------
@@ -63,7 +63,9 @@ class MomentsRootApp extends StatelessWidget {
             builder: (context, router) {
               final mediaQueryData = MediaQuery.of(context);
               return MediaQuery(
-                data: mediaQueryData.copyWith(textScaler: TextScaler.linear( 1.0)),
+                data: mediaQueryData.copyWith(
+                  textScaler: TextScaler.linear(1.0),
+                ),
                 child: router!,
               );
             },
