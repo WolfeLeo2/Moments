@@ -1,8 +1,8 @@
-import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart' as geo;
+import 'package:location/location.dart';
 import 'package:image_picker/image_picker.dart' as picker;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart' as lottie;
@@ -37,7 +37,7 @@ class MapPage extends ConsumerStatefulWidget {
 class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
   final AuthService _authService = AuthService();
   String _cityName = 'Loading...';
-  geo.Position? _currentPosition;
+  LocationData? _currentPosition;
   final MapCacheService _mapCacheService = MapCacheService();
   final MapController _mapController = MapController();
   double _currentZoom = 14.0; // Track current zoom level for clustering
@@ -57,8 +57,8 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // When app resumes, try to get location again (user may have enabled it in settings)
-    if (state == AppLifecycleState.resumed && _currentPosition == null) {
+    // When app resumes, check location permissions/status again
+    if (state == AppLifecycleState.resumed) {
       _getCurrentLocation();
     }
   }
@@ -79,8 +79,8 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
   Future<void> _loadCityName() async {
     if (_currentPosition != null) {
       final city = await GeocodingService.getCityFromCoordinates(
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
+        _currentPosition!.latitude!,
+        _currentPosition!.longitude!,
       );
       if (mounted) {
         setState(() => _cityName = city);
@@ -90,55 +90,47 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
 
   Future<void> _getCurrentLocation() async {
     try {
+      final location = Location();
+
       // Check if location services are enabled
-      bool serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
+      bool serviceEnabled = await location.serviceEnabled();
       if (!serviceEnabled) {
-        // On Android, this will trigger the native location enable dialog
-        // On iOS, it just returns false and we need to guide user to settings
-        if (Platform.isAndroid) {
-          // Try requesting - Android will show native dialog to enable location
-          serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
-          if (!serviceEnabled) {
-            // Open location settings as fallback
-            await geo.Geolocator.openLocationSettings();
-            return;
-          }
-        } else {
-          // iOS - open settings directly
-          await geo.Geolocator.openLocationSettings();
+        serviceEnabled = await location.requestService();
+        if (!serviceEnabled) {
+          // User declined to enable location
           return;
         }
       }
 
       // Check permission status
-      geo.LocationPermission permission = await geo.Geolocator.checkPermission();
-      
-      if (permission == geo.LocationPermission.denied) {
-        // Request permission - this shows the native permission dialog
-        permission = await geo.Geolocator.requestPermission();
-        if (permission == geo.LocationPermission.denied) {
+      PermissionStatus permission = await location.hasPermission();
+
+      if (permission == PermissionStatus.denied) {
+        permission = await location.requestPermission();
+        if (permission == PermissionStatus.denied) {
           return; // User denied
         }
       }
 
-      if (permission == geo.LocationPermission.deniedForever) {
-        // Permission permanently denied, open app settings
-        await geo.Geolocator.openAppSettings();
+      if (permission == PermissionStatus.deniedForever) {
+        // We can't easily open app settings with location package directly like geolocator
+        // but normally requestPermission handles the flow well.
+        // If needed, we could use permission_handler package, but for now we stick to location package.
         return;
       }
 
       // Get the current position
-      final position = await geo.Geolocator.getCurrentPosition(
-        desiredAccuracy: geo.LocationAccuracy.high,
-      );
+      final position = await location.getLocation();
 
-      if (mounted) {
+      if (mounted && position.latitude != null && position.longitude != null) {
         setState(() => _currentPosition = position);
         // Auto-center map to user's location
         _mapController.move(
-          LatLng(position.latitude, position.longitude),
+          LatLng(position.latitude!, position.longitude!),
           14.0,
         );
+        // Ensure city name is updated effectively
+        _loadCityName();
       }
     } catch (e) {
       print('Error getting location: $e');
@@ -522,8 +514,8 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
           builder: (context) => AddMomentPage(
             mediaPath: file!.path,
             isVideo: mediaType == 'video',
-            initialLatitude: _currentPosition!.latitude,
-            initialLongitude: _currentPosition!.longitude,
+            initialLatitude: _currentPosition!.latitude!,
+            initialLongitude: _currentPosition!.longitude!,
           ),
         ),
       );
@@ -585,8 +577,8 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
             mediaPaths: mediaPaths,
             isVideo: hasVideo,
             videoDuration: videoDuration ?? 0,
-            initialLatitude: _currentPosition!.latitude,
-            initialLongitude: _currentPosition!.longitude,
+            initialLatitude: _currentPosition!.latitude!,
+            initialLongitude: _currentPosition!.longitude!,
           ),
         ),
       );
@@ -666,8 +658,8 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                 options: MapOptions(
                   initialCenter: _currentPosition != null
                       ? LatLng(
-                          _currentPosition!.latitude,
-                          _currentPosition!.longitude,
+                          _currentPosition!.latitude!,
+                          _currentPosition!.longitude!,
                         )
                       : const LatLng(0, 0),
                   initialZoom: 18.0,
@@ -675,23 +667,41 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                   maxZoom: 22.0,
                   onPositionChanged: (position, hasGesture) {
                     // Track zoom level for dynamic clustering
+                    // OPTIMIZATION: Only rebuild if the clustering strategy actually changes.
+                    // Previously this rebuilt on every pixel of zoom/pan.
                     if (position.zoom != _currentZoom) {
-                      setState(() {
+                      final oldThreshold = _calculateClusterThreshold(
+                        _currentZoom,
+                      );
+                      final newThreshold = _calculateClusterThreshold(
+                        position.zoom,
+                      );
+
+                      // Only setState if the threshold bucket changes (e.g. crossing from zoom 9.9 to 10.0)
+                      if (oldThreshold != newThreshold) {
+                        setState(() {
+                          _currentZoom = position.zoom;
+                        });
+                      } else {
+                        // Just update the variable without triggering a rebuild if we are in the same bucket
                         _currentZoom = position.zoom;
-                      });
+                      }
                     }
                   },
                 ),
                 children: [
-                  // Mapbox Streets v11 - 512px tiles for better performance
+                  // Mapbox Streets v11 - 512px tiles (@2x) shown at 256px size for Retina quality
                   TileLayer(
                     urlTemplate:
                         'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/512/{z}/{x}/{y}@2x?access_token=pk.eyJ1Ijoid29sZmVsZW8iLCJhIjoiY21oYXRxMW82MW5nNjJqcGc4aDA0YndoeSJ9.gvLhQFM-46KlcUdAKFGMYg',
                     userAgentPackageName: 'com.moments.app',
                     tileProvider: _mapCacheService.tileProvider,
-                    tileSize: 512,
-                    zoomOffset: -1,
-                    retinaMode: true,
+                    tileSize:
+                        512, // Critical: Draw 512px image into 256px space for HiDPI/Retina crispness
+                    zoomOffset:
+                        -1, // Mapbox 512 tiles are 1 zoom level offset from standard 256 grid
+                    panBuffer:
+                        2, // Load more tiles around the screen for smoother panning
                   ),
 
                   // User location marker (BEFORE moment markers so it appears below)
@@ -700,8 +710,8 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                       markers: [
                         Marker(
                           point: LatLng(
-                            _currentPosition!.latitude,
-                            _currentPosition!.longitude,
+                            _currentPosition!.latitude!,
+                            _currentPosition!.longitude!,
                           ),
                           width: 40,
                           height: 40,

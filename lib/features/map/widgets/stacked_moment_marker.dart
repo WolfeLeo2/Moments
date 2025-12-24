@@ -627,7 +627,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
       children: [
         // College-style date sticker on top-left
         Positioned(
-          top: -18,
+          top: -8,
           left: -12,
           child: _buildCollegeDateSticker(firstDate),
         ),

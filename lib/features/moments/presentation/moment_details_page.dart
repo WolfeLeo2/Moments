@@ -383,8 +383,13 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       // Stagger the animations with 50ms delays
       Future.delayed(Duration(milliseconds: 80 + (i * 50)), () {
         if (mounted) {
-          scaleController.animateTo(1.0);
-          opacityController.animateTo(1.0);
+          try {
+            scaleController.animateTo(1.0);
+            opacityController.animateTo(1.0);
+          } catch (e) {
+            // Controller might be disposed if page was closed/reloaded rapidly
+            debugPrint('Animation controller validation error: $e');
+          }
         }
       });
     }
@@ -1960,6 +1965,67 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
+                                  // Privacy tag above card -> ensures full image visibility
+                                  if (moment.isPrivate)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 8.0,
+                                        left: 4.0,
+                                      ),
+                                      child: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: GestureDetector(
+                                          onTap: () => _showPrivacyDropdown(
+                                            context,
+                                            moment,
+                                            index,
+                                          ),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 6,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppTheme.emergencyRed,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: Colors.white,
+                                                width: 1.5,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.2),
+                                                  blurRadius: 4,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const HugeIcon(
+                                                  icon: HugeIcons
+                                                      .strokeRoundedSquareLock02,
+                                                  size: 14,
+                                                  color: Colors.white,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'Private',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   // Image card with white border - 4:5 aspect ratio
                                   Container(
                                     decoration: BoxDecoration(
@@ -1992,68 +2058,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                               moment,
                                               imageUrl,
                                             ),
-                                            // Privacy lock indicator (top left) - tappable to unlock
-                                            if (moment.isPrivate)
-                                              Positioned(
-                                                top: 8,
-                                                left: 8,
-                                                child: GestureDetector(
-                                                  onTap: () =>
-                                                      _showPrivacyDropdown(
-                                                        context,
-                                                        moment,
-                                                        index,
-                                                      ),
-                                                  child: Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 10,
-                                                          vertical: 6,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: AppTheme
-                                                          .emergencyRed
-                                                          .withOpacity(0.9),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            12,
-                                                          ),
-                                                      border: Border.all(
-                                                        color: Colors.white
-                                                            .withOpacity(0.3),
-                                                        width: 1,
-                                                      ),
-                                                    ),
-                                                    child: Row(
-                                                      mainAxisSize:
-                                                          MainAxisSize.min,
-                                                      children: [
-                                                        const HugeIcon(
-                                                          icon: HugeIcons
-                                                              .strokeRoundedSquareLock02,
-                                                          size: 14,
-                                                          color: Colors.white,
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 4,
-                                                        ),
-                                                        Text(
-                                                          'Private',
-                                                          style:
-                                                              GoogleFonts.inter(
-                                                                fontSize: 11,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
-                                                                color: Colors
-                                                                    .white,
-                                                              ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
                                             // Heart/Dislike animation overlay (dotLottie)
                                             if (_showingHeartAtIndex == index)
                                               Center(

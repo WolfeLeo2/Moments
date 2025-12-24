@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:location/location.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/services/geocoding_service.dart';
@@ -65,40 +65,47 @@ class AddMoment extends _$AddMoment {
     state = state.copyWith(isGettingLocation: true, errorMessage: null);
 
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      final location = Location();
+
+      bool serviceEnabled = await location.serviceEnabled();
       if (!serviceEnabled) {
-        throw Exception(AppConstants.locationServiceDisabled);
+        serviceEnabled = await location.requestService();
+        if (!serviceEnabled) {
+          throw Exception(AppConstants.locationServiceDisabled);
+        }
       }
 
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
+      PermissionStatus permission = await location.hasPermission();
+      if (permission == PermissionStatus.denied) {
+        permission = await location.requestPermission();
+        if (permission == PermissionStatus.denied) {
           throw Exception(AppConstants.locationPermissionDenied);
         }
       }
 
-      if (permission == LocationPermission.deniedForever) {
+      if (permission == PermissionStatus.deniedForever) {
         throw Exception(AppConstants.locationPermissionDenied);
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
+      final locationData = await location.getLocation();
+
+      if (locationData.latitude == null || locationData.longitude == null) {
+        throw Exception('Failed to get location data');
+      }
 
       final cityName = await GeocodingService.getCityFromCoordinates(
-        position.latitude,
-        position.longitude,
+        locationData.latitude!,
+        locationData.longitude!,
       );
 
       state = state.copyWith(
-        latitude: position.latitude,
-        longitude: position.longitude,
+        latitude: locationData.latitude!,
+        longitude: locationData.longitude!,
         locationName: cityName,
         isGettingLocation: false,
       );
 
-      _fetchNearbyGroups(position.latitude, position.longitude);
+      _fetchNearbyGroups(locationData.latitude!, locationData.longitude!);
     } catch (e) {
       state = state.copyWith(
         isGettingLocation: false,
@@ -142,7 +149,7 @@ class AddMoment extends _$AddMoment {
   void togglePhotoPrivacy(int photoIndex) {
     final currentlyPrivate = state.privatePhotoIndices.contains(photoIndex);
     final newIndices = Set<int>.from(state.privatePhotoIndices);
-    
+
     if (currentlyPrivate) {
       // Making photo visible
       newIndices.remove(photoIndex);
@@ -158,7 +165,7 @@ class AddMoment extends _$AddMoment {
       // Making photo private
       newIndices.add(photoIndex);
     }
-    
+
     state = state.copyWith(privatePhotoIndices: newIndices);
   }
 
@@ -277,7 +284,7 @@ class AddMoment extends _$AddMoment {
           state.imageFiles.length,
           (index) => state.isPhotoPrivate(index),
         );
-        
+
         await _momentRepository.createMomentsBatch(
           state.imageFiles,
           title,

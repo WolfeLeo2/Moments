@@ -73,11 +73,11 @@ class MomentRepository {
       momentGroupId: momentGroupId,
       description: description,
     );
-    
+
     if (moments.isEmpty) {
       throw Exception('Failed to create moment: no moment returned');
     }
-    
+
     return moments.first;
   }
 
@@ -121,10 +121,11 @@ class MomentRepository {
       for (int i = 0; i < mediaFiles.length; i++) {
         final file = mediaFiles[i];
         // Determine individual photo privacy (default to false if not provided)
-        final isPhotoPrivate = photoPrivacyList != null && i < photoPrivacyList.length 
-            ? photoPrivacyList[i] 
+        final isPhotoPrivate =
+            photoPrivacyList != null && i < photoPrivacyList.length
+            ? photoPrivacyList[i]
             : false;
-            
+
         if (_isVideoFile(file)) {
           // Upload as video with thumbnail
           final videoData = await _uploadVideo(file);
@@ -509,36 +510,30 @@ class MomentRepository {
   // MOMENT GROUPS METHODS
   // ============================================
 
-  /// Get nearby moment groups
+  /// Get nearby moment groups using PostGIS RPC
   Future<List<MomentGroup>> getNearbyGroups(
     double latitude,
     double longitude, {
     double radiusMeters = 100,
   }) async {
     try {
-      // Using Supabase PostGIS functions for geospatial queries if available
-      // Or simple lat/lng filtering
-      final response = await SupabaseConfig.client
-          .from('moment_groups')
-          .select()
-          .order('created_at', ascending: false);
+      // Using Supabase PostGIS RPC for efficient server-side filtering
+      final response = await SupabaseConfig.client.rpc(
+        'get_nearby_moment_groups',
+        params: {
+          'lat': latitude,
+          'lng': longitude,
+          'radius_meters': radiusMeters,
+        },
+      );
 
-      final allGroups = (response as List)
+      // RPC returns list of moment_groups rows
+      return (response as List)
           .map((json) => MomentGroup.fromJson(json as Map<String, dynamic>))
           .toList();
-
-      // Filter by distance
-      return allGroups.where((group) {
-        final distance = _calculateDistance(
-          latitude,
-          longitude,
-          group.latitude,
-          group.longitude,
-        );
-        return distance * 1000 <= radiusMeters; // Convert km to meters
-      }).toList();
     } catch (e) {
-      print('Error fetching nearby groups: $e');
+      print('Error fetching nearby groups (RPC): $e');
+      // If RPC fails (e.g. not found), fallback to empty list or client-side filtering if you want
       return [];
     }
   }
@@ -620,8 +615,9 @@ class MomentRepository {
           count: entry.value,
           userReacted: userReacted[entry.key] ?? false,
         );
-      }).toList()
-        ..sort((a, b) => b.count.compareTo(a.count)); // Sort by count descending
+      }).toList()..sort(
+        (a, b) => b.count.compareTo(a.count),
+      ); // Sort by count descending
     } catch (e) {
       throw Exception('Failed to fetch reaction summary: $e');
     }
@@ -699,9 +695,9 @@ class MomentRepository {
         .stream(primaryKey: ['id'])
         .eq('moment_id', momentId)
         .order('created_at', ascending: true)
-        .map((data) => data
-            .map((json) => MomentReaction.fromJson(json))
-            .toList());
+        .map(
+          (data) => data.map((json) => MomentReaction.fromJson(json)).toList(),
+        );
   }
 
   // ============================================
@@ -773,14 +769,12 @@ class MomentRepository {
         return false;
       } else {
         // Add heart
-        await SupabaseConfig.client
-            .from('moment_reactions')
-            .insert({
-              'moment_id': momentId,
-              'user_id': userId,
-              'emoji': '❤️',
-              'created_at': DateTime.now().toIso8601String(),
-            });
+        await SupabaseConfig.client.from('moment_reactions').insert({
+          'moment_id': momentId,
+          'user_id': userId,
+          'emoji': '❤️',
+          'created_at': DateTime.now().toIso8601String(),
+        });
         return true;
       }
     } catch (e) {
@@ -831,11 +825,12 @@ class MomentRepository {
 
       final response = await SupabaseConfig.client
           .from('moment_contributors')
-          .update({
-            'accepted_at': DateTime.now().toIso8601String(),
-          })
+          .update({'accepted_at': DateTime.now().toIso8601String()})
           .eq('id', contributorId)
-          .eq('user_id', userId) // Ensure user can only accept their own invites
+          .eq(
+            'user_id',
+            userId,
+          ) // Ensure user can only accept their own invites
           .select('*, profiles:user_id(*)')
           .single();
 
@@ -872,7 +867,9 @@ class MomentRepository {
           .order('invited_at', ascending: true);
 
       return (response as List)
-          .map((json) => MomentContributor.fromJson(json as Map<String, dynamic>))
+          .map(
+            (json) => MomentContributor.fromJson(json as Map<String, dynamic>),
+          )
           .toList();
     } catch (e) {
       throw Exception('Failed to get contributors: $e');
@@ -893,7 +890,9 @@ class MomentRepository {
           .order('invited_at', ascending: false);
 
       return (response as List)
-          .map((json) => MomentContributor.fromJson(json as Map<String, dynamic>))
+          .map(
+            (json) => MomentContributor.fromJson(json as Map<String, dynamic>),
+          )
           .toList();
     } catch (e) {
       throw Exception('Failed to get pending invitations: $e');
@@ -962,15 +961,14 @@ class MomentRepository {
         throw Exception('User not authenticated');
       }
 
-      await SupabaseConfig.client
-          .from('moment_contributors')
-          .insert({
-            'moment_id': momentId,
-            'user_id': userId,
-            'role': 'owner',
-            'invited_at': DateTime.now().toIso8601String(),
-            'accepted_at': DateTime.now().toIso8601String(), // Owner is auto-accepted
-          });
+      await SupabaseConfig.client.from('moment_contributors').insert({
+        'moment_id': momentId,
+        'user_id': userId,
+        'role': 'owner',
+        'invited_at': DateTime.now().toIso8601String(),
+        'accepted_at': DateTime.now()
+            .toIso8601String(), // Owner is auto-accepted
+      });
     } catch (e) {
       // Ignore duplicate errors (owner already added)
       print('Note: $e');
@@ -993,11 +991,8 @@ class MomentRepository {
                 .select()
                 .eq('id', json['user_id'])
                 .maybeSingle();
-            
-            final enrichedJson = {
-              ...json,
-              'profiles': profileResponse,
-            };
+
+            final enrichedJson = {...json, 'profiles': profileResponse};
             contributors.add(MomentContributor.fromJson(enrichedJson));
           }
           return contributors;
@@ -1019,17 +1014,14 @@ class MomentRepository {
           final pending = <MomentContributor>[];
           for (final json in data) {
             if (json['accepted_at'] != null) continue; // Skip accepted
-            
+
             final profileResponse = await SupabaseConfig.client
                 .from('profiles')
                 .select()
                 .eq('id', json['user_id'])
                 .maybeSingle();
-            
-            final enrichedJson = {
-              ...json,
-              'profiles': profileResponse,
-            };
+
+            final enrichedJson = {...json, 'profiles': profileResponse};
             pending.add(MomentContributor.fromJson(enrichedJson));
           }
           return pending;
