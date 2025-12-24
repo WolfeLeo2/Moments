@@ -1,10 +1,10 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:moments/features/chat/providers/chat_providers.dart';
 import 'package:moments/features/chat/presentation/chat_page.dart';
+import '../../../core/services/avatar_cache_service.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/providers/realtime_providers.dart';
 import '../../../core/utils/extensions.dart';
@@ -947,9 +947,7 @@ class _RequestCardState extends ConsumerState<_RequestCard>
                         child: CircleAvatar(
                           radius: 26,
                           backgroundColor: Colors.grey[200],
-                          backgroundImage: profile.avatarUrl != null
-                              ? CachedNetworkImageProvider(profile.avatarUrl!)
-                              : null,
+                          backgroundImage: AvatarCacheService().getAvatarImageProvider(profile.avatarUrl),
                           child: profile.avatarUrl == null
                               ? HugeIcon(
                                   icon: HugeIcons.strokeRoundedUser,
@@ -1186,11 +1184,7 @@ class _FriendCardState extends State<_FriendCard>
                             child: CircleAvatar(
                               radius: 28,
                               backgroundColor: Colors.grey[200],
-                              backgroundImage: widget.friend.avatarUrl != null
-                                  ? CachedNetworkImageProvider(
-                                      widget.friend.avatarUrl!,
-                                    )
-                                  : null,
+                              backgroundImage: AvatarCacheService().getAvatarImageProvider(widget.friend.avatarUrl),
                               child: widget.friend.avatarUrl == null
                                   ? HugeIcon(
                                       icon: HugeIcons.strokeRoundedUser,

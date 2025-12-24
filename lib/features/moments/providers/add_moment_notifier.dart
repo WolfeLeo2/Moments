@@ -130,8 +130,36 @@ class AddMoment extends _$AddMoment {
     }
   }
 
-  void togglePrivacy(bool isPrivate) {
-    state = state.copyWith(isPrivate: isPrivate);
+  /// Toggle group-level privacy (affects all photos)
+  void setGroupPrivacy(bool isPrivate) {
+    state = state.copyWith(isGroupPrivate: isPrivate);
+    // Note: When group becomes private, all photos are automatically private
+    // via the isPhotoPrivate() getter. No need to modify privatePhotoIndices.
+  }
+
+  /// Toggle individual photo privacy
+  /// If setting a photo to visible while group is private, auto-switch group to visible
+  void togglePhotoPrivacy(int photoIndex) {
+    final currentlyPrivate = state.privatePhotoIndices.contains(photoIndex);
+    final newIndices = Set<int>.from(state.privatePhotoIndices);
+    
+    if (currentlyPrivate) {
+      // Making photo visible
+      newIndices.remove(photoIndex);
+      // If group was private, switch to visible since user wants this photo visible
+      if (state.isGroupPrivate) {
+        state = state.copyWith(
+          isGroupPrivate: false,
+          privatePhotoIndices: newIndices,
+        );
+        return;
+      }
+    } else {
+      // Making photo private
+      newIndices.add(photoIndex);
+    }
+    
+    state = state.copyWith(privatePhotoIndices: newIndices);
   }
 
   Future<void> pickImages() async {
@@ -237,13 +265,19 @@ class AddMoment extends _$AddMoment {
           state.locationName ?? 'Unknown Location',
           state.latitude!,
           state.longitude!,
-          isPrivate: state.isPrivate,
+          isPrivate: state.isPhotoPrivate(0), // Use per-photo privacy
+          isGroupPrivate: state.isGroupPrivate,
           momentGroupId: state.selectedGroupId,
           isVideo: state.isVideo,
           videoDuration: state.videoDuration,
         );
       } else {
-        // Multiple images - use batch
+        // Multiple images - use batch with per-photo privacy
+        final photoPrivacyList = List.generate(
+          state.imageFiles.length,
+          (index) => state.isPhotoPrivate(index),
+        );
+        
         await _momentRepository.createMomentsBatch(
           state.imageFiles,
           title,
@@ -251,7 +285,8 @@ class AddMoment extends _$AddMoment {
           state.locationName ?? 'Unknown Location',
           state.latitude!,
           state.longitude!,
-          isPrivate: state.isPrivate,
+          photoPrivacyList: photoPrivacyList,
+          isGroupPrivate: state.isGroupPrivate,
           momentGroupId: state.selectedGroupId,
         );
       }

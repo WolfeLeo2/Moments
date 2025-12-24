@@ -8,7 +8,6 @@ import '../../../core/utils/constants.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../widgets/spring_button.dart';
 import '../../../widgets/video_player_widget.dart';
-import '../../editor/presentation/image_editor_page.dart';
 import '../providers/add_moment_notifier.dart';
 import '../providers/add_moment_state.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -78,37 +77,6 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
       HapticService.success();
       context.showSuccessSnackBar(AppConstants.momentCreated);
       Navigator.of(context).pop(true);
-    }
-  }
-
-  void _openEditor(int imageIndex, AddMomentState state) async {
-    HapticService.lightTap();
-
-    // Get image paths (filter out videos for the editor)
-    final imagePaths = state.imageFiles
-        .where((f) {
-          final path = f.path.toLowerCase();
-          return !path.endsWith('.mp4') &&
-              !path.endsWith('.mov') &&
-              !path.endsWith('.avi') &&
-              !path.endsWith('.mkv') &&
-              !path.endsWith('.3gp');
-        })
-        .map((f) => f.path)
-        .toList();
-
-    if (imagePaths.isEmpty) return;
-
-    // Open the editor
-    final editedPaths = await Navigator.of(context).push<List<String>>(
-      MaterialPageRoute(
-        builder: (context) => ImageEditorPage(imagePaths: imagePaths),
-      ),
-    );
-
-    // If we got edited paths back, update the state
-    if (editedPaths != null && editedPaths.isNotEmpty) {
-      ref.read(addMomentProvider.notifier).updateImagePaths(editedPaths);
     }
   }
 
@@ -413,14 +381,14 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
 
                   const SizedBox(height: 24),
 
-                  // Privacy Toggle
+                  // Visibility Toggle (Group-level privacy)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'ALLOW COLLABORATORS?',
+                          'VISIBILITY',
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -433,16 +401,19 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                           children: [
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => ref
-                                    .read(addMomentProvider.notifier)
-                                    .togglePrivacy(false),
+                                onTap: () {
+                                  HapticService.lightTap();
+                                  ref
+                                      .read(addMomentProvider.notifier)
+                                      .setGroupPrivacy(false);
+                                },
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 12,
                                   ),
                                   decoration: ShapeDecoration(
-                                    color: !state.isPrivate
+                                    color: !state.isGroupPrivate
                                         ? AppTheme.primaryBlue
                                         : Colors.white,
                                     shape: RoundedSuperellipseBorder(
@@ -450,7 +421,7 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                         AppTheme.radiusSmall,
                                       ),
                                       side: BorderSide(
-                                        color: !state.isPrivate
+                                        color: !state.isGroupPrivate
                                             ? AppTheme.borderBlack
                                             : Colors.black12,
                                         width: 1.5,
@@ -458,7 +429,7 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                     ),
                                     shadows: [
                                       BoxShadow(
-                                        color: !state.isPrivate
+                                        color: !state.isGroupPrivate
                                             ? AppTheme.borderBlack
                                             : Colors.black12,
                                         blurRadius: 0,
@@ -466,16 +437,28 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                       ),
                                     ],
                                   ),
-                                  child: Text(
-                                    'YES',
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: !state.isPrivate
-                                          ? Colors.white
-                                          : Colors.black54,
-                                    ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      HugeIcon(
+                                        icon: HugeIcons.strokeRoundedUserGroup,
+                                        size: 18,
+                                        color: !state.isGroupPrivate
+                                            ? Colors.white
+                                            : Colors.black54,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Friends',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: !state.isGroupPrivate
+                                              ? Colors.white
+                                              : Colors.black54,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -483,16 +466,19 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => ref
-                                    .read(addMomentProvider.notifier)
-                                    .togglePrivacy(true),
+                                onTap: () {
+                                  HapticService.lightTap();
+                                  ref
+                                      .read(addMomentProvider.notifier)
+                                      .setGroupPrivacy(true);
+                                },
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 12,
                                   ),
                                   decoration: ShapeDecoration(
-                                    color: state.isPrivate
+                                    color: state.isGroupPrivate
                                         ? AppTheme.emergencyRed
                                         : Colors.white,
                                     shape: RoundedSuperellipseBorder(
@@ -500,7 +486,7 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                         AppTheme.radiusSmall,
                                       ),
                                       side: BorderSide(
-                                        color: state.isPrivate
+                                        color: state.isGroupPrivate
                                             ? AppTheme.borderBlack
                                             : Colors.black12,
                                         width: 1.5,
@@ -508,7 +494,7 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                     ),
                                     shadows: [
                                       BoxShadow(
-                                        color: state.isPrivate
+                                        color: state.isGroupPrivate
                                             ? AppTheme.borderBlack
                                             : Colors.black12,
                                         blurRadius: 0,
@@ -516,21 +502,47 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                       ),
                                     ],
                                   ),
-                                  child: Text(
-                                    'NO',
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: state.isPrivate
-                                          ? Colors.white
-                                          : Colors.black54,
-                                    ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      HugeIcon(
+                                        icon: HugeIcons.strokeRoundedSquareLock02,
+                                        size: 18,
+                                        color: state.isGroupPrivate
+                                            ? Colors.white
+                                            : Colors.black54,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Only Me',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: state.isGroupPrivate
+                                              ? Colors.white
+                                              : Colors.black54,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
                             ),
                           ],
+                        ),
+                        // Helper text
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            state.isGroupPrivate 
+                                ? 'Only you can see this moment. All photos are private.'
+                                : 'Friends can see and contribute. Tap photos to make individual ones private.',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: Colors.black45,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -638,28 +650,6 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                   )
                 else
                   Image.file(File(file.path), fit: BoxFit.cover),
-                // Edit Button (only for images)
-                if (!isVideoFile)
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    child: GestureDetector(
-                      onTap: () => _openEditor(index, state),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryBlue.withValues(alpha: 0.9),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 1),
-                        ),
-                        child: const Icon(
-                          Icons.edit,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                  ),
                 // Delete Button
                 Positioned(
                   top: 0,
@@ -678,6 +668,59 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                         Icons.close,
                         color: Colors.white,
                         size: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                // Privacy Toggle Button (bottom left)
+                Positioned(
+                  bottom: 12,
+                  left: 12,
+                  child: GestureDetector(
+                    onTap: state.isGroupPrivate 
+                        ? null // Disabled when group is private
+                        : () {
+                            HapticService.lightTap();
+                            ref.read(addMomentProvider.notifier).togglePhotoPrivacy(index);
+                          },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: state.isPhotoPrivate(index)
+                            ? AppTheme.emergencyRed.withValues(alpha: 0.9)
+                            : Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: state.isPhotoPrivate(index) 
+                              ? Colors.white.withValues(alpha: 0.3)
+                              : Colors.white.withValues(alpha: 0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          HugeIcon(
+                            icon: state.isPhotoPrivate(index)
+                                ? HugeIcons.strokeRoundedSquareLock02
+                                : HugeIcons.strokeRoundedGlobal,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            state.isPhotoPrivate(index) ? 'Private' : 'Visible',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

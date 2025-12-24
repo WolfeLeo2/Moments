@@ -15,7 +15,8 @@ class AddMomentState extends Equatable {
   final String? errorMessage;
   final bool isGettingLocation;
   final String caption;
-  final bool isPrivate;
+  final bool isGroupPrivate; // Group-level privacy (hides entire group from friends)
+  final Set<int> privatePhotoIndices; // Indices of photos marked as private
   final List<MomentGroup> nearbyGroups;
   final String? selectedGroupId;
 
@@ -30,10 +31,18 @@ class AddMomentState extends Equatable {
     this.errorMessage,
     this.isGettingLocation = false,
     this.caption = '',
-    this.isPrivate = false,
+    this.isGroupPrivate = false,
+    this.privatePhotoIndices = const {},
     this.nearbyGroups = const [],
     this.selectedGroupId,
   });
+
+  /// Check if a specific photo is private
+  /// If group is private, ALL photos are considered private
+  bool isPhotoPrivate(int index) {
+    if (isGroupPrivate) return true;
+    return privatePhotoIndices.contains(index);
+  }
 
   AddMomentState copyWith({
     AddMomentStatus? status,
@@ -46,7 +55,8 @@ class AddMomentState extends Equatable {
     String? errorMessage,
     bool? isGettingLocation,
     String? caption,
-    bool? isPrivate,
+    bool? isGroupPrivate,
+    Set<int>? privatePhotoIndices,
     List<MomentGroup>? nearbyGroups,
     String? selectedGroupId,
   }) {
@@ -61,7 +71,8 @@ class AddMomentState extends Equatable {
       errorMessage: errorMessage, // Allow clearing error by passing null
       isGettingLocation: isGettingLocation ?? this.isGettingLocation,
       caption: caption ?? this.caption,
-      isPrivate: isPrivate ?? this.isPrivate,
+      isGroupPrivate: isGroupPrivate ?? this.isGroupPrivate,
+      privatePhotoIndices: privatePhotoIndices ?? this.privatePhotoIndices,
       nearbyGroups: nearbyGroups ?? this.nearbyGroups,
       selectedGroupId: selectedGroupId ?? this.selectedGroupId,
     );
@@ -79,7 +90,8 @@ class AddMomentState extends Equatable {
     errorMessage,
     isGettingLocation,
     caption,
-    isPrivate,
+    isGroupPrivate,
+    privatePhotoIndices,
     nearbyGroups,
     selectedGroupId,
   ];

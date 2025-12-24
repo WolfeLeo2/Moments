@@ -53,9 +53,14 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
   }
 
   Future<void> _loadImagesForMoments(List<Moment> moments) async {
-    // Load local paths first
+    // Load local paths first and track which moments have valid local files
+    final momentsNeedingNetworkUrls = <Moment>[];
+    
     for (var moment in moments) {
-      if (_localPaths.containsKey(moment.id)) continue;
+      if (_localPaths.containsKey(moment.id)) {
+        // Already have local path, skip network URL fetch
+        continue;
+      }
 
       final isThumbnail = moment.mediaType == 'video';
       final localPath = await _storage.getLocalMediaPath(
@@ -67,12 +72,19 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
         setState(() {
           _localPaths[moment.id] = localPath;
         });
+        // Has valid local path, no need for network URL
+      } else {
+        // No local path, will need network URL
+        momentsNeedingNetworkUrls.add(moment);
       }
     }
 
+    // Only fetch network URLs for moments without local paths
+    if (momentsNeedingNetworkUrls.isEmpty) return;
+
     // Collect paths to load for network URLs
     final pathsToLoad = <String>[];
-    for (var moment in moments) {
+    for (var moment in momentsNeedingNetworkUrls) {
       if (_imageUrls.containsKey(moment.id)) continue;
 
       if (moment.mediaType == 'video') {
@@ -93,7 +105,7 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
 
       if (mounted) {
         setState(() {
-          for (var moment in moments) {
+          for (var moment in momentsNeedingNetworkUrls) {
             if (moment.mediaType == 'video') {
               if (moment.thumbnailPath != null) {
                 final thumbUrl = urls[moment.thumbnailPath];
@@ -210,8 +222,8 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
               heroTag: 'gallery_${tappedMoment.id}',
               initialPage: groupIndex >= 0 ? groupIndex : 0,
             ),
-        transitionDuration: const Duration(milliseconds: 300),
-        reverseTransitionDuration: const Duration(milliseconds: 250),
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: const Duration(milliseconds: 150),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
@@ -398,33 +410,35 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
     bool isLastInMonth,
   ) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 16.h),
+      padding: EdgeInsets.only(bottom: isLastInMonth ? 0 : 16.h),
       child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Timeline connector - single pin that extends for all cards in this date
             SizedBox(
-              width: 16.w,
+              width: 24.w,
               child: Column(
                 children: [
-                  // The pin circle
+                  // The pin circle - always visible
                   Container(
-                    width: 16.w,
-                    height: 16.w,
+                    width: 14.w,
+                    height: 14.w,
+                    margin: EdgeInsets.only(left: 5.w),
                     decoration: BoxDecoration(
                       color: AppTheme.primaryBlue,
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: AppTheme.borderBlack,
-                        width: AppTheme.borderThin,
+                        width: AppTheme.borderMedium,
                       ),
                     ),
                   ),
                   // Extended line covering all cards in this date group + connecting to next
                   Expanded(
                     child: Container(
-                      width: AppTheme.borderThin,
+                      width: AppTheme.borderMedium,
+                      margin: EdgeInsets.only(left: 10.w),
                       color: isLastInMonth
                           ? Colors.transparent
                           : AppTheme.borderBlack,

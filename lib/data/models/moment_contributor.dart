@@ -1,15 +1,14 @@
 import 'package:equatable/equatable.dart';
 
-/// Contributor role
+/// Contributor role (simplified: owner or contributor, both can view)
 enum ContributorRole {
-  owner,
-  contributor,
-  viewer;
+  owner,      // Created the group, can manage contributors
+  contributor; // Invited and accepted, can add moments
 
   static ContributorRole fromString(String value) {
     return ContributorRole.values.firstWhere(
       (e) => e.name == value,
-      orElse: () => ContributorRole.viewer,
+      orElse: () => ContributorRole.contributor,
     );
   }
 }
@@ -22,6 +21,11 @@ class MomentContributor extends Equatable {
   final ContributorRole role;
   final DateTime invitedAt;
   final DateTime? acceptedAt;
+  
+  // Populated from join with profiles
+  final String? username;
+  final String? displayName;
+  final String? avatarUrl;
 
   const MomentContributor({
     required this.id,
@@ -30,21 +34,31 @@ class MomentContributor extends Equatable {
     required this.role,
     required this.invitedAt,
     this.acceptedAt,
+    this.username,
+    this.displayName,
+    this.avatarUrl,
   });
 
   bool get hasAccepted => acceptedAt != null;
   bool get isPending => acceptedAt == null;
+  bool get isOwner => role == ContributorRole.owner;
 
   factory MomentContributor.fromJson(Map<String, dynamic> json) {
+    // Handle nested profile data if present
+    final profile = json['profiles'] as Map<String, dynamic>?;
+    
     return MomentContributor(
       id: json['id'] as String,
       momentId: json['moment_id'] as String,
       userId: json['user_id'] as String,
-      role: ContributorRole.fromString(json['role'] as String),
-      invitedAt: DateTime.parse(json['invited_at'] as String).toLocal(),
+      role: ContributorRole.fromString(json['role'] as String? ?? 'contributor'),
+      invitedAt: DateTime.parse(json['invited_at'] as String? ?? json['created_at'] as String).toLocal(),
       acceptedAt: json['accepted_at'] != null
           ? DateTime.parse(json['accepted_at'] as String).toLocal()
           : null,
+      username: profile?['username'] as String?,
+      displayName: profile?['display_name'] as String?,
+      avatarUrl: profile?['avatar_url'] as String?,
     );
   }
 
@@ -66,6 +80,9 @@ class MomentContributor extends Equatable {
     ContributorRole? role,
     DateTime? invitedAt,
     DateTime? acceptedAt,
+    String? username,
+    String? displayName,
+    String? avatarUrl,
   }) {
     return MomentContributor(
       id: id ?? this.id,
@@ -74,6 +91,9 @@ class MomentContributor extends Equatable {
       role: role ?? this.role,
       invitedAt: invitedAt ?? this.invitedAt,
       acceptedAt: acceptedAt ?? this.acceptedAt,
+      username: username ?? this.username,
+      displayName: displayName ?? this.displayName,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
     );
   }
 
@@ -85,5 +105,8 @@ class MomentContributor extends Equatable {
     role,
     invitedAt,
     acceptedAt,
+    username,
+    displayName,
+    avatarUrl,
   ];
 }

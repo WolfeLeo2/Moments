@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:ui';
 import 'dart:io';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
 import 'package:moments/core/theme/app_theme.dart';
+import 'package:moments/core/services/avatar_cache_service.dart';
 import 'package:moments/features/chat/providers/chat_providers.dart';
 import 'package:moments/features/chat/widgets/message_bubble.dart';
 import 'package:moments/core/utils/extensions.dart';
@@ -199,9 +199,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundImage: widget.friendAvatarUrl != null
-                  ? CachedNetworkImageProvider(widget.friendAvatarUrl!)
-                  : null,
+              backgroundImage: AvatarCacheService().getAvatarImageProvider(widget.friendAvatarUrl),
               backgroundColor: AppTheme.electricPurple.withValues(alpha: 0.2),
               child: widget.friendAvatarUrl == null
                   ? Text(

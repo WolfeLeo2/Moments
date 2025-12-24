@@ -4,8 +4,9 @@ import 'dart:math' as math;
 import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase_flutter;
 import '../models/moment.dart';
-
+import '../models/moment_reaction.dart';
 import '../models/moment_group.dart';
+import '../models/moment_contributor.dart';
 import '../sources/supabase_config.dart';
 import '../../core/services/media_compression_service.dart';
 
@@ -44,7 +45,7 @@ class MomentRepository {
     }
   }
 
-  // Create new moment
+  // Create new moment (delegates to batch creation for consistency)
   Future<Moment> createMoment(
     File mediaFile,
     String title,
@@ -53,82 +54,31 @@ class MomentRepository {
     double latitude,
     double longitude, {
     bool isPrivate = false,
+    bool isGroupPrivate = false,
     String? momentGroupId,
     String? description,
     bool isVideo = false,
     int? videoDuration,
   }) async {
-    try {
-      // Get current user ID
-      final userId = SupabaseConfig.client.auth.currentUser?.id;
-      if (userId == null) {
-        throw Exception('User not authenticated');
-      }
-
-      String mediaPath;
-      String? thumbnailPath;
-      int? duration;
-      String mediaType;
-
-      if (isVideo) {
-        // Handle video upload
-        final result = await _uploadVideo(mediaFile);
-        mediaPath = result['videoPath']!;
-        thumbnailPath = result['thumbnailPath'];
-        duration = result['duration'] as int?;
-        mediaType = 'video';
-      } else {
-        // Handle image upload
-        mediaPath = await _uploadImage(mediaFile);
-        mediaType = 'image';
-      }
-
-      // 2. Create the moment entry
-      final momentData = {
-        'user_id': userId,
-        'title': title,
-        'location': locationName,
-        'latitude': latitude,
-        'longitude': longitude,
-        'caption': caption,
-        'description': null,
-        'timestamp': DateTime.now().toIso8601String(),
-        'created_at': DateTime.now().toIso8601String(),
-        'is_private': isPrivate,
-        'moment_group_id': momentGroupId,
-        'is_locked': false,
-        'media_path': mediaPath,
-        'media_type': mediaType,
-        'duration': duration,
-        'thumbnail_path': thumbnailPath,
-      };
-
-      final response = await SupabaseConfig.momentsTable
-          .insert(momentData)
-          .select()
-          .single();
-
-      final moment = Moment.fromJson(response);
-
-      // If this moment is part of a group, ensure the group exists and is updated
-      if (moment.momentGroupId != null) {
-        // The original instruction had a placeholder for _supabase, but it should be SupabaseConfig.client
-        await _ensureGroupExists(
-          moment.momentGroupId!,
-          title,
-          latitude,
-          longitude,
-        );
-      } else {
-        // If no group ID provided, check if we should create one or add to nearby?
-        // For now, we assume the caller handles group creation/assignment
-        // or we auto-group based on location (future enhancement)
-      }
-
-      return moment;
-    } catch (e) {
-      throw Exception('Failed to create moment: $e');
+    // Delegate to batch creation with single item
+    final moments = await createMomentsBatch(
+      [mediaFile],
+      title,
+      caption,
+      locationName,
+      latitude,
+      longitude,
+      photoPrivacyList: [isPrivate],
+      isGroupPrivate: isGroupPrivate,
+      momentGroupId: momentGroupId,
+      description: description,
+    );
+    
+    if (moments.isEmpty) {
+      throw Exception('Failed to create moment: no moment returned');
     }
+    
+    return moments.first;
   }
 
   // Check if file is a video based on extension
@@ -154,7 +104,8 @@ class MomentRepository {
     String locationName,
     double latitude,
     double longitude, {
-    bool isPrivate = false,
+    List<bool>? photoPrivacyList, // Per-photo privacy settings
+    bool isGroupPrivate = false,
     String? momentGroupId,
     String? description,
   }) async {
@@ -167,7 +118,13 @@ class MomentRepository {
       // 1. Upload all media files first, detecting video vs image per file
       final List<Map<String, dynamic>> mediaDataList = [];
 
-      for (final file in mediaFiles) {
+      for (int i = 0; i < mediaFiles.length; i++) {
+        final file = mediaFiles[i];
+        // Determine individual photo privacy (default to false if not provided)
+        final isPhotoPrivate = photoPrivacyList != null && i < photoPrivacyList.length 
+            ? photoPrivacyList[i] 
+            : false;
+            
         if (_isVideoFile(file)) {
           // Upload as video with thumbnail
           final videoData = await _uploadVideo(file);
@@ -176,6 +133,7 @@ class MomentRepository {
             'media_type': 'video',
             'thumbnail_path': videoData['thumbnailPath'],
             'duration': videoData['duration'],
+            'is_private': isPhotoPrivate,
           });
         } else {
           // Upload as image
@@ -185,11 +143,12 @@ class MomentRepository {
             'media_type': 'image',
             'thumbnail_path': null,
             'duration': null,
+            'is_private': isPhotoPrivate,
           });
         }
       }
 
-      // 2. Prepare payload for RPC with full media data
+      // 2. Prepare payload for RPC with full media data (including per-photo privacy)
       final momentsPayload = mediaDataList.map((mediaData) {
         return {
           'title': title,
@@ -201,11 +160,11 @@ class MomentRepository {
           'media_type': mediaData['media_type'],
           'thumbnail_path': mediaData['thumbnail_path'],
           'duration': mediaData['duration'],
-          'is_private': isPrivate,
+          'is_private': mediaData['is_private'],
         };
       }).toList();
 
-      // 3. Call RPC
+      // 3. Call RPC with group privacy parameter
       final response = await SupabaseConfig.client.rpc(
         'create_moment_batch',
         params: {
@@ -214,6 +173,7 @@ class MomentRepository {
           'p_group_title': title, // Used if creating new group
           'p_group_lat': latitude,
           'p_group_lng': longitude,
+          'p_group_private': isGroupPrivate,
         },
       );
 
@@ -226,27 +186,6 @@ class MomentRepository {
       // Note: If image upload succeeded but RPC failed, we might have orphaned images.
       // Ideally we would track uploaded paths and delete them here in catch block.
       throw Exception('Failed to create moments batch: $e');
-    }
-  }
-
-  Future<void> _ensureGroupExists(
-    String groupId,
-    String title,
-    double lat,
-    double lng,
-  ) async {
-    // Check if group exists
-    final group = await SupabaseConfig.client
-        .from('moment_groups')
-        .select()
-        .eq('id', groupId)
-        .maybeSingle();
-
-    if (group == null) {
-      // Create group if it doesn't exist (though it should usually exist by now)
-      // Assuming createMomentGroup is a method in this class or accessible
-      // For now, this part is commented out as createMomentGroup is not provided in the snippet
-      // await createMomentGroup(title, lat, lng);
     }
   }
 
@@ -494,6 +433,23 @@ class MomentRepository {
     }
   }
 
+  /// Stream moments by group ID (realtime for moment details page)
+  Stream<List<Moment>> streamMomentsByGroup(String groupId) {
+    return SupabaseConfig.momentsTable
+        .stream(primaryKey: ['id'])
+        .eq('moment_group_id', groupId)
+        .order('created_at', ascending: false)
+        .map(
+          (json) => (json as List)
+              .map((m) => Moment.fromJson(m as Map<String, dynamic>))
+              .toList(),
+        )
+        .handleError((e) {
+          print('Error streaming group moments: $e');
+          return <Moment>[];
+        });
+  }
+
   /// Stream all moments with true Realtime updates (v2.10.3+)
   /// Uses .stream() which combines initial data + Realtime PostgreSQL changes
   /// No more polling - true push updates from Supabase
@@ -618,5 +574,465 @@ class MomentRepository {
     } catch (e) {
       throw Exception('Failed to create moment group: $e');
     }
+  }
+
+  // ============================================
+  // MOMENT REACTIONS
+  // ============================================
+
+  /// Get all reactions for a moment
+  Future<List<MomentReaction>> getReactionsForMoment(String momentId) async {
+    try {
+      final response = await SupabaseConfig.client
+          .from('moment_reactions')
+          .select()
+          .eq('moment_id', momentId)
+          .order('created_at', ascending: true);
+
+      return (response as List)
+          .map((json) => MomentReaction.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch reactions: $e');
+    }
+  }
+
+  /// Get reaction summary for a moment (aggregated counts)
+  Future<List<ReactionSummary>> getReactionSummary(String momentId) async {
+    try {
+      final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
+      final reactions = await getReactionsForMoment(momentId);
+
+      // Group reactions by emoji
+      final emojiCounts = <String, int>{};
+      final userReacted = <String, bool>{};
+
+      for (final reaction in reactions) {
+        emojiCounts[reaction.emoji] = (emojiCounts[reaction.emoji] ?? 0) + 1;
+        if (reaction.userId == currentUserId) {
+          userReacted[reaction.emoji] = true;
+        }
+      }
+
+      return emojiCounts.entries.map((entry) {
+        return ReactionSummary(
+          emoji: entry.key,
+          count: entry.value,
+          userReacted: userReacted[entry.key] ?? false,
+        );
+      }).toList()
+        ..sort((a, b) => b.count.compareTo(a.count)); // Sort by count descending
+    } catch (e) {
+      throw Exception('Failed to fetch reaction summary: $e');
+    }
+  }
+
+  /// Add or update a reaction on a moment
+  Future<MomentReaction> addReaction(String momentId, String emoji) async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Use upsert to handle both new reactions and updates
+      // Constraint: moment_reactions_user_moment_unique (moment_id, user_id)
+      final response = await SupabaseConfig.client
+          .from('moment_reactions')
+          .upsert({
+            'moment_id': momentId,
+            'user_id': userId,
+            'emoji': emoji,
+            'created_at': DateTime.now().toIso8601String(),
+          }, onConflict: 'moment_id,user_id')
+          .select()
+          .single();
+
+      return MomentReaction.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to add reaction: $e');
+    }
+  }
+
+  /// Remove user's reaction from a moment
+  Future<void> removeReaction(String momentId) async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      await SupabaseConfig.client
+          .from('moment_reactions')
+          .delete()
+          .eq('moment_id', momentId)
+          .eq('user_id', userId);
+    } catch (e) {
+      throw Exception('Failed to remove reaction: $e');
+    }
+  }
+
+  /// Get current user's reaction on a moment
+  Future<MomentReaction?> getUserReaction(String momentId) async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) return null;
+
+      final response = await SupabaseConfig.client
+          .from('moment_reactions')
+          .select()
+          .eq('moment_id', momentId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (response == null) return null;
+      return MomentReaction.fromJson(response);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Stream reactions for a moment (real-time updates)
+  Stream<List<MomentReaction>> watchReactionsForMoment(String momentId) {
+    return SupabaseConfig.client
+        .from('moment_reactions')
+        .stream(primaryKey: ['id'])
+        .eq('moment_id', momentId)
+        .order('created_at', ascending: true)
+        .map((data) => data
+            .map((json) => MomentReaction.fromJson(json))
+            .toList());
+  }
+
+  // ============================================
+  // PHOTO REACTIONS (Double-tap heart on photos)
+  // ============================================
+
+  /// Get heart count for a moment (photo)
+  Future<int> getPhotoHeartCount(String momentId, int photoIndex) async {
+    try {
+      // photoIndex is now ignored since each photo is its own moment
+      final response = await SupabaseConfig.client
+          .from('moment_reactions')
+          .select('id')
+          .eq('moment_id', momentId)
+          .eq('emoji', '❤️');
+
+      return (response as List).length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /// Check if user has hearted a moment (photo)
+  Future<bool> hasUserHeartedPhoto(String momentId, int photoIndex) async {
+    try {
+      // photoIndex is now ignored since each photo is its own moment
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) return false;
+
+      final response = await SupabaseConfig.client
+          .from('moment_reactions')
+          .select('id')
+          .eq('moment_id', momentId)
+          .eq('user_id', userId)
+          .eq('emoji', '❤️')
+          .maybeSingle();
+
+      return response != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Toggle heart on a moment/photo (double-tap behavior)
+  /// Returns true if heart was added, false if removed
+  Future<bool> togglePhotoHeart(String momentId, int photoIndex) async {
+    try {
+      // photoIndex is now ignored since each photo is its own moment
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Check if already hearted
+      final existing = await SupabaseConfig.client
+          .from('moment_reactions')
+          .select('id')
+          .eq('moment_id', momentId)
+          .eq('user_id', userId)
+          .eq('emoji', '❤️')
+          .maybeSingle();
+
+      if (existing != null) {
+        // Remove heart
+        await SupabaseConfig.client
+            .from('moment_reactions')
+            .delete()
+            .eq('id', existing['id']);
+        return false;
+      } else {
+        // Add heart
+        await SupabaseConfig.client
+            .from('moment_reactions')
+            .insert({
+              'moment_id': momentId,
+              'user_id': userId,
+              'emoji': '❤️',
+              'created_at': DateTime.now().toIso8601String(),
+            });
+        return true;
+      }
+    } catch (e) {
+      throw Exception('Failed to toggle photo heart: $e');
+    }
+  }
+
+  // ============================================
+  // COLLABORATIVE MOMENTS / CONTRIBUTORS
+  // ============================================
+
+  /// Invite a friend to contribute to a moment group
+  /// Only the moment owner can invite contributors
+  Future<MomentContributor> inviteContributor({
+    required String momentId,
+    required String friendId,
+  }) async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final response = await SupabaseConfig.client
+          .from('moment_contributors')
+          .insert({
+            'moment_id': momentId,
+            'user_id': friendId,
+            'role': 'contributor',
+            'invited_at': DateTime.now().toIso8601String(),
+          })
+          .select('*, profiles:user_id(*)')
+          .single();
+
+      return MomentContributor.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to invite contributor: $e');
+    }
+  }
+
+  /// Accept an invitation to contribute to a moment
+  Future<MomentContributor> acceptInvitation(String contributorId) async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final response = await SupabaseConfig.client
+          .from('moment_contributors')
+          .update({
+            'accepted_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', contributorId)
+          .eq('user_id', userId) // Ensure user can only accept their own invites
+          .select('*, profiles:user_id(*)')
+          .single();
+
+      return MomentContributor.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to accept invitation: $e');
+    }
+  }
+
+  /// Decline/remove an invitation or leave a collaborative moment
+  Future<void> removeContributor(String contributorId) async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      await SupabaseConfig.client
+          .from('moment_contributors')
+          .delete()
+          .eq('id', contributorId);
+    } catch (e) {
+      throw Exception('Failed to remove contributor: $e');
+    }
+  }
+
+  /// Get all contributors for a moment (with profile info)
+  Future<List<MomentContributor>> getContributors(String momentId) async {
+    try {
+      final response = await SupabaseConfig.client
+          .from('moment_contributors')
+          .select('*, profiles:user_id(*)')
+          .eq('moment_id', momentId)
+          .order('invited_at', ascending: true);
+
+      return (response as List)
+          .map((json) => MomentContributor.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get contributors: $e');
+    }
+  }
+
+  /// Get pending invitations for current user
+  Future<List<MomentContributor>> getPendingInvitations() async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) return [];
+
+      final response = await SupabaseConfig.client
+          .from('moment_contributors')
+          .select('*, profiles:user_id(*)')
+          .eq('user_id', userId)
+          .isFilter('accepted_at', null) // Pending = not yet accepted
+          .order('invited_at', ascending: false);
+
+      return (response as List)
+          .map((json) => MomentContributor.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get pending invitations: $e');
+    }
+  }
+
+  /// Get moments where current user is a contributor (accepted)
+  Future<List<Moment>> getSharedMoments() async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) return [];
+
+      // Get moment IDs where user is an accepted contributor
+      final contributorResponse = await SupabaseConfig.client
+          .from('moment_contributors')
+          .select('moment_id')
+          .eq('user_id', userId)
+          .not('accepted_at', 'is', null); // Only accepted
+
+      final momentIds = (contributorResponse as List)
+          .map((c) => c['moment_id'] as String)
+          .toList();
+
+      if (momentIds.isEmpty) return [];
+
+      // Fetch the actual moments
+      final momentsResponse = await SupabaseConfig.client
+          .from('moments')
+          .select()
+          .inFilter('id', momentIds)
+          .order('created_at', ascending: false);
+
+      return (momentsResponse as List)
+          .map((m) => Moment.fromJson(m as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get shared moments: $e');
+    }
+  }
+
+  /// Check if user is a contributor (owner or contributor) to a moment
+  Future<MomentContributor?> getUserContribution(String momentId) async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) return null;
+
+      final response = await SupabaseConfig.client
+          .from('moment_contributors')
+          .select('*, profiles:user_id(*)')
+          .eq('moment_id', momentId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (response == null) return null;
+      return MomentContributor.fromJson(response);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Add current user as owner when creating a moment group
+  Future<void> addOwnerAsContributor(String momentId) async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      await SupabaseConfig.client
+          .from('moment_contributors')
+          .insert({
+            'moment_id': momentId,
+            'user_id': userId,
+            'role': 'owner',
+            'invited_at': DateTime.now().toIso8601String(),
+            'accepted_at': DateTime.now().toIso8601String(), // Owner is auto-accepted
+          });
+    } catch (e) {
+      // Ignore duplicate errors (owner already added)
+      print('Note: $e');
+    }
+  }
+
+  /// Stream contributors for real-time updates
+  Stream<List<MomentContributor>> watchContributors(String momentId) {
+    return SupabaseConfig.client
+        .from('moment_contributors')
+        .stream(primaryKey: ['id'])
+        .eq('moment_id', momentId)
+        .order('invited_at', ascending: true)
+        .asyncMap((data) async {
+          // Fetch profiles for each contributor
+          final contributors = <MomentContributor>[];
+          for (final json in data) {
+            final profileResponse = await SupabaseConfig.client
+                .from('profiles')
+                .select()
+                .eq('id', json['user_id'])
+                .maybeSingle();
+            
+            final enrichedJson = {
+              ...json,
+              'profiles': profileResponse,
+            };
+            contributors.add(MomentContributor.fromJson(enrichedJson));
+          }
+          return contributors;
+        });
+  }
+
+  /// Stream pending invitations for current user
+  Stream<List<MomentContributor>> watchPendingInvitations() {
+    final userId = SupabaseConfig.client.auth.currentUser?.id;
+    if (userId == null) return Stream.value([]);
+
+    return SupabaseConfig.client
+        .from('moment_contributors')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
+        .order('invited_at', ascending: false)
+        .asyncMap((data) async {
+          // Filter to pending only and fetch profiles
+          final pending = <MomentContributor>[];
+          for (final json in data) {
+            if (json['accepted_at'] != null) continue; // Skip accepted
+            
+            final profileResponse = await SupabaseConfig.client
+                .from('profiles')
+                .select()
+                .eq('id', json['user_id'])
+                .maybeSingle();
+            
+            final enrichedJson = {
+              ...json,
+              'profiles': profileResponse,
+            };
+            pending.add(MomentContributor.fromJson(enrichedJson));
+          }
+          return pending;
+        });
   }
 }

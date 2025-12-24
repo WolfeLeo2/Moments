@@ -206,6 +206,139 @@ final class SharedMomentsStreamProvider
 String _$sharedMomentsStreamHash() =>
     r'e7d6a3bbec33565c35bf903caac695a1e2601e80';
 
+/// Stream of pending moment invitations (realtime)
+
+@ProviderFor(pendingMomentInvitationsStream)
+const pendingMomentInvitationsStreamProvider =
+    PendingMomentInvitationsStreamProvider._();
+
+/// Stream of pending moment invitations (realtime)
+
+final class PendingMomentInvitationsStreamProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<MomentContributor>>,
+          List<MomentContributor>,
+          Stream<List<MomentContributor>>
+        >
+    with
+        $FutureModifier<List<MomentContributor>>,
+        $StreamProvider<List<MomentContributor>> {
+  /// Stream of pending moment invitations (realtime)
+  const PendingMomentInvitationsStreamProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'pendingMomentInvitationsStreamProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$pendingMomentInvitationsStreamHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<List<MomentContributor>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<MomentContributor>> create(Ref ref) {
+    return pendingMomentInvitationsStream(ref);
+  }
+}
+
+String _$pendingMomentInvitationsStreamHash() =>
+    r'ea94e663106843875fc7d166901bbb67105d17c2';
+
+/// Stream moments by group ID (realtime for moment details page)
+
+@ProviderFor(momentsByGroupStream)
+const momentsByGroupStreamProvider = MomentsByGroupStreamFamily._();
+
+/// Stream moments by group ID (realtime for moment details page)
+
+final class MomentsByGroupStreamProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<Moment>>,
+          List<Moment>,
+          Stream<List<Moment>>
+        >
+    with $FutureModifier<List<Moment>>, $StreamProvider<List<Moment>> {
+  /// Stream moments by group ID (realtime for moment details page)
+  const MomentsByGroupStreamProvider._({
+    required MomentsByGroupStreamFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'momentsByGroupStreamProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$momentsByGroupStreamHash();
+
+  @override
+  String toString() {
+    return r'momentsByGroupStreamProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<List<Moment>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<Moment>> create(Ref ref) {
+    final argument = this.argument as String;
+    return momentsByGroupStream(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is MomentsByGroupStreamProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$momentsByGroupStreamHash() =>
+    r'f81251f0c23557e405824d49c75fdbea95a8f8d1';
+
+/// Stream moments by group ID (realtime for moment details page)
+
+final class MomentsByGroupStreamFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<List<Moment>>, String> {
+  const MomentsByGroupStreamFamily._()
+    : super(
+        retry: null,
+        name: r'momentsByGroupStreamProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Stream moments by group ID (realtime for moment details page)
+
+  MomentsByGroupStreamProvider call(String groupId) =>
+      MomentsByGroupStreamProvider._(argument: groupId, from: this);
+
+  @override
+  String toString() => r'momentsByGroupStreamProvider';
+}
+
 /// Single moment details
 
 @ProviderFor(momentDetails)

@@ -10,9 +10,9 @@ class MomentGroup extends Equatable {
   final double latitude;
   final double longitude;
   final String? createdBy;
-  final bool isPublic; // If true, anyone can contribute
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool isPrivate; // Group-level privacy
 
   const MomentGroup({
     required this.id,
@@ -21,9 +21,9 @@ class MomentGroup extends Equatable {
     required this.latitude,
     required this.longitude,
     this.createdBy,
-    this.isPublic = false,
     required this.createdAt,
     required this.updatedAt,
+    this.isPrivate = false,
   });
 
   // Legacy getters for backward compatibility
@@ -85,9 +85,9 @@ class MomentGroup extends Equatable {
     latitude,
     longitude,
     createdBy,
-    isPublic,
     createdAt,
     updatedAt,
+    isPrivate,
   ];
 
   // Factory from database JSON (for server-side groups)
@@ -99,11 +99,11 @@ class MomentGroup extends Equatable {
       latitude: (json['center_latitude'] as num).toDouble(),
       longitude: (json['center_longitude'] as num).toDouble(),
       createdBy: json['created_by'] as String?,
-      isPublic: json['is_public'] as bool? ?? false,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(
         json['updated_at'] as String? ?? json['created_at'] as String,
       ),
+      isPrivate: json['is_private'] as bool? ?? false,
     );
   }
 
@@ -114,9 +114,9 @@ class MomentGroup extends Equatable {
       'center_latitude': latitude,
       'center_longitude': longitude,
       'created_by': createdBy,
-      'is_public': isPublic,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+      'is_private': isPrivate,
     };
   }
 
@@ -127,9 +127,9 @@ class MomentGroup extends Equatable {
     double? latitude,
     double? longitude,
     String? createdBy,
-    bool? isPublic,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? isPrivate,
   }) {
     return MomentGroup(
       id: id ?? this.id,
@@ -138,9 +138,9 @@ class MomentGroup extends Equatable {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       createdBy: createdBy ?? this.createdBy,
-      isPublic: isPublic ?? this.isPublic,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      isPrivate: isPrivate ?? this.isPrivate,
     );
   }
 }

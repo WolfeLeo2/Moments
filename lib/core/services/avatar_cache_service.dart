@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
@@ -314,6 +316,30 @@ class AvatarCacheService {
   String? getLocalPath(String url) {
     final urlHash = url.hashCode.toRadixString(16);
     return _localPathCache[urlHash];
+  }
+
+  /// Get the best available ImageProvider for an avatar
+  /// Returns FileImage if local file exists, otherwise CachedNetworkImageProvider
+  ImageProvider? getAvatarImageProvider(String? avatarUrl) {
+    if (avatarUrl == null || avatarUrl.isEmpty) return null;
+    
+    // Check for local cached file first
+    final localPath = getLocalPath(avatarUrl);
+    if (localPath != null) {
+      final file = File(localPath);
+      if (file.existsSync()) {
+        return FileImage(file);
+      }
+    }
+    
+    // Fall back to network with caching
+    return CachedNetworkImageProvider(avatarUrl);
+  }
+
+  /// Get ImageProvider for a user ID (fetches from cache or downloads)
+  ImageProvider? getAvatarImageProviderForUser(String userId) {
+    final url = getAvatarUrlSync(userId);
+    return getAvatarImageProvider(url);
   }
 
   /// Clear all caches

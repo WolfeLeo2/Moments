@@ -4,8 +4,9 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:motor/motor.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cached_network_image/cached_network_image.dart'; // Used for avatar providers
 import '../../../data/models/moment.dart';
+import '../../../data/models/moment_contributor.dart';
 import '../../../core/services/signed_url_cache.dart';
 import '../../../core/services/moment_storage_service.dart';
 import '../../../core/services/video_controller_manager.dart';
@@ -14,6 +15,10 @@ import '../../../core/services/avatar_cache_service.dart';
 import '../../../widgets/offline_image.dart';
 import '../../../widgets/offline_video.dart';
 import '../../../widgets/share_bottom_sheet.dart';
+import '../../../widgets/heart_animation.dart';
+import '../../../widgets/contributors_list.dart';
+import '../../../widgets/invite_contributors_sheet.dart';
+import '../../../data/repositories/moment_repository.dart';
 import 'dart:math' as math;
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
@@ -23,7 +28,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/providers/moments_providers.dart';
 import 'dart:io';
-import 'package:button_m3e/button_m3e.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Details page showing moments in a carousel with spring animations
@@ -59,6 +63,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   final Map<String, String> _localPaths = {}; // Local cached paths for images
   final Map<String, String> _localVideoPaths =
       {}; // Local cached paths for videos
+  bool _isSavingOffline = false;
+  bool _allSavedOffline = false;
 
   final List<double> _opacities = [];
   final List<SingleMotionController> _opacityControllers = [];
@@ -72,6 +78,21 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   final Map<String, String> _userAvatars = {}; // User ID -> avatar URL
   // Video controller manager for hybrid prewarm approach
   late final VideoControllerManager _videoManager;
+
+  // Photo heart state (double-tap to like)
+  final Map<int, int> _photoHeartCounts = {}; // photo index -> heart count
+  final Map<int, bool> _userHeartedPhoto = {}; // photo index -> user hearted
+  int? _showingHeartAtIndex; // Index of photo showing heart animation
+  bool _isLikeAnimation = true; // true = like, false = dislike
+
+  // Collaborative moments state
+  List<MomentContributor> _contributors = [];
+  bool _isOwner = false;
+  MomentContributor? _userContribution;
+
+  // Realtime moments list (starts with widget.moments, updates via stream)
+  late List<Moment> _moments;
+  String? _groupId;
 
   @override
   void dispose() {
@@ -87,9 +108,34 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     super.dispose();
   }
 
+  /// Reinitialize animation controllers when moments list changes
+  void _initializeAnimationControllers() {
+    // Dispose old controllers
+    for (var controller in _scaleControllers) {
+      controller.dispose();
+    }
+    for (var controller in _opacityControllers) {
+      controller.dispose();
+    }
+
+    // Clear old data
+    _scaleControllers.clear();
+    _opacityControllers.clear();
+    _scales.clear();
+    _opacities.clear();
+
+    // Setup new controllers for new moment count
+    _setupSpringAnimations();
+  }
+
   @override
   void initState() {
     super.initState();
+    // Initialize with widget moments, will be updated via stream
+    _moments = List.from(widget.moments);
+    _groupId = widget.moments.isNotEmpty
+        ? widget.moments.first.momentGroupId
+        : null;
     _currentPage = widget.initialPage;
     _videoManager = VideoControllerManager(
       onControllerReady: () {
@@ -98,8 +144,160 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     );
     _loadImageUrls();
     _loadUserAvatars();
+    _loadAllPhotoHeartStatuses();
+    _loadContributors();
     _setupHeaderAnimations();
     _setupSpringAnimations();
+  }
+
+  /// Load contributors for collaborative moment
+  Future<void> _loadContributors() async {
+    if (_moments.isEmpty) return;
+    final groupId = _moments.first.momentGroupId;
+    if (groupId == null) return;
+
+    try {
+      final repository = ref.read(momentRepositoryProvider);
+
+      final contributors = await repository.getContributors(groupId);
+      final userContribution = await repository.getUserContribution(groupId);
+
+      if (mounted) {
+        setState(() {
+          _contributors = contributors;
+          _userContribution = userContribution;
+          _isOwner = _userContribution?.isOwner ?? false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load contributors: $e');
+    }
+  }
+
+  /// Show invite contributors sheet
+  void _showInviteSheet() {
+    if (_moments.isEmpty) return;
+    final groupId = _moments.first.momentGroupId;
+    if (groupId == null) return;
+
+    HapticService.lightTap();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => InviteContributorsSheet(
+        momentId: groupId,
+        existingContributorIds: _contributors.map((c) => c.userId).toList(),
+        onInvite: (profiles) async {
+          final repository = ref.read(momentRepositoryProvider);
+          for (final profile in profiles) {
+            try {
+              await repository.inviteContributor(
+                momentId: groupId,
+                friendId: profile.id,
+              );
+            } catch (e) {
+              debugPrint('Failed to invite ${profile.username}: $e');
+            }
+          }
+          // Reload contributors
+          await _loadContributors();
+          if (mounted) {
+            context.showSuccessSnackBar(
+              'Invitation${profiles.length > 1 ? 's' : ''} sent!',
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  /// Show contributors modal
+  void _showContributorsModal() {
+    HapticService.lightTap();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ContributorsList(
+              contributors: _contributors,
+              isOwner: _isOwner,
+              onInvite: () {
+                Navigator.pop(context);
+                _showInviteSheet();
+              },
+              onRemove: (contributor) async {
+                Navigator.pop(context);
+                await _removeContributor(contributor);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Remove a contributor
+  Future<void> _removeContributor(MomentContributor contributor) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove contributor?'),
+        content: Text(
+          'Remove ${contributor.displayName ?? contributor.username ?? 'this user'} from this moment?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final repository = ref.read(momentRepositoryProvider);
+      await repository.removeContributor(contributor.id);
+      await _loadContributors();
+      if (mounted) {
+        context.showSuccessSnackBar('Contributor removed');
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Failed to remove contributor');
+      }
+    }
+  }
+
+  /// Load heart status for all photos in the carousel
+  void _loadAllPhotoHeartStatuses() {
+    for (int i = 0; i < _moments.length; i++) {
+      _loadPhotoHeartStatus(i);
+    }
   }
 
   void _setupHeaderAnimations() {
@@ -144,7 +342,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
   void _setupSpringAnimations() {
     // Create Motor spring animations for each card using Material Design 3 tokens
-    for (int i = 0; i < widget.moments.length; i++) {
+    for (int i = 0; i < _moments.length; i++) {
       // Initialize values
       _scales.add(0.85);
       _opacities.add(0.0);
@@ -226,7 +424,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
   Future<void> _loadImageUrls() async {
     // First, load local cached images and videos
-    for (var moment in widget.moments) {
+    for (var moment in _moments) {
       if (moment.mediaType == 'video') {
         // Load local video path
         final localVideoPath = await _storage.getLocalMediaPath(moment.id);
@@ -259,7 +457,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     // Pre-populate with existing imageUrls (fallback)
     if (mounted) {
       setState(() {
-        for (var moment in widget.moments) {
+        for (var moment in _moments) {
           if (moment.imageUrl != null) {
             _imageUrls[moment.id] = moment.imageUrl!;
           }
@@ -270,7 +468,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     // Collect paths to load - use thumbnails for videos, media_path for images
     final pathsToLoad = <String>[];
 
-    for (var moment in widget.moments) {
+    for (var moment in _moments) {
       if (moment.mediaType == 'video') {
         // For videos, load thumbnail for preview
         if (moment.thumbnailPath != null && moment.thumbnailPath!.isNotEmpty) {
@@ -295,7 +493,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
       if (mounted) {
         setState(() {
-          for (var moment in widget.moments) {
+          for (var moment in _moments) {
             if (moment.mediaType == 'video') {
               // Store video URL for playback
               if (moment.mediaPath != null) {
@@ -321,6 +519,9 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
         // Prewarm video controllers for current ± 1 window
         _prewarmVideoControllers();
+
+        // Check if all saved offline
+        _checkAllSavedOffline();
       }
     } catch (e) {
       debugPrint('Error loading signed URLs: $e');
@@ -332,7 +533,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     // Get indices in the ±1 window
     final indices = <int>[];
     for (int i = _currentPage - 1; i <= _currentPage + 1; i++) {
-      if (i >= 0 && i < widget.moments.length) {
+      if (i >= 0 && i < _moments.length) {
         indices.add(i);
       }
     }
@@ -342,7 +543,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     final videoInfoMap = <String, VideoInfo>{};
 
     for (final i in indices) {
-      final moment = widget.moments[i];
+      final moment = _moments[i];
       if (moment.mediaType != 'video') continue;
 
       momentIds.add(moment.id);
@@ -364,7 +565,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   }
 
   Future<void> _cacheMediaInBackground(Map<String, String> urls) async {
-    for (var moment in widget.moments) {
+    for (var moment in _moments) {
       if (moment.mediaType == 'video') {
         // Cache video if not already cached
         if (!_localVideoPaths.containsKey(moment.id)) {
@@ -412,10 +613,31 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     }
   }
 
-  Future<void> _handleAddPhotos() async {
-    if (widget.moments.isEmpty) return;
+  /// Check if user can add photos (owner or accepted contributor)
+  bool get _canAddPhotos {
+    // Owner can always add
+    if (_isOwner) return true;
+    // Accepted contributors can add
+    if (_userContribution != null && _userContribution!.hasAccepted)
+      return true;
+    // Check if user is the moment creator (fallback for moments without contributor records)
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (_moments.isNotEmpty && _moments.first.userId == userId) return true;
+    return false;
+  }
 
-    final firstMoment = widget.moments.first;
+  Future<void> _handleAddPhotos() async {
+    if (_moments.isEmpty) return;
+
+    // Check permission
+    if (!_canAddPhotos) {
+      context.showErrorSnackBar(
+        'Only contributors can add photos to this moment.',
+      );
+      return;
+    }
+
+    final firstMoment = _moments.first;
     final groupId = firstMoment.momentGroupId;
 
     if (groupId == null) {
@@ -468,7 +690,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
   Future<void> _loadUserAvatars() async {
     // Get unique user IDs
-    final userIds = widget.moments
+    final userIds = _moments
         .where((m) => m.userId != null)
         .map((m) => m.userId!)
         .toSet()
@@ -503,10 +725,76 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     }
   }
 
-  String _getDateRange() {
-    if (widget.moments.isEmpty) return '';
+  /// Load heart status for a photo at given index
+  Future<void> _loadPhotoHeartStatus(int photoIndex) async {
+    if (_moments.isEmpty || photoIndex >= _moments.length) return;
 
-    final dates = widget.moments.map((m) => m.timestamp).toList()..sort();
+    // Use the actual moment ID for this photo
+    final momentId = _moments[photoIndex].id;
+
+    try {
+      final repo = MomentRepository();
+      final count = await repo.getPhotoHeartCount(momentId, photoIndex);
+      final userHearted = await repo.hasUserHeartedPhoto(momentId, photoIndex);
+
+      if (mounted) {
+        setState(() {
+          _photoHeartCounts[photoIndex] = count;
+          _userHeartedPhoto[photoIndex] = userHearted;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading photo heart status: $e');
+    }
+  }
+
+  /// Handle double-tap to heart a photo
+  Future<void> _handleDoubleTapHeart(int photoIndex) async {
+    if (_moments.isEmpty || photoIndex >= _moments.length) return;
+
+    // Use the actual moment ID for this photo
+    final momentId = _moments[photoIndex].id;
+
+    // Determine if this is a like or unlike action
+    final isUnliking = _userHeartedPhoto[photoIndex] == true;
+
+    // Show appropriate animation immediately for responsiveness
+    setState(() {
+      _showingHeartAtIndex = photoIndex;
+      _isLikeAnimation =
+          !isUnliking; // like animation if adding, dislike if removing
+    });
+    HapticService.mediumTap();
+
+    // Hide animation after delay
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      if (mounted) {
+        setState(() {
+          _showingHeartAtIndex = null;
+        });
+      }
+    });
+
+    try {
+      final repo = MomentRepository();
+      final wasAdded = await repo.togglePhotoHeart(momentId, photoIndex);
+
+      if (mounted) {
+        setState(() {
+          _userHeartedPhoto[photoIndex] = wasAdded;
+          _photoHeartCounts[photoIndex] =
+              (_photoHeartCounts[photoIndex] ?? 0) + (wasAdded ? 1 : -1);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error toggling photo heart: $e');
+    }
+  }
+
+  String _getDateRange() {
+    if (_moments.isEmpty) return '';
+
+    final dates = _moments.map((m) => m.timestamp).toList()..sort();
 
     final earliest = dates.first;
     final latest = dates.last;
@@ -541,7 +829,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
   List<String> _getUniqueContributorIds() {
     final Set<String> contributorIds = {};
-    for (var moment in widget.moments) {
+    for (var moment in _moments) {
       if (moment.userId != null) {
         contributorIds.add(moment.userId!);
       }
@@ -645,27 +933,348 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     );
   }
 
+  /// Check if all moments are saved offline
+  void _checkAllSavedOffline() {
+    final allSaved = _moments.every((m) {
+      if (m.mediaType == 'video') {
+        return _localVideoPaths.containsKey(m.id) &&
+            _localPaths.containsKey(m.id);
+      }
+      return _localPaths.containsKey(m.id);
+    });
+    if (mounted && allSaved != _allSavedOffline) {
+      setState(() => _allSavedOffline = allSaved);
+    }
+  }
+
+  /// Save all moments in this group offline
+  Future<void> _saveAllOffline() async {
+    if (_isSavingOffline || _allSavedOffline) return;
+
+    setState(() => _isSavingOffline = true);
+    HapticService.selectionClick();
+
+    int savedCount = 0;
+    int totalToSave = 0;
+
+    try {
+      for (var moment in _moments) {
+        // Skip if already saved
+        if (moment.mediaType == 'video') {
+          if (_localVideoPaths.containsKey(moment.id) &&
+              _localPaths.containsKey(moment.id)) {
+            continue;
+          }
+        } else {
+          if (_localPaths.containsKey(moment.id)) continue;
+        }
+
+        totalToSave++;
+        final url = _imageUrls[moment.id];
+        if (url == null) continue;
+
+        if (moment.mediaType == 'video') {
+          // Save video
+          final videoPath = await _storage.cacheMedia(moment.id, url);
+          if (videoPath != null && mounted) {
+            setState(() => _localVideoPaths[moment.id] = videoPath);
+            savedCount++;
+          }
+          // Save thumbnail
+          if (moment.thumbnailPath != null) {
+            final thumbUrl = await SignedUrlCache.getSignedUrl(
+              moment.thumbnailPath!,
+            );
+            if (thumbUrl != null) {
+              final thumbPath = await _storage.cacheMedia(
+                moment.id,
+                thumbUrl,
+                isThumbnail: true,
+              );
+              if (thumbPath != null && mounted) {
+                setState(() => _localPaths[moment.id] = thumbPath);
+              }
+            }
+          }
+        } else {
+          // Save image
+          final localPath = await _storage.cacheMedia(moment.id, url);
+          if (localPath != null && mounted) {
+            setState(() => _localPaths[moment.id] = localPath);
+            savedCount++;
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _isSavingOffline = false;
+          _allSavedOffline = true;
+        });
+        HapticService.success();
+        if (savedCount > 0) {
+          context.showSuccessSnackBar(
+            'Saved $savedCount ${savedCount == 1 ? "moment" : "moments"} offline!',
+          );
+        } else if (totalToSave == 0) {
+          context.showSuccessSnackBar('All moments already saved offline!');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSavingOffline = false);
+        HapticService.error();
+        context.showErrorSnackBar('Failed to save offline: $e');
+      }
+    }
+  }
+
+  /// Show popup menu for moment actions (share, delete)
+  void _showMomentActionsMenu(
+    Moment moment,
+    String? imageUrl,
+    Offset position,
+  ) {
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final isOwner = _isOwnMoment(moment);
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromCenter(center: position, width: 0, height: 0),
+        Offset.zero & overlay.size,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        side: BorderSide(
+          color: AppTheme.borderBlack,
+          width: AppTheme.borderMedium,
+        ),
+      ),
+      color: AppTheme.cardWhite,
+      elevation: 8,
+      items: [
+        PopupMenuItem<String>(
+          value: 'share',
+          child: Row(
+            children: [
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedShare08,
+                size: 20,
+                color: AppTheme.textDark,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Share',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppTheme.textDark,
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Privacy toggle option (only for owner)
+        if (isOwner)
+          PopupMenuItem<String>(
+            value: 'toggle_privacy',
+            child: Row(
+              children: [
+                HugeIcon(
+                  icon: moment.isPrivate
+                      ? HugeIcons.strokeRoundedSquareUnlock02
+                      : HugeIcons.strokeRoundedSquareLock02,
+                  size: 20,
+                  color: moment.isPrivate
+                      ? AppTheme.vibrantGreen
+                      : AppTheme.emergencyRed,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  moment.isPrivate ? 'Make Visible' : 'Make Private',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: moment.isPrivate
+                        ? AppTheme.vibrantGreen
+                        : AppTheme.emergencyRed,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (isOwner)
+          PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedDelete02,
+                  size: 20,
+                  color: Colors.red,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Delete',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    ).then((value) {
+      if (value == 'share') {
+        _showShareSheet(moment, imageUrl);
+      } else if (value == 'toggle_privacy') {
+        _toggleMomentPrivacy(moment, !moment.isPrivate);
+      } else if (value == 'delete') {
+        _showDeleteDialog(moment);
+      }
+    });
+  }
+
+  /// Check if current user owns the moment
+  bool _isOwnMoment(Moment moment) {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    return currentUserId != null && moment.userId == currentUserId;
+  }
+
+  /// Delete a moment from Supabase storage, local storage, and database
+  Future<void> _deleteMomentCompletely(Moment moment) async {
+    final supabase = Supabase.instance.client;
+
+    // 1. Delete media from Supabase storage
+    if (moment.mediaPath != null && moment.mediaPath!.isNotEmpty) {
+      try {
+        await supabase.storage.from('moments').remove([moment.mediaPath!]);
+      } catch (e) {
+        debugPrint('Failed to delete media from storage: $e');
+        // Continue even if storage delete fails
+      }
+    }
+
+    // 2. Delete thumbnail from Supabase storage (for videos)
+    if (moment.thumbnailPath != null && moment.thumbnailPath!.isNotEmpty) {
+      try {
+        await supabase.storage.from('moments').remove([moment.thumbnailPath!]);
+      } catch (e) {
+        debugPrint('Failed to delete thumbnail from storage: $e');
+      }
+    }
+
+    // 3. Delete from local SQLite storage and cached media files
+    try {
+      await _storage.deleteMoment(moment.id);
+    } catch (e) {
+      debugPrint('Failed to delete from local storage: $e');
+    }
+
+    // 4. Delete from Supabase database
+    await supabase.from('moments').delete().eq('id', moment.id);
+
+    // 5. Check if moment group is now empty and delete it
+    if (moment.momentGroupId != null) {
+      final remainingMoments = await supabase
+          .from('moments')
+          .select('id')
+          .eq('moment_group_id', moment.momentGroupId!)
+          .limit(1);
+
+      if ((remainingMoments as List).isEmpty) {
+        try {
+          await supabase
+              .from('moment_groups')
+              .delete()
+              .eq('id', moment.momentGroupId!);
+        } catch (e) {
+          debugPrint('Failed to delete empty moment group: $e');
+        }
+      }
+    }
+  }
+
   Future<void> _showDeleteDialog(Moment moment) async {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+
+    // Check if user owns this moment
+    if (!_isOwnMoment(moment)) {
+      if (mounted) {
+        HapticService.error();
+        context.showErrorSnackBar('You can only delete your own moments');
+      }
+      return;
+    }
+
+    // Check how many moments in this group belong to the current user
+    final ownMoments = _moments
+        .where((m) => m.userId == currentUserId)
+        .toList();
+    final hasMultipleOwnMoments = ownMoments.length > 1;
+
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Moment'),
-        content: const Text('What would you like to delete?'),
+        backgroundColor: AppTheme.cardWhite,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          side: BorderSide(
+            color: AppTheme.borderBlack,
+            width: AppTheme.borderMedium,
+          ),
+        ),
+        title: Text(
+          'Delete Moment',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textDark,
+          ),
+        ),
+        content: Text(
+          hasMultipleOwnMoments
+              ? 'Delete this moment or all your moments at this location?'
+              : 'Are you sure you want to delete this moment? This action cannot be undone.',
+          style: GoogleFonts.inter(color: AppTheme.textGray),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, 'cancel'),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textGray,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, 'delete'),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: Text(
+              'Delete',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                color: Colors.red,
+              ),
+            ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'delete_all'),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete All'),
-          ),
+          if (hasMultipleOwnMoments)
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'delete_all'),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: Text(
+                'Delete All Mine',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.red.shade700,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -673,52 +1282,333 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     if (result == null || result == 'cancel' || !mounted) return;
 
     try {
+      HapticService.mediumTap();
+
       if (result == 'delete') {
-        // Delete single moment
-        await Supabase.instance.client
-            .from('moments')
-            .delete()
-            .eq('id', moment.id);
+        // Delete single moment completely
+        await _deleteMomentCompletely(moment);
 
         if (mounted) {
           setState(() {
-            widget.moments.remove(moment);
+            _moments.remove(moment);
+            _localPaths.remove(moment.id);
+            _localVideoPaths.remove(moment.id);
+            _imageUrls.remove(moment.id);
           });
 
-          if (widget.moments.isEmpty) {
+          if (_moments.isEmpty) {
+            HapticService.success();
             Navigator.pop(context);
           } else {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('Moment deleted')));
+            HapticService.success();
+            context.showSuccessSnackBar('Moment deleted');
           }
         }
       } else if (result == 'delete_all') {
-        // Delete all moments at this location
-        final momentIds = widget.moments.map((m) => m.id).toList();
-        await Supabase.instance.client
-            .from('moments')
-            .delete()
-            .inFilter('id', momentIds);
+        // Delete all moments owned by current user at this location
+        for (final m in ownMoments) {
+          await _deleteMomentCompletely(m);
+        }
 
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('All moments deleted')));
-          Navigator.pop(context);
+          setState(() {
+            for (final m in ownMoments) {
+              _moments.remove(m);
+              _localPaths.remove(m.id);
+              _localVideoPaths.remove(m.id);
+              _imageUrls.remove(m.id);
+            }
+          });
+
+          if (_moments.isEmpty) {
+            HapticService.success();
+            context.showSuccessSnackBar('All your moments deleted');
+            Navigator.pop(context);
+          } else {
+            HapticService.success();
+            context.showSuccessSnackBar('${ownMoments.length} moments deleted');
+          }
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+        HapticService.error();
+        context.showErrorSnackBar('Failed to delete: $e');
       }
     }
   }
 
+  /// Show privacy dropdown for a moment - allows toggling visibility
+  void _showPrivacyDropdown(BuildContext context, Moment moment, int index) {
+    HapticService.lightTap();
+
+    final isOwner = _isOwnMoment(moment);
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+
+    // Get position of the privacy badge (top left of card)
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardLeft =
+        (screenWidth - (screenWidth * 0.8)) /
+        2; // Approximate carousel card position
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(cardLeft + 16, 180, 100, 40),
+        Offset.zero & overlay.size,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        side: BorderSide(
+          color: AppTheme.borderBlack,
+          width: AppTheme.borderMedium,
+        ),
+      ),
+      color: AppTheme.cardWhite,
+      elevation: 8,
+      items: [
+        PopupMenuItem<String>(
+          enabled: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedSquareLock02,
+                    size: 18,
+                    color: AppTheme.emergencyRed,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Private Photo',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textDark,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Only visible to you',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AppTheme.textGray,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (isOwner)
+          PopupMenuItem<String>(
+            value: 'make_public',
+            child: Row(
+              children: [
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedSquareUnlock02,
+                  size: 20,
+                  color: AppTheme.vibrantGreen,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Make Visible',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.vibrantGreen,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (!isOwner)
+          PopupMenuItem<String>(
+            enabled: false,
+            child: Text(
+              'Only the owner can change this',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                color: AppTheme.textGray,
+              ),
+            ),
+          ),
+      ],
+    ).then((value) {
+      if (value == 'make_public') {
+        _toggleMomentPrivacy(moment, false);
+      }
+    });
+  }
+
+  /// Toggle moment privacy (make public/private)
+  Future<void> _toggleMomentPrivacy(Moment moment, bool isPrivate) async {
+    if (!_isOwnMoment(moment)) {
+      context.showErrorSnackBar(
+        'You can only change privacy on your own photos',
+      );
+      return;
+    }
+
+    try {
+      HapticService.mediumTap();
+
+      await Supabase.instance.client
+          .from('moments')
+          .update({'is_private': isPrivate})
+          .eq('id', moment.id);
+
+      // Update local state
+      setState(() {
+        final index = _moments.indexWhere((m) => m.id == moment.id);
+        if (index != -1) {
+          _moments[index] = moment.copyWith(isPrivate: isPrivate);
+        }
+      });
+
+      if (mounted) {
+        HapticService.success();
+        context.showSuccessSnackBar(
+          isPrivate ? 'Photo is now private' : 'Photo is now visible to others',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        HapticService.error();
+        context.showErrorSnackBar('Failed to update privacy: $e');
+      }
+    }
+  }
+
+  /// Show privacy menu from title long-press
+  void _showTitlePrivacyMenu() {
+    if (_moments.isEmpty) return;
+
+    final currentMoment = _moments[_currentPage];
+    final isOwner = _isOwnMoment(currentMoment);
+
+    if (!isOwner) {
+      context.showErrorSnackBar(
+        'You can only change privacy on your own photos',
+      );
+      return;
+    }
+
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(screenWidth / 2 - 75, 120, 150, 40),
+        Offset.zero & overlay.size,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        side: BorderSide(
+          color: AppTheme.borderBlack,
+          width: AppTheme.borderMedium,
+        ),
+      ),
+      color: AppTheme.cardWhite,
+      elevation: 8,
+      items: [
+        PopupMenuItem<String>(
+          enabled: false,
+          child: Text(
+            'Photo Privacy',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textGray,
+            ),
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'toggle',
+          child: Row(
+            children: [
+              HugeIcon(
+                icon: currentMoment.isPrivate
+                    ? HugeIcons.strokeRoundedSquareUnlock02
+                    : HugeIcons.strokeRoundedSquareLock02,
+                size: 20,
+                color: currentMoment.isPrivate
+                    ? AppTheme.vibrantGreen
+                    : AppTheme.emergencyRed,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                currentMoment.isPrivate ? 'Make Visible' : 'Make Private',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: currentMoment.isPrivate
+                      ? AppTheme.vibrantGreen
+                      : AppTheme.emergencyRed,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'toggle') {
+        _toggleMomentPrivacy(currentMoment, !currentMoment.isPrivate);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Watch for realtime updates if we have a group ID
+    if (_groupId != null) {
+      final momentsStream = ref.watch(momentsByGroupStreamProvider(_groupId!));
+      momentsStream.whenData((updatedMoments) {
+        // Check if moments actually changed (by comparing IDs)
+        final currentIds = _moments.map((m) => m.id).toSet();
+        final updatedIds = updatedMoments.map((m) => m.id).toSet();
+
+        if (!currentIds.containsAll(updatedIds) ||
+            !updatedIds.containsAll(currentIds)) {
+          // Moments list changed - update state
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              // Find deleted moment IDs to clean up their cached data
+              final deletedIds = currentIds.difference(updatedIds);
+
+              setState(() {
+                // Clean up cached data for deleted moments
+                for (final deletedId in deletedIds) {
+                  _imageUrls.remove(deletedId);
+                  _localPaths.remove(deletedId);
+                  _localVideoPaths.remove(deletedId);
+                }
+
+                _moments = updatedMoments;
+
+                // Adjust current page if needed
+                if (_currentPage >= _moments.length && _moments.isNotEmpty) {
+                  _currentPage = _moments.length - 1;
+                }
+              });
+
+              // Reinitialize animation controllers for new count
+              _initializeAnimationControllers();
+              _loadAllPhotoHeartStatuses();
+
+              // Load URLs for any new moments
+              _loadImageUrls();
+            }
+          });
+        }
+      });
+    }
+
     // Get screen height for proper sizing
     final screenHeight = MediaQuery.of(context).size.height;
     final availableHeight =
@@ -728,21 +1618,71 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBeige,
-      floatingActionButton: FloatingActionButton(
-        onPressed: _isUploading ? null : _handleAddPhotos,
-        backgroundColor: Colors.black,
-        child: _isUploading
-            ? const CircularProgressIndicator(color: Colors.white)
-            : const Icon(Icons.add_photo_alternate, color: Colors.white),
-      ),
+      // Only show FAB if user can add photos (owner or accepted contributor)
+      floatingActionButton: _canAddPhotos
+          ? Container(
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                border: Border.all(
+                  color: AppTheme.borderBlack,
+                  width: AppTheme.borderMedium,
+                ),
+                boxShadow: AppTheme.brutalShadow,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _isUploading ? null : _handleAddPhotos,
+                  borderRadius: BorderRadius.circular(
+                    AppTheme.radiusMedium - 2,
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 12.h,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _isUploading
+                            ? SizedBox(
+                                width: 20.w,
+                                height: 20.w,
+                                child: const CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : HugeIcon(
+                                icon: HugeIcons.strokeRoundedImageAdd02,
+                                size: 20.sp,
+                                color: Colors.white,
+                              ),
+                        SizedBox(width: 8.w),
+                        Text(
+                          _isUploading ? 'Adding...' : 'Add to Moment',
+                          style: GoogleFonts.inter(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : null,
       body: SafeArea(
         child: Column(
           children: [
-            // Animated header with spring animation
+            // Animated header with spring animation - clamp scale to prevent RRect geometry errors
             Transform.scale(
-              scale: _headerScale,
+              scale: _headerScale.clamp(0.01, 1.0),
               child: Opacity(
-                opacity: _headerOpacity,
+                opacity: _headerOpacity.clamp(0.0, 1.0),
                 child: Column(
                   children: [
                     // AppBar with back button and centered location
@@ -762,71 +1702,114 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                             onPressed: () => Navigator.pop(context),
                           ),
                           Expanded(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (widget.moments.isNotEmpty &&
-                                        widget.moments.first.isPrivate)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: 6.0,
+                            child: GestureDetector(
+                              onLongPress: () {
+                                if (_moments.isNotEmpty &&
+                                    _isOwnMoment(_moments[_currentPage])) {
+                                  HapticService.mediumTap();
+                                  _showTitlePrivacyMenu();
+                                }
+                              },
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // Show lock icon for current moment's privacy state
+                                      if (_moments.isNotEmpty &&
+                                          _moments[_currentPage].isPrivate)
+                                        GestureDetector(
+                                          onTap: () => _showPrivacyDropdown(
+                                            context,
+                                            _moments[_currentPage],
+                                            _currentPage,
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.only(
+                                              right: 6.0,
+                                            ),
+                                            child: HugeIcon(
+                                              icon: HugeIcons
+                                                  .strokeRoundedSquareLock02,
+                                              size: 20,
+                                              color: AppTheme.emergencyRed,
+                                            ),
+                                          ),
                                         ),
-                                        child: HugeIcon(
-                                          icon: HugeIcons
-                                              .strokeRoundedSquareLock02,
-                                          size: 20,
-                                          color: Colors.black,
+                                      Flexible(
+                                        child: Text(
+                                          _moments.isNotEmpty
+                                              ? _moments.first.title
+                                                    .toUpperCase()
+                                              : 'MOMENT',
+                                          style: GoogleFonts.bebasNeue(
+                                            fontSize: 28.sp,
+                                            letterSpacing: 1.5.sp,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.black,
+                                            height: 1.2.h,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
-                                    Flexible(
-                                      child: Text(
-                                        widget.moments.isNotEmpty
-                                            ? widget.moments.first.title
-                                                  .toUpperCase()
-                                            : 'MOMENT',
-                                        style: GoogleFonts.bebasNeue(
-                                          fontSize: 28.sp,
-                                          letterSpacing: 1.5.sp,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.black,
-                                          height: 1.2.h,
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const HugeIcon(
+                                        icon: HugeIcons.strokeRoundedLocation03,
+                                        size: 12,
+                                        color: AppTheme.primaryBlue,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        widget.locationName,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: AppTheme.primaryBlue,
+                                          letterSpacing: 1,
                                         ),
                                         textAlign: TextAlign.center,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const HugeIcon(
-                                      icon: HugeIcons.strokeRoundedLocation03,
-                                      size: 12,
-                                      color: AppTheme.primaryBlue,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      widget.locationName,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        color: AppTheme.primaryBlue,
-                                        letterSpacing: 1,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ),
-                              ],
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 48), // Balance the back button
+                          // Save offline button
+                          IconButton(
+                            onPressed: _isSavingOffline
+                                ? null
+                                : _saveAllOffline,
+                            icon: _isSavingOffline
+                                ? SizedBox(
+                                    width: 24.w,
+                                    height: 24.w,
+                                    child: const CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppTheme.primaryBlue,
+                                    ),
+                                  )
+                                : HugeIcon(
+                                    icon: _allSavedOffline
+                                        ? HugeIcons.strokeRoundedDownload04
+                                        : HugeIcons.strokeRoundedDownload02,
+                                    size: 24.sp,
+                                    color: _allSavedOffline
+                                        ? Colors.green
+                                        : AppTheme.textDark,
+                                  ),
+                            tooltip: _allSavedOffline
+                                ? 'Saved offline'
+                                : 'Save offline',
+                          ),
                         ],
                       ),
                     ),
@@ -838,7 +1821,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                         vertical: 4.0,
                       ),
                       child: Text(
-                        '${widget.moments.length} ${widget.moments.length == 1 ? 'photo' : 'photos'}  •  ${_getDateRange()}',
+                        '${_moments.length} ${_moments.length == 1 ? 'photo' : 'photos'}  •  ${_getDateRange()}',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.black54,
@@ -848,13 +1831,68 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                       ),
                     ),
 
-                    // Avatar stack of contributors
-                    if (_getAvatarsToDisplay().isNotEmpty)
+                    // Avatar stack of contributors (tappable to show full list)
+                    // Always show for owners so they can invite friends
+                    if (_getAvatarsToDisplay().isNotEmpty ||
+                        _contributors.isNotEmpty ||
+                        _isOwner)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [_buildAvatarStack()],
+                        child: GestureDetector(
+                          onTap: _showContributorsModal,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (_getAvatarsToDisplay().isNotEmpty)
+                                _buildAvatarStack()
+                              else if (_isOwner)
+                                // Show invite prompt for owners with no contributors yet
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primaryBlue.withOpacity(
+                                      0.1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: AppTheme.primaryBlue.withOpacity(
+                                        0.3,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const HugeIcon(
+                                        icon: HugeIcons.strokeRoundedUserAdd01,
+                                        size: 16,
+                                        color: AppTheme.primaryBlue,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Invite friends',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppTheme.primaryBlue,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              if (_contributors.length > 1) ...[
+                                const SizedBox(width: 8),
+                                const HugeIcon(
+                                  icon: HugeIcons.strokeRoundedArrowRight01,
+                                  size: 16,
+                                  color: Colors.grey,
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                       ),
                   ],
@@ -866,7 +1904,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             SizedBox(
               height: availableHeight - 270.h, // Subtract header/avatar space
               child: CarouselSlider.builder(
-                itemCount: widget.moments.length,
+                itemCount: _moments.length,
                 options: CarouselOptions(
                   height: availableHeight - 200.h,
                   viewportFraction: 0.7, // 70% viewport for nice peek effect
@@ -882,22 +1920,28 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                   },
                 ),
                 itemBuilder: (context, index, realIndex) {
-                  final moment = widget.moments[index];
+                  final moment = _moments[index];
                   final imageUrl = _imageUrls[moment.id];
 
-                  // Get animation values
-                  final scale = index < _scales.length ? _scales[index] : 0.85;
+                  // Get animation values - clamp scale to prevent RRect geometry errors
+                  final scale = (index < _scales.length ? _scales[index] : 0.85)
+                      .clamp(0.01, 1.0);
                   final opacity = index < _opacities.length
-                      ? _opacities[index]
+                      ? _opacities[index].clamp(0.0, 1.0)
                       : 0.0;
 
                   // Slight rotation for natural feel
                   final rotation = (((index * 37) % 5) - 2) * 0.5;
 
                   return GestureDetector(
-                    onLongPress: () {
+                    onDoubleTap: () => _handleDoubleTapHeart(index),
+                    onLongPressStart: (details) {
                       HapticService.longPress();
-                      _showDeleteDialog(moment);
+                      _showMomentActionsMenu(
+                        moment,
+                        imageUrl,
+                        details.globalPosition,
+                      );
                     },
                     child: Transform.scale(
                       scale: scale,
@@ -941,9 +1985,165 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                         borderRadius: BorderRadius.circular(
                                           8.r,
                                         ),
-                                        child: _buildMediaContent(
-                                          moment,
-                                          imageUrl,
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            _buildMediaContent(
+                                              moment,
+                                              imageUrl,
+                                            ),
+                                            // Privacy lock indicator (top left) - tappable to unlock
+                                            if (moment.isPrivate)
+                                              Positioned(
+                                                top: 8,
+                                                left: 8,
+                                                child: GestureDetector(
+                                                  onTap: () =>
+                                                      _showPrivacyDropdown(
+                                                        context,
+                                                        moment,
+                                                        index,
+                                                      ),
+                                                  child: Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 10,
+                                                          vertical: 6,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: AppTheme
+                                                          .emergencyRed
+                                                          .withOpacity(0.9),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                      border: Border.all(
+                                                        color: Colors.white
+                                                            .withOpacity(0.3),
+                                                        width: 1,
+                                                      ),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        const HugeIcon(
+                                                          icon: HugeIcons
+                                                              .strokeRoundedSquareLock02,
+                                                          size: 14,
+                                                          color: Colors.white,
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 4,
+                                                        ),
+                                                        Text(
+                                                          'Private',
+                                                          style:
+                                                              GoogleFonts.inter(
+                                                                fontSize: 11,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: Colors
+                                                                    .white,
+                                                              ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            // Heart/Dislike animation overlay (dotLottie)
+                                            if (_showingHeartAtIndex == index)
+                                              Center(
+                                                child: HeartAnimation(
+                                                  size: 120,
+                                                  isLike: _isLikeAnimation,
+                                                ),
+                                              ),
+                                            // Heart count badge (bottom right of image)
+                                            // Only show when count > 1 (not for single heart)
+                                            if ((_photoHeartCounts[index] ??
+                                                    0) >
+                                                1)
+                                              Positioned(
+                                                bottom: 8,
+                                                right: 8,
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 4,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black
+                                                        .withOpacity(0.6),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        _userHeartedPhoto[index] ==
+                                                                true
+                                                            ? Icons.favorite
+                                                            : Icons
+                                                                  .favorite_border,
+                                                        size: 14,
+                                                        color:
+                                                            _userHeartedPhoto[index] ==
+                                                                true
+                                                            ? Colors.red
+                                                            : Colors.white,
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Text(
+                                                        '${_photoHeartCounts[index]}',
+                                                        style:
+                                                            GoogleFonts.inter(
+                                                              fontSize: 12,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              color:
+                                                                  Colors.white,
+                                                            ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            // Show heart icon only when user hearted but count is 1
+                                            if ((_photoHeartCounts[index] ??
+                                                        0) ==
+                                                    1 &&
+                                                _userHeartedPhoto[index] ==
+                                                    true)
+                                              Positioned(
+                                                bottom: 8,
+                                                right: 8,
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(
+                                                    6,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black
+                                                        .withOpacity(0.6),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.favorite,
+                                                    size: 14,
+                                                    color: Colors.red,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -972,37 +2172,23 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         const SizedBox(height: 4),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              _formatDate(moment.timestamp),
-                                              style: TextStyle(
-                                                fontSize: 12.sp,
-                                                color: AppTheme.textGray,
-                                              ),
+                                        Text(
+                                          _formatDate(moment.timestamp),
+                                          style: TextStyle(
+                                            fontSize: 12.sp,
+                                            color: AppTheme.textGray,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Double-tap to ❤️  •  Hold to share',
+                                          style: TextStyle(
+                                            fontSize: 10.sp,
+                                            color: AppTheme.textGray.withValues(
+                                              alpha: 0.6,
                                             ),
-                                            const SizedBox(width: 12),
-                                            GestureDetector(
-                                              onTap: () => _showShareSheet(
-                                                moment,
-                                                imageUrl,
-                                              ),
-                                              child: ButtonM3E(
-                                                label: const Text('Share'),
-                                                style: ButtonM3EStyle.filled,
-                                                size: ButtonM3ESize.xs,
-                                                icon: const Icon(Icons.share),
-                                                shape: ButtonM3EShape.round,
-                                                onPressed: () =>
-                                                    _showShareSheet(
-                                                      moment,
-                                                      imageUrl,
-                                                    ),
-                                              ),
-                                            ),
-                                          ],
+                                            fontStyle: FontStyle.italic,
+                                          ),
                                         ),
                                       ],
                                     ),

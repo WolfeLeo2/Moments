@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "732733341730",
+    "project_id": "moments-001",
+    "storage_bucket": "moments-001.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:732733341730:android:a8579071741d3a6dd40a7b",
+        "android_client_info": {
+          "package_name": "com.wolfeleo2.moments"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBTigWkFBgi4FhNHvSB5IK6L6eaGKwogXg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

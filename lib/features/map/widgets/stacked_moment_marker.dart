@@ -3,6 +3,8 @@ import 'package:avatar_stack/avatar_stack.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/services/haptic_service.dart';
 import 'package:moments/core/services/avatar_cache_service.dart';
+import 'package:moments/data/repositories/moment_repository.dart';
+import 'package:moments/widgets/heart_animation.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
@@ -37,10 +39,17 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
   bool _isPressed = false;
   final MomentStorageService _storage = MomentStorageService();
   final AvatarCacheService _avatarCache = AvatarCacheService();
+  final MomentRepository _momentRepo = MomentRepository();
 
   // Track which moments we've loaded to avoid redundant loads
   Set<String> _loadedMomentIds = {};
   bool _isLoading = false;
+  
+  // Reactions state (simplified - just total count)
+  int _reactionCount = 0;
+  String? _userReaction;
+  bool _showingHeartAnimation = false;
+  bool _isLikeAnimation = true; // true = like, false = dislike
 
   @override
   void initState() {
@@ -51,6 +60,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     );
     _loadImages();
     _loadUserAvatars();
+    _loadReactions();
   }
 
   @override
@@ -157,7 +167,8 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
       if (mounted) {
         setState(() {
           for (var moment in widget.moments.take(4)) {
-            // Skip if already have this moment
+            // Skip if we have local path (prefer offline) or already have URL
+            if (_localPaths.containsKey(moment.id)) continue;
             if (_imageUrls.containsKey(moment.id)) continue;
 
             if (moment.mediaType == 'video') {
@@ -255,6 +266,78 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     }
   }
 
+  Future<void> _loadReactions() async {
+    if (widget.moments.isEmpty) return;
+    
+    // Load reactions for the front moment (most visible)
+    final frontMoment = widget.moments.first;
+    
+    try {
+      final summaries = await _momentRepo.getReactionSummary(frontMoment.id);
+      final userReaction = await _momentRepo.getUserReaction(frontMoment.id);
+      
+      if (mounted) {
+        // Calculate total count from all emoji summaries
+        final totalCount = summaries.fold<int>(0, (sum, s) => sum + s.count);
+        setState(() {
+          _reactionCount = totalCount;
+          _userReaction = userReaction?.emoji;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading reactions: $e');
+    }
+  }
+
+  Future<void> _toggleHeart() async {
+    if (widget.moments.isEmpty) return;
+    
+    final frontMoment = widget.moments.first;
+    const heartEmoji = '❤️';
+    
+    // Determine if this is a like or unlike action
+    final isUnliking = _userReaction == heartEmoji;
+    
+    // Show appropriate animation immediately for responsiveness
+    setState(() {
+      _showingHeartAnimation = true;
+      _isLikeAnimation = !isUnliking; // like animation if adding, dislike if removing
+    });
+    HapticService.mediumTap();
+    
+    // Hide animation after delay
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      if (mounted) {
+        setState(() {
+          _showingHeartAnimation = false;
+        });
+      }
+    });
+    
+    try {
+      if (isUnliking) {
+        // Remove heart
+        await _momentRepo.removeReaction(frontMoment.id);
+        setState(() {
+          _userReaction = null;
+          _reactionCount = (_reactionCount - 1).clamp(0, 999);
+        });
+      } else {
+        // Add heart
+        await _momentRepo.addReaction(frontMoment.id, heartEmoji);
+        final wasNewReaction = _userReaction == null;
+        setState(() {
+          _userReaction = heartEmoji;
+          if (wasNewReaction) {
+            _reactionCount++;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error toggling heart: $e');
+    }
+  }
+
   // Generate unique rotation based on moment ID
   double _getRotation(int index, String momentId) {
     final seed = momentId.hashCode;
@@ -327,6 +410,10 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
         setState(() => _isPressed = false);
         _pressController.reverse();
       },
+      onDoubleTap: () {
+        // Double-tap to toggle heart
+        _toggleHeart();
+      },
       child: AnimatedBuilder(
         animation: _pressController,
         builder: (context, child) {
@@ -359,6 +446,51 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
                   // Title badge at bottom right
                   _buildTitleBadge(),
+                  
+                  // Heart/Dislike animation overlay
+                  if (_showingHeartAnimation)
+                    Positioned.fill(
+                      child: Center(
+                        child: HeartAnimation(
+                          size: 80,
+                          isLike: _isLikeAnimation,
+                        ),
+                      ),
+                    ),
+                  
+                  // Compact reaction indicator (bottom left, inside card bounds)
+                  // Only show count when > 1
+                  if (_reactionCount > 1 || (_userReaction != null && _reactionCount <= 1))
+                    Positioned(
+                      bottom: -18,
+                      left: -2,
+                      child: Container(
+                        padding: _reactionCount > 1 
+                            ? const EdgeInsets.symmetric(horizontal: 6, vertical: 3)
+                            : const EdgeInsets.all(5),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _userReaction != null ? Icons.favorite : Icons.favorite_border,
+                              color: Colors.red,
+                              size: 24,
+                            ),
+                            if (_reactionCount > 1) ...[
+                              const SizedBox(width: 3),
+                              Text(
+                                _reactionCount.toString(),
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color:Colors.black,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

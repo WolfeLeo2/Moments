@@ -38,6 +38,8 @@ dependencies:
   supabase_flutter: ^2.10.3
   google_sign_in: ^6.2.1
   crypto: ^3.0.3
+  firebase_core: ^4.3.0
+  firebase_messaging: ^16.1.0
 
   # Maps & Location
   location: ^5.0.3
@@ -58,6 +60,7 @@ dependencies:
   motor: ^1.0.1
   animations: ^2.1.0
   lottie: ^3.3.2
+  dotlottie_loader: ^0.0.4
 
   # UI & Fonts
   google_fonts: ^6.2.1

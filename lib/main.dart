@@ -47,7 +47,6 @@ class MomentsRootApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 💡 2. Initialization is handled by the ScreenUtilInit widget itself.
     return ScreenUtilInit(
       designSize: const Size(375, 812), // Your chosen reference size
       minTextAdapt: true,

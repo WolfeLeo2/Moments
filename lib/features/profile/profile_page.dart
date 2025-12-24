@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/avatar_cache_service.dart';
 import '../../core/providers/moments_providers.dart';
 import '../moments/presentation/year_in_review_page.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -41,9 +41,7 @@ class ProfilePage extends ConsumerWidget {
             CircleAvatar(
               radius: 50,
               backgroundColor: AppTheme.primaryBlue,
-              backgroundImage: authService.currentUserPhotoUrl != null
-                  ? CachedNetworkImageProvider(authService.currentUserPhotoUrl!)
-                  : null,
+              backgroundImage: AvatarCacheService().getAvatarImageProvider(authService.currentUserPhotoUrl),
               child: authService.currentUserPhotoUrl == null
                   ? Text(
                       (authService.currentUserDisplayName ?? 'U')[0]

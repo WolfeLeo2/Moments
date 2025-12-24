@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/data/repositories/moment_repository.dart';
 import 'package:moments/data/models/moment.dart';
+import 'package:moments/data/models/moment_contributor.dart';
 import 'package:moments/core/services/moment_storage_service.dart';
 
 part 'moments_providers.g.dart';
@@ -43,6 +44,20 @@ Stream<List<Moment>> momentsStream(Ref ref) async* {
 Stream<List<Moment>> sharedMomentsStream(Ref ref) {
   final repo = ref.watch(momentRepositoryProvider);
   return repo.streamSharedMoments();
+}
+
+/// Stream of pending moment invitations (realtime)
+@riverpod
+Stream<List<MomentContributor>> pendingMomentInvitationsStream(Ref ref) {
+  final repo = ref.watch(momentRepositoryProvider);
+  return repo.watchPendingInvitations();
+}
+
+/// Stream moments by group ID (realtime for moment details page)
+@riverpod
+Stream<List<Moment>> momentsByGroupStream(Ref ref, String groupId) {
+  final repo = ref.watch(momentRepositoryProvider);
+  return repo.streamMomentsByGroup(groupId);
 }
 
 /// Single moment details

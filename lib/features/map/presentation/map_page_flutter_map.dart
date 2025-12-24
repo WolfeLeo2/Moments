@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -33,7 +34,7 @@ class MapPage extends ConsumerStatefulWidget {
   ConsumerState<MapPage> createState() => _MapPageState();
 }
 
-class _MapPageState extends ConsumerState<MapPage> {
+class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
   final AuthService _authService = AuthService();
   String _cityName = 'Loading...';
   geo.Position? _currentPosition;
@@ -44,7 +45,22 @@ class _MapPageState extends ConsumerState<MapPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeMap();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When app resumes, try to get location again (user may have enabled it in settings)
+    if (state == AppLifecycleState.resumed && _currentPosition == null) {
+      _getCurrentLocation();
+    }
   }
 
   Future<void> _initializeMap() async {
@@ -74,74 +90,44 @@ class _MapPageState extends ConsumerState<MapPage> {
 
   Future<void> _getCurrentLocation() async {
     try {
+      // Check if location services are enabled
       bool serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        // Show dialog to enable location services
-        if (mounted) {
-          final shouldOpenSettings = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Location Services Disabled'),
-              content: const Text(
-                'Please enable location services to see your current position on the map.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('CANCEL'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('ENABLE'),
-                ),
-              ],
-            ),
-          );
-          if (shouldOpenSettings == true) {
+        // On Android, this will trigger the native location enable dialog
+        // On iOS, it just returns false and we need to guide user to settings
+        if (Platform.isAndroid) {
+          // Try requesting - Android will show native dialog to enable location
+          serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
+          if (!serviceEnabled) {
+            // Open location settings as fallback
             await geo.Geolocator.openLocationSettings();
+            return;
           }
+        } else {
+          // iOS - open settings directly
+          await geo.Geolocator.openLocationSettings();
+          return;
         }
-        return;
       }
 
-      geo.LocationPermission permission =
-          await geo.Geolocator.checkPermission();
+      // Check permission status
+      geo.LocationPermission permission = await geo.Geolocator.checkPermission();
+      
       if (permission == geo.LocationPermission.denied) {
+        // Request permission - this shows the native permission dialog
         permission = await geo.Geolocator.requestPermission();
         if (permission == geo.LocationPermission.denied) {
-          return; // User denied, don't throw
+          return; // User denied
         }
       }
 
       if (permission == geo.LocationPermission.deniedForever) {
-        // Show dialog to open app settings
-        if (mounted) {
-          final shouldOpenSettings = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Location Permission Required'),
-              content: const Text(
-                'Location permission is permanently denied. Please enable it in app settings to see your current position.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('CANCEL'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('OPEN SETTINGS'),
-                ),
-              ],
-            ),
-          );
-          if (shouldOpenSettings == true) {
-            await geo.Geolocator.openAppSettings();
-          }
-        }
+        // Permission permanently denied, open app settings
+        await geo.Geolocator.openAppSettings();
         return;
       }
 
+      // Get the current position
       final position = await geo.Geolocator.getCurrentPosition(
         desiredAccuracy: geo.LocationAccuracy.high,
       );

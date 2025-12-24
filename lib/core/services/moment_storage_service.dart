@@ -65,7 +65,6 @@ class MomentStorageService {
             user_id TEXT,
             description TEXT,
             moment_group_id TEXT,
-            is_locked INTEGER NOT NULL DEFAULT 0,
             is_private INTEGER NOT NULL DEFAULT 0,
             local_media_path TEXT,
             local_thumbnail_path TEXT,
@@ -231,7 +230,6 @@ class MomentStorageService {
         'user_id': moment.userId,
         'description': moment.description,
         'moment_group_id': moment.momentGroupId,
-        'is_locked': moment.isLocked ? 1 : 0,
         'is_private': moment.isPrivate ? 1 : 0,
         'local_media_path': localMediaPath,
         'local_thumbnail_path': localThumbnailPath,
@@ -482,8 +480,7 @@ class MomentStorageService {
       userId: row['user_id'] as String?,
       description: row['description'] as String?,
       momentGroupId: row['moment_group_id'] as String?,
-      isLocked: (row['is_locked'] as int) == 1,
-      isPrivate: (row['is_private'] as int) == 1,
+      isPrivate: (row['is_private'] as int?) == 1,
     );
   }
 

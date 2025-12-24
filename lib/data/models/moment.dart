@@ -17,7 +17,6 @@ class Moment extends Equatable {
   final String? userId;
   final String? description;
   final String? momentGroupId; // Reference to moment group
-  final bool isLocked; // Prevents auto-contributions from friends
   final bool isPrivate; // Completely private, only visible to owner
 
   const Moment({
@@ -37,7 +36,6 @@ class Moment extends Equatable {
     this.userId,
     this.description,
     this.momentGroupId,
-    this.isLocked = false,
     this.isPrivate = false,
   });
 
@@ -59,7 +57,6 @@ class Moment extends Equatable {
       userId: json['user_id'] as String?,
       description: json['description'] as String?,
       momentGroupId: json['moment_group_id'] as String?,
-      isLocked: json['is_locked'] as bool? ?? false,
       isPrivate: json['is_private'] as bool? ?? false,
     );
   }
@@ -82,7 +79,6 @@ class Moment extends Equatable {
       'user_id': userId,
       'description': description,
       'moment_group_id': momentGroupId,
-      'is_locked': isLocked,
       'is_private': isPrivate,
     };
   }
@@ -110,7 +106,6 @@ class Moment extends Equatable {
     String? userId,
     String? description,
     String? momentGroupId,
-    bool? isLocked,
     bool? isPrivate,
   }) {
     return Moment(
@@ -130,7 +125,6 @@ class Moment extends Equatable {
       userId: userId ?? this.userId,
       description: description ?? this.description,
       momentGroupId: momentGroupId ?? this.momentGroupId,
-      isLocked: isLocked ?? this.isLocked,
       isPrivate: isPrivate ?? this.isPrivate,
     );
   }
@@ -153,7 +147,6 @@ class Moment extends Equatable {
     userId,
     description,
     momentGroupId,
-    isLocked,
     isPrivate,
   ];
 
