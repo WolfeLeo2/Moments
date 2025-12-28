@@ -12,10 +12,12 @@ class BlurredAppBar extends StatefulWidget implements PreferredSizeWidget {
   final VoidCallback? onSearchPressed;
   final VoidCallback? onProfilePressed;
   final VoidCallback? onFriendsPressed;
+  final VoidCallback? onChatPressed;
   final VoidCallback? onNotificationsPressed;
   final VoidCallback? onGalleryPressed;
   final String? profileImageUrl;
   final int notificationCount;
+  final int unreadChatCount;
 
   const BlurredAppBar({
     super.key,
@@ -24,10 +26,12 @@ class BlurredAppBar extends StatefulWidget implements PreferredSizeWidget {
     this.onSearchPressed,
     this.onProfilePressed,
     this.onFriendsPressed,
+    this.onChatPressed,
     this.onNotificationsPressed,
     this.onGalleryPressed,
     this.profileImageUrl,
     this.notificationCount = 0,
+    this.unreadChatCount = 0,
   });
 
   @override
@@ -38,6 +42,38 @@ class BlurredAppBar extends StatefulWidget implements PreferredSizeWidget {
 }
 
 class _BlurredAppBarState extends State<BlurredAppBar> {
+  Widget _buildBadge(int count) {
+    if (count <= 0) return const SizedBox.shrink();
+    return Positioned(
+      right: 6,
+      top: 6,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.red.withValues(alpha: 0.4),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+        child: Text(
+          count > 9 ? '9+' : '$count',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
@@ -66,18 +102,14 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
               child: Row(
                 children: [
                   //Add Friends Button
-                  Stack(
-                    children: [
-                      IconButton(
-                        onPressed: widget.onFriendsPressed,
-                        icon: const HugeIcon(
-                          icon: HugeIcons.strokeRoundedAddTeam,
-                          color: Colors.black,
-                          size: 30,
-                        ),
-                        tooltip: 'Add Friends',
-                      ),
-                    ],
+                  IconButton(
+                    onPressed: widget.onFriendsPressed,
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedAddTeam,
+                      color: Colors.black,
+                      size: 30,
+                    ),
+                    tooltip: 'Add Friends',
                   ),
 
                   // Title (CENTERED)
@@ -107,48 +139,36 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
                       tooltip: 'Gallery',
                     ),
 
-                  IconButton(
-                    onPressed: widget.onNotificationsPressed,
-                    icon: const HugeIcon(
-                      icon: HugeIcons.strokeRoundedNotification01,
-                      color: Colors.black87,
-                      size: 26,
-                    ),
-                  ),
-                  if (widget.notificationCount > 0)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.red.withValues(alpha: 0.4),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 18,
-                          minHeight: 18,
-                        ),
-                        child: Text(
-                          widget.notificationCount > 9
-                              ? '9+'
-                              : '${widget.notificationCount}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
+                  // Chat Button
+                  if (widget.onChatPressed != null)
+                    Stack(
+                      children: [
+                        IconButton(
+                          onPressed: widget.onChatPressed,
+                          icon: const HugeIcon(
+                            icon: HugeIcons.strokeRoundedMessage01,
+                            color: Colors.black87,
+                            size: 26,
                           ),
-                          textAlign: TextAlign.center,
+                          tooltip: 'Chat',
+                        ),
+                        _buildBadge(widget.unreadChatCount),
+                      ],
+                    ),
+
+                  Stack(
+                    children: [
+                      IconButton(
+                        onPressed: widget.onNotificationsPressed,
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedNotification01,
+                          color: Colors.black87,
+                          size: 26,
                         ),
                       ),
-                    ),
+                      _buildBadge(widget.notificationCount),
+                    ],
+                  ),
                   // Avatar (RIGHT)
                   GestureDetector(
                     onTap: widget.onProfilePressed,

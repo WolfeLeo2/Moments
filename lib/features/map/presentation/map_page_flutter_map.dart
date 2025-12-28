@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
@@ -7,25 +6,34 @@ import 'package:image_picker/image_picker.dart' as picker;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart' as lottie;
 import 'package:wechat_assets_picker/wechat_assets_picker.dart' hide LatLng;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/services/geocoding_service.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/map_cache_service.dart';
 import '../../../core/services/haptic_service.dart';
+import '../../../core/services/quick_actions_service.dart';
 import '../../../core/providers/moments_providers.dart';
 import '../../../data/models/moment.dart';
 import '../../../widgets/blurred_app_bar.dart';
 import '../../../widgets/spring_button.dart';
 import '../../moments/presentation/add_moment_page.dart';
+import '../../notifications/presentation/notifications_page.dart';
 import '../../moments/presentation/moment_details_page.dart';
-import '../../moments/presentation/timeline_gallery_page.dart';
 import '../../social/presentation/friends_page.dart';
+import '../../moments/presentation/timeline_gallery_page.dart';
 import '../../profile/profile_page.dart';
+import '../../chat/presentation/chat_list_page.dart';
 import '../widgets/stacked_moment_marker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
+import 'package:moments/core/providers/providers.dart';
+
+import 'package:moments/features/map/utils/map_logic_service.dart';
+import 'package:moments/features/map/providers/map_control_provider.dart';
 
 class MapPage extends ConsumerStatefulWidget {
   const MapPage({super.key});
@@ -40,18 +48,113 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
   LocationData? _currentPosition;
   final MapCacheService _mapCacheService = MapCacheService();
   final MapController _mapController = MapController();
-  double _currentZoom = 14.0; // Track current zoom level for clustering
+  final ValueNotifier<double> _zoomNotifier = ValueNotifier(14.0);
+  double _lastThreshold =
+      -1; // Track last threshold to prevent excessive rebuilds
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeMap();
+    _initializeQuickActions();
+
+    // Check for Year in Review (December only)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkYearInReview();
+    });
+  }
+
+  /// Initialize home screen quick actions (long-press shortcuts)
+  void _initializeQuickActions() {
+    QuickActionsService().initialize(
+      onShortcutSelected: (String shortcutType) {
+        // Handle the shortcut after the app is ready
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _handleQuickAction(shortcutType);
+        });
+      },
+    );
+  }
+
+  /// Handle quick action shortcut selection
+  void _handleQuickAction(String shortcutType) {
+    switch (shortcutType) {
+      case QuickActionType.camera:
+        // Pass 'photo' to skip the dialog and go straight to camera
+        _pickFromCamera(mediaType: 'photo');
+        break;
+      case QuickActionType.video:
+        // Pass 'video' to skip the dialog and go straight to video recorder
+        _pickFromCamera(mediaType: 'video');
+        break;
+      case QuickActionType.gallery:
+        _pickFromGallery();
+        break;
+    }
+  }
+
+  void _checkYearInReview() async {
+    final now = DateTime.now();
+    // Only show in December (Month 12)
+    if (now.month != 12) return;
+
+    // Check if already dismissed for this year
+    final prefs = await SharedPreferences.getInstance();
+    final dismissedYear = prefs.getInt('year_in_review_dismissed_year');
+    if (dismissedYear == now.year) return; // Already dismissed for this year
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showMaterialBanner(
+      MaterialBanner(
+        content: Text(
+          '${now.year} Wrapped is here! See your year in moments.',
+          style: GoogleFonts.inter(color: Colors.white),
+        ),
+        backgroundColor: const Color(0xFF1DB954),
+        leading: const Icon(Icons.auto_awesome, color: Colors.white),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+              // Mark as dismissed for this year
+              await prefs.setInt('year_in_review_dismissed_year', now.year);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfilePage()),
+              );
+            },
+            child: Text(
+              'VIEW',
+              style: GoogleFonts.bebasNeue(
+                color: Colors.white,
+                fontSize: 18,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+              // Mark as dismissed for this year
+              await prefs.setInt('year_in_review_dismissed_year', now.year);
+            },
+            child: Text(
+              'DISMISS',
+              style: GoogleFonts.inter(color: Colors.white70),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _zoomNotifier.dispose();
     super.dispose();
   }
 
@@ -137,230 +240,8 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
     }
   }
 
-  List<Map<String, dynamic>> _groupMomentsByPlace(List<Moment> moments) {
-    final groups = <Map<String, dynamic>>[];
-
-    // First, group by moment_group_id for moments that have one
-    final groupedMoments = <String, List<Moment>>{};
-    final ungroupedMoments = <Moment>[];
-
-    for (final moment in moments) {
-      if (moment.momentGroupId != null) {
-        // Group by moment_group_id
-        if (groupedMoments.containsKey(moment.momentGroupId)) {
-          groupedMoments[moment.momentGroupId]!.add(moment);
-        } else {
-          groupedMoments[moment.momentGroupId!] = [moment];
-        }
-      } else {
-        // No group ID - treat as standalone
-        ungroupedMoments.add(moment);
-      }
-    }
-
-    // Add grouped moments
-    for (final entry in groupedMoments.entries) {
-      final groupMoments = entry.value;
-      final firstMoment = groupMoments.first;
-      final placeName = _extractPlaceName(firstMoment.location);
-
-      groups.add({
-        'placeName': placeName,
-        'moments': groupMoments,
-        'lat': firstMoment.latitude,
-        'lng': firstMoment.longitude,
-        'groupId': entry.key,
-        'isCluster': false,
-        'clusterCount': 1,
-      });
-    }
-
-    // Add ungrouped moments - each as its own marker, but group by location for nearby ones
-    final locationGroups = <String, List<Moment>>{};
-    for (final moment in ungroupedMoments) {
-      // Use a location key based on truncated lat/lng to group nearby moments
-      final locationKey =
-          '${moment.latitude.toStringAsFixed(4)}_${moment.longitude.toStringAsFixed(4)}';
-      if (locationGroups.containsKey(locationKey)) {
-        locationGroups[locationKey]!.add(moment);
-      } else {
-        locationGroups[locationKey] = [moment];
-      }
-    }
-
-    for (final entry in locationGroups.entries) {
-      final locationMoments = entry.value;
-      final firstMoment = locationMoments.first;
-      final placeName = _extractPlaceName(firstMoment.location);
-
-      groups.add({
-        'placeName': placeName,
-        'moments': locationMoments,
-        'lat': firstMoment.latitude,
-        'lng': firstMoment.longitude,
-        'groupId': 'loc_${entry.key}',
-        'isCluster': false,
-        'clusterCount': 1,
-      });
-    }
-
-    // Apply zoom-aware clustering
-    return _applyZoomClustering(groups);
-  }
-
-  /// Apply zoom-aware clustering to group nearby moment groups
-  /// At low zoom levels, cluster more aggressively
-  List<Map<String, dynamic>> _applyZoomClustering(
-    List<Map<String, dynamic>> groups,
-  ) {
-    if (groups.length <= 1) return groups;
-
-    // Calculate clustering threshold based on zoom level
-    // At zoom 5 (country view): cluster groups ~100km apart
-    // At zoom 10 (city view): cluster groups ~5km apart
-    // At zoom 14+ (street view): minimal clustering
-    final double clusterThreshold = _calculateClusterThreshold(_currentZoom);
-
-    if (clusterThreshold <= 0) {
-      // At high zoom, just apply minor offsets but no clustering
-      return _applyProximityOffsets(groups);
-    }
-
-    final clustered = <Map<String, dynamic>>[];
-    final processed = <int>{};
-
-    for (int i = 0; i < groups.length; i++) {
-      if (processed.contains(i)) continue;
-
-      final baseLat = groups[i]['lat'] as double;
-      final baseLng = groups[i]['lng'] as double;
-      final clusterMembers = <Map<String, dynamic>>[groups[i]];
-      processed.add(i);
-
-      // Find all groups close to this one
-      for (int j = i + 1; j < groups.length; j++) {
-        if (processed.contains(j)) continue;
-
-        final otherLat = groups[j]['lat'] as double;
-        final otherLng = groups[j]['lng'] as double;
-
-        final latDiff = (baseLat - otherLat).abs();
-        final lngDiff = (baseLng - otherLng).abs();
-
-        if (latDiff < clusterThreshold && lngDiff < clusterThreshold) {
-          clusterMembers.add(groups[j]);
-          processed.add(j);
-        }
-      }
-
-      if (clusterMembers.length > 1) {
-        // Create a cluster from multiple groups
-        final allMoments = <Moment>[];
-        double totalLat = 0, totalLng = 0;
-
-        for (final member in clusterMembers) {
-          allMoments.addAll(member['moments'] as List<Moment>);
-          totalLat += member['lat'] as double;
-          totalLng += member['lng'] as double;
-        }
-
-        // Use centroid for cluster position
-        final centerLat = totalLat / clusterMembers.length;
-        final centerLng = totalLng / clusterMembers.length;
-
-        clustered.add({
-          'placeName': '${clusterMembers.length} locations',
-          'moments': allMoments,
-          'lat': centerLat,
-          'lng': centerLng,
-          'groupId':
-              'cluster_${clusterMembers.map((m) => m['groupId']).join('_')}',
-          'isCluster': true,
-          'clusterCount': clusterMembers.length,
-        });
-      } else {
-        // Single group, no clustering needed
-        clustered.add(groups[i]);
-      }
-    }
-
-    return clustered;
-  }
-
-  /// Calculate the clustering threshold based on zoom level
-  double _calculateClusterThreshold(double zoom) {
-    // Zoom levels:
-    // 3-5: World/continent view -> cluster aggressively (threshold ~5 degrees)
-    // 6-8: Country view -> moderate clustering (threshold ~1 degree)
-    // 9-11: Region/city view -> light clustering (threshold ~0.1 degrees)
-    // 12-15: Neighborhood view -> very light clustering for nearby groups
-    // 16+: Street view -> no clustering (threshold 0)
-
-    if (zoom >= 16) return 0; // No clustering at street level
-    if (zoom >= 14) return 0.002; // ~200m - still cluster very close groups
-    if (zoom >= 12) return 0.005; // ~500m
-    if (zoom >= 10) return 0.02; // ~2km
-    if (zoom >= 8) return 0.1; // ~10km
-    if (zoom >= 6) return 0.5; // ~50km
-    if (zoom >= 4) return 2.0; // ~200km
-    return 5.0; // ~500km at world view
-  }
-
-  /// Apply small lat/lng offsets to groups that are very close to each other
-  /// This prevents markers from stacking directly on top of each other
-  List<Map<String, dynamic>> _applyProximityOffsets(
-    List<Map<String, dynamic>> groups,
-  ) {
-    if (groups.length <= 1) return groups;
-
-    const double proximityThreshold = 0.0005; // ~50 meters
-    const double offsetStep = 0.0003; // ~30 meters offset
-
-    // Track which groups have been processed
-    final processed = <int>{};
-
-    for (int i = 0; i < groups.length; i++) {
-      if (processed.contains(i)) continue;
-
-      final baseLat = groups[i]['lat'] as double;
-      final baseLng = groups[i]['lng'] as double;
-
-      // Find all groups close to this one
-      final nearbyIndices = <int>[i];
-      for (int j = i + 1; j < groups.length; j++) {
-        if (processed.contains(j)) continue;
-
-        final otherLat = groups[j]['lat'] as double;
-        final otherLng = groups[j]['lng'] as double;
-
-        final latDiff = (baseLat - otherLat).abs();
-        final lngDiff = (baseLng - otherLng).abs();
-
-        if (latDiff < proximityThreshold && lngDiff < proximityThreshold) {
-          nearbyIndices.add(j);
-        }
-      }
-
-      // If multiple groups are close, spread them out in a circular pattern
-      if (nearbyIndices.length > 1) {
-        for (int k = 0; k < nearbyIndices.length; k++) {
-          final idx = nearbyIndices[k];
-          processed.add(idx);
-
-          // Calculate offset based on position in cluster (alternating pattern)
-          final latOffset = offsetStep * k * (k % 2 == 0 ? 1 : -1) * 0.5;
-          final lngOffset = offsetStep * k * (k % 2 == 0 ? -1 : 1) * 0.7;
-
-          groups[idx]['lat'] = (groups[idx]['lat'] as double) + latOffset;
-          groups[idx]['lng'] = (groups[idx]['lng'] as double) + lngOffset;
-        }
-      } else {
-        processed.add(i);
-      }
-    }
-
-    return groups;
-  }
+  // Removed: _groupMomentsByPlace, _applyZoomClustering, _calculateClusterThreshold, _applyProximityOffsets
+  // Logic moved to MapLogicService
 
   /// Build cluster badge showing number of locations and moments
   Widget _buildClusterBadge(int locationCount, int momentCount) {
@@ -411,14 +292,6 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
     );
   }
 
-  String _extractPlaceName(String location) {
-    // Extract the main place name from location string
-    // e.g., "Kitengela, Kajiado, Kenya" -> "Kitengela"
-    return location.split(',').first.trim();
-  }
-
-  // Old _onPlaceMarkerTapped (Hero) removed in favor of rect-based transform transition
-
   void _onPlaceMarkerTapped(
     List<Moment> moments,
     String placeName,
@@ -465,40 +338,60 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
 
   // Removed - replaced with AnimatedFAB widget
 
-  Future<void> _pickFromCamera() async {
-    if (_currentPosition == null) {
-      if (mounted) {
-        context.showErrorSnackBar('Unable to get current location');
-      }
-      return;
+  /// Ensure location is available, fetching it if necessary
+  Future<bool> _ensureLocation() async {
+    if (_currentPosition != null) return true;
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Getting location...'),
+          duration: Duration(seconds: 1),
+        ),
+      );
     }
 
-    // Show dialog to choose between photo and video
-    final mediaType = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Capture'),
-        content: const Text('What would you like to capture?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'photo'),
-            child: const Text('Photo'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'video'),
-            child: const Text('Video'),
-          ),
-        ],
-      ),
-    );
+    await _getCurrentLocation();
 
-    if (mediaType == null || !mounted) return;
+    if (_currentPosition == null && mounted) {
+      context.showErrorSnackBar('Unable to get current location');
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _pickFromCamera({String? mediaType}) async {
+    if (!await _ensureLocation()) return;
+
+    // If mediaType is not provided, show dialog
+    String? selectedMediaType = mediaType;
+    if (selectedMediaType == null) {
+      selectedMediaType = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Capture'),
+          content: const Text('What would you like to capture?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'photo'),
+              child: const Text('Photo'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'video'),
+              child: const Text('Video'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (selectedMediaType == null || !mounted) return;
 
     try {
       final imagePicker = picker.ImagePicker();
       picker.XFile? file;
 
-      if (mediaType == 'photo') {
+      if (selectedMediaType == 'photo') {
         file = await imagePicker.pickImage(source: picker.ImageSource.camera);
       } else {
         file = await imagePicker.pickVideo(
@@ -509,11 +402,14 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
 
       if (file == null || !mounted) return;
 
+      // Re-check location as it might be lost if app was killed/restarted
+      if (!await _ensureLocation()) return;
+
       final result = await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => AddMomentPage(
             mediaPath: file!.path,
-            isVideo: mediaType == 'video',
+            isVideo: selectedMediaType == 'video',
             initialLatitude: _currentPosition!.latitude!,
             initialLongitude: _currentPosition!.longitude!,
           ),
@@ -532,12 +428,7 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
   }
 
   Future<void> _pickFromGallery() async {
-    if (_currentPosition == null) {
-      if (mounted) {
-        context.showErrorSnackBar('Unable to get current location');
-      }
-      return;
-    }
+    if (!await _ensureLocation()) return;
 
     try {
       // Use wechat_assets_picker to pick images and videos
@@ -596,8 +487,20 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // Listen for external camera move requests (e.g. from notifications)
+    ref.listen<LatLng?>(mapCameraTargetProvider, (previous, next) {
+      if (next != null) {
+        _mapController.move(next, 16.0); // Zoom level 16 for close-up
+        // Reset the provider so we don't re-trigger on rebuilds
+        ref.read(mapCameraTargetProvider.notifier).setTarget(null);
+      }
+    });
+
     // Watch the moments stream from Riverpod
     final momentsAsync = ref.watch(momentsStreamProvider);
+    final unreadChatCount = ref.watch(unreadChatCountProvider).value ?? 0;
+    // Notification count now includes friend requests + collab invites + system notifications
+    final notificationCount = ref.watch(notificationCountProvider).value ?? 0;
 
     return momentsAsync.when(
       loading: () => Scaffold(
@@ -618,19 +521,40 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
       },
       data: (moments) {
         // Group moments by place
-        final placeGroups = _groupMomentsByPlace(moments);
+        // Removed: final placeGroups = _groupMomentsByPlace(moments);
         return Scaffold(
           backgroundColor: AppTheme.backgroundBeige,
           extendBodyBehindAppBar: true,
           appBar: BlurredAppBar(
-            title: 'Moments',
-
+            title: 'MOMENTS',
             profileImageUrl: _authService.currentUserPhotoUrl,
+            unreadChatCount: unreadChatCount,
+            notificationCount: notificationCount,
+            onMenuPressed: () {}, // Menu functionality to be implemented
+            onProfilePressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfilePage()),
+              );
+            },
             onFriendsPressed: () {
-              HapticService.lightTap();
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const FriendsPage()),
+              );
+            },
+            onChatPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ChatListPage()),
+              );
+            },
+            onNotificationsPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NotificationsPage(),
+                ),
               );
             },
             onGalleryPressed: () {
@@ -640,13 +564,6 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                 MaterialPageRoute(
                   builder: (context) => const TimelineGalleryPage(),
                 ),
-              );
-            },
-            onProfilePressed: () {
-              HapticService.lightTap();
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ProfilePage()),
               );
             },
           ),
@@ -666,26 +583,14 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                   minZoom: 5.0,
                   maxZoom: 22.0,
                   onPositionChanged: (position, hasGesture) {
-                    // Track zoom level for dynamic clustering
-                    // OPTIMIZATION: Only rebuild if the clustering strategy actually changes.
-                    // Previously this rebuilt on every pixel of zoom/pan.
-                    if (position.zoom != _currentZoom) {
-                      final oldThreshold = _calculateClusterThreshold(
-                        _currentZoom,
-                      );
-                      final newThreshold = _calculateClusterThreshold(
-                        position.zoom,
-                      );
-
-                      // Only setState if the threshold bucket changes (e.g. crossing from zoom 9.9 to 10.0)
-                      if (oldThreshold != newThreshold) {
-                        setState(() {
-                          _currentZoom = position.zoom;
-                        });
-                      } else {
-                        // Just update the variable without triggering a rebuild if we are in the same bucket
-                        _currentZoom = position.zoom;
-                      }
+                    // Update zoom notifier ONLY if the clustering threshold changes
+                    // This prevents rebuilding markers on every frame of zoom animation
+                    final newThreshold = MapLogicService.getClusterThreshold(
+                      position.zoom,
+                    );
+                    if (newThreshold != _lastThreshold) {
+                      _lastThreshold = newThreshold;
+                      _zoomNotifier.value = position.zoom;
                     }
                   },
                 ),
@@ -736,53 +641,68 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                     ),
 
                   // Moment markers layer (AFTER location so they appear on top)
-                  MarkerLayer(
-                    markers: placeGroups.asMap().entries.map((entry) {
-                      final placeGroup = entry.value;
-                      final moments = placeGroup['moments'] as List<Moment>;
-                      final lat = placeGroup['lat'] as double;
-                      final lng = placeGroup['lng'] as double;
-                      final placeName = placeGroup['placeName'] as String;
-                      final isCluster =
-                          placeGroup['isCluster'] as bool? ?? false;
-                      final clusterCount =
-                          placeGroup['clusterCount'] as int? ?? 1;
-
-                      // Create a stable key based on moment IDs to prevent unnecessary rebuilds
-                      final markerKey = moments.map((m) => m.id).join('_');
-
-                      return Marker(
-                        point: LatLng(lat, lng),
-                        width: 160, // Slightly wider for cluster badge
-                        height: 200, // Taller for cluster badge
-                        key: ValueKey(markerKey),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            StackedMomentMarker(
-                              key: ValueKey('marker_$markerKey'),
-                              moments: moments,
-                              onTap: () =>
-                                  _onPlaceMarkerTapped(moments, placeName, 0),
-                              heroTag: null,
-                            ),
-                            // Cluster count badge (only show if multiple groups clustered)
-                            if (isCluster && clusterCount > 1)
-                              Positioned(
-                                bottom: -5,
-                                left: 0,
-                                right: 0,
-                                child: Center(
-                                  child: _buildClusterBadge(
-                                    clusterCount,
-                                    moments.length,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
+                  // Use ValueListenableBuilder to rebuild ONLY markers when zoom changes
+                  ValueListenableBuilder<double>(
+                    valueListenable: _zoomNotifier,
+                    builder: (context, zoom, child) {
+                      // Group moments by place using the extracted service
+                      final placeGroups = MapLogicService.groupMomentsByPlace(
+                        moments,
+                        zoom,
                       );
-                    }).toList(),
+
+                      return MarkerLayer(
+                        markers: placeGroups.asMap().entries.map((entry) {
+                          final placeGroup = entry.value;
+                          final moments = placeGroup['moments'] as List<Moment>;
+                          final lat = placeGroup['lat'] as double;
+                          final lng = placeGroup['lng'] as double;
+                          final placeName = placeGroup['placeName'] as String;
+                          final isCluster =
+                              placeGroup['isCluster'] as bool? ?? false;
+                          final clusterCount =
+                              placeGroup['clusterCount'] as int? ?? 1;
+
+                          // Create a stable key based on moment IDs to prevent unnecessary rebuilds
+                          final markerKey = moments.map((m) => m.id).join('_');
+
+                          return Marker(
+                            point: LatLng(lat, lng),
+                            width: 160, // Slightly wider for cluster badge
+                            height: 200, // Taller for cluster badge
+                            key: ValueKey(markerKey),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                StackedMomentMarker(
+                                  key: ValueKey('marker_$markerKey'),
+                                  moments: moments,
+                                  onTap: () => _onPlaceMarkerTapped(
+                                    moments,
+                                    placeName,
+                                    0,
+                                  ),
+                                  heroTag: null,
+                                ),
+                                // Cluster count badge (only show if multiple groups clustered)
+                                if (isCluster && clusterCount > 1)
+                                  Positioned(
+                                    bottom: -5,
+                                    left: 0,
+                                    right: 0,
+                                    child: Center(
+                                      child: _buildClusterBadge(
+                                        clusterCount,
+                                        moments.length,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
                   ),
                 ],
               ),

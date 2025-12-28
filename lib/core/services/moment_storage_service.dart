@@ -241,6 +241,38 @@ class MomentStorageService {
     debugPrint('💾 Saved ${moments.length} moments to local storage');
   }
 
+  /// Sync moments from server (save new ones, delete removed ones)
+  /// This handles the case where moments become private or are deleted on the server.
+  Future<void> syncMoments(List<Moment> serverMoments) async {
+    final db = await database;
+
+    // 1. Get all IDs from server list
+    final serverIds = serverMoments.map((m) => m.id).toSet();
+
+    // 2. Get all local IDs
+    final localResults = await db.query('moments', columns: ['id']);
+    final localIds = localResults.map((row) => row['id'] as String).toSet();
+
+    // 3. Find IDs to delete (local but not in server list)
+    final idsToDelete = localIds.difference(serverIds);
+
+    if (idsToDelete.isNotEmpty) {
+      final batch = db.batch();
+      for (final id in idsToDelete) {
+        batch.delete('moments', where: 'id = ?', whereArgs: [id]);
+      }
+      await batch.commit(noResult: true);
+      debugPrint(
+        '🗑️ Deleted ${idsToDelete.length} stale moments from local storage',
+      );
+    }
+
+    // 4. Save/Update server moments
+    if (serverMoments.isNotEmpty) {
+      await saveMoments(serverMoments);
+    }
+  }
+
   /// Download and cache media for a moment
   Future<String?> cacheMedia(
     String momentId,

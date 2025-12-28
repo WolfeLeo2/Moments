@@ -105,6 +105,59 @@ final class SocialRepositoryProvider
 
 String _$socialRepositoryHash() => r'65582ff92e381f034f4ac9892315123d4eb621e3';
 
+/// Notification repository provider
+
+@ProviderFor(notificationRepository)
+const notificationRepositoryProvider = NotificationRepositoryProvider._();
+
+/// Notification repository provider
+
+final class NotificationRepositoryProvider
+    extends
+        $FunctionalProvider<
+          NotificationRepository,
+          NotificationRepository,
+          NotificationRepository
+        >
+    with $Provider<NotificationRepository> {
+  /// Notification repository provider
+  const NotificationRepositoryProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'notificationRepositoryProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$notificationRepositoryHash();
+
+  @$internal
+  @override
+  $ProviderElement<NotificationRepository> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  NotificationRepository create(Ref ref) {
+    return notificationRepository(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(NotificationRepository value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<NotificationRepository>(value),
+    );
+  }
+}
+
+String _$notificationRepositoryHash() =>
+    r'71219757436a2e8f634f48d840b62059d3d54f21';
+
 /// Current authenticated user
 
 @ProviderFor(currentUser)
@@ -182,6 +235,182 @@ final class CurrentUserProfileProvider
 
 String _$currentUserProfileHash() =>
     r'fd95b4c2e4e9c6f2e8c123ebd71e6a7ae0f65ae9';
+
+/// Count of pending friend requests
+
+@ProviderFor(friendRequestCount)
+const friendRequestCountProvider = FriendRequestCountProvider._();
+
+/// Count of pending friend requests
+
+final class FriendRequestCountProvider
+    extends $FunctionalProvider<AsyncValue<int>, int, Stream<int>>
+    with $FutureModifier<int>, $StreamProvider<int> {
+  /// Count of pending friend requests
+  const FriendRequestCountProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'friendRequestCountProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$friendRequestCountHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<int> $createElement($ProviderPointer pointer) =>
+      $StreamProviderElement(pointer);
+
+  @override
+  Stream<int> create(Ref ref) {
+    return friendRequestCount(ref);
+  }
+}
+
+String _$friendRequestCountHash() =>
+    r'5be303f579dd6529f9114fccd75d14a106312995';
+
+/// Count of unread chats
+
+@ProviderFor(unreadChatCount)
+const unreadChatCountProvider = UnreadChatCountProvider._();
+
+/// Count of unread chats
+
+final class UnreadChatCountProvider
+    extends $FunctionalProvider<AsyncValue<int>, int, Stream<int>>
+    with $FutureModifier<int>, $StreamProvider<int> {
+  /// Count of unread chats
+  const UnreadChatCountProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'unreadChatCountProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$unreadChatCountHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<int> $createElement($ProviderPointer pointer) =>
+      $StreamProviderElement(pointer);
+
+  @override
+  Stream<int> create(Ref ref) {
+    return unreadChatCount(ref);
+  }
+}
+
+String _$unreadChatCountHash() => r'67146228e2019f36bfb2122f845bf432256e8dd9';
+
+/// Count of general notifications (includes friend requests + collab invites + system)
+
+@ProviderFor(notificationCount)
+const notificationCountProvider = NotificationCountProvider._();
+
+/// Count of general notifications (includes friend requests + collab invites + system)
+
+final class NotificationCountProvider
+    extends $FunctionalProvider<AsyncValue<int>, int, Stream<int>>
+    with $FutureModifier<int>, $StreamProvider<int> {
+  /// Count of general notifications (includes friend requests + collab invites + system)
+  const NotificationCountProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'notificationCountProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$notificationCountHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<int> $createElement($ProviderPointer pointer) =>
+      $StreamProviderElement(pointer);
+
+  @override
+  Stream<int> create(Ref ref) {
+    return notificationCount(ref);
+  }
+}
+
+String _$notificationCountHash() => r'c7799c2263aaf925227d5ba1ae2a8a2166d7ef54';
+
+/// Provider for the list of notifications with caching and realtime updates
+
+@ProviderFor(NotificationsList)
+const notificationsListProvider = NotificationsListProvider._();
+
+/// Provider for the list of notifications with caching and realtime updates
+final class NotificationsListProvider
+    extends
+        $AsyncNotifierProvider<NotificationsList, List<Map<String, dynamic>>> {
+  /// Provider for the list of notifications with caching and realtime updates
+  const NotificationsListProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'notificationsListProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$notificationsListHash();
+
+  @$internal
+  @override
+  NotificationsList create() => NotificationsList();
+}
+
+String _$notificationsListHash() => r'f9528eff1290aead16d6a1c20a892864dc1c5f0d';
+
+/// Provider for the list of notifications with caching and realtime updates
+
+abstract class _$NotificationsList
+    extends $AsyncNotifier<List<Map<String, dynamic>>> {
+  FutureOr<List<Map<String, dynamic>>> build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final created = build();
+    final ref =
+        this.ref
+            as $Ref<
+              AsyncValue<List<Map<String, dynamic>>>,
+              List<Map<String, dynamic>>
+            >;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<
+                AsyncValue<List<Map<String, dynamic>>>,
+                List<Map<String, dynamic>>
+              >,
+              AsyncValue<List<Map<String, dynamic>>>,
+              Object?,
+              Object?
+            >;
+    element.handleValue(ref, created);
+  }
+}
 
 /// Pending friend requests
 
@@ -304,6 +533,163 @@ final class FriendProfileFamily extends $Family
 
   @override
   String toString() => r'friendProfileProvider';
+}
+
+/// Get mutual friends count between current user and a friend
+
+@ProviderFor(mutualFriendsCount)
+const mutualFriendsCountProvider = MutualFriendsCountFamily._();
+
+/// Get mutual friends count between current user and a friend
+
+final class MutualFriendsCountProvider
+    extends $FunctionalProvider<AsyncValue<int>, int, FutureOr<int>>
+    with $FutureModifier<int>, $FutureProvider<int> {
+  /// Get mutual friends count between current user and a friend
+  const MutualFriendsCountProvider._({
+    required MutualFriendsCountFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'mutualFriendsCountProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$mutualFriendsCountHash();
+
+  @override
+  String toString() {
+    return r'mutualFriendsCountProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<int> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<int> create(Ref ref) {
+    final argument = this.argument as String;
+    return mutualFriendsCount(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is MutualFriendsCountProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$mutualFriendsCountHash() =>
+    r'eee86c80b0cc4e1289e42277504d5df58bb4cf83';
+
+/// Get mutual friends count between current user and a friend
+
+final class MutualFriendsCountFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<int>, String> {
+  const MutualFriendsCountFamily._()
+    : super(
+        retry: null,
+        name: r'mutualFriendsCountProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Get mutual friends count between current user and a friend
+
+  MutualFriendsCountProvider call(String friendId) =>
+      MutualFriendsCountProvider._(argument: friendId, from: this);
+
+  @override
+  String toString() => r'mutualFriendsCountProvider';
+}
+
+/// Get public moments count for a user
+
+@ProviderFor(userMomentsCount)
+const userMomentsCountProvider = UserMomentsCountFamily._();
+
+/// Get public moments count for a user
+
+final class UserMomentsCountProvider
+    extends $FunctionalProvider<AsyncValue<int>, int, FutureOr<int>>
+    with $FutureModifier<int>, $FutureProvider<int> {
+  /// Get public moments count for a user
+  const UserMomentsCountProvider._({
+    required UserMomentsCountFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'userMomentsCountProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$userMomentsCountHash();
+
+  @override
+  String toString() {
+    return r'userMomentsCountProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<int> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<int> create(Ref ref) {
+    final argument = this.argument as String;
+    return userMomentsCount(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is UserMomentsCountProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$userMomentsCountHash() => r'794cb29ffd9e317bdff0a221f4ae31aa258de540';
+
+/// Get public moments count for a user
+
+final class UserMomentsCountFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<int>, String> {
+  const UserMomentsCountFamily._()
+    : super(
+        retry: null,
+        name: r'userMomentsCountProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Get public moments count for a user
+
+  UserMomentsCountProvider call(String userId) =>
+      UserMomentsCountProvider._(argument: userId, from: this);
+
+  @override
+  String toString() => r'userMomentsCountProvider';
 }
 
 /// Notifier for adding a friend

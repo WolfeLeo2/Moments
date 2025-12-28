@@ -8,6 +8,69 @@ part of 'chat_providers.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
+/// Tracks the currently active chat conversation ID
+/// Used to suppress notifications when the user is already viewing the chat
+
+@ProviderFor(CurrentChatId)
+const currentChatIdProvider = CurrentChatIdProvider._();
+
+/// Tracks the currently active chat conversation ID
+/// Used to suppress notifications when the user is already viewing the chat
+final class CurrentChatIdProvider
+    extends $NotifierProvider<CurrentChatId, String?> {
+  /// Tracks the currently active chat conversation ID
+  /// Used to suppress notifications when the user is already viewing the chat
+  const CurrentChatIdProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'currentChatIdProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$currentChatIdHash();
+
+  @$internal
+  @override
+  CurrentChatId create() => CurrentChatId();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(String? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<String?>(value),
+    );
+  }
+}
+
+String _$currentChatIdHash() => r'db87c8beb5c262253a1797ddeda3a9f56175cf25';
+
+/// Tracks the currently active chat conversation ID
+/// Used to suppress notifications when the user is already viewing the chat
+
+abstract class _$CurrentChatId extends $Notifier<String?> {
+  String? build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final created = build();
+    final ref = this.ref as $Ref<String?, String?>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<String?, String?>,
+              String?,
+              Object?,
+              Object?
+            >;
+    element.handleValue(ref, created);
+  }
+}
+
 /// Message storage service provider
 
 @ProviderFor(messageStorage)
@@ -368,6 +431,55 @@ final class ConversationWithFriendFamily extends $Family
   @override
   String toString() => r'conversationWithFriendProvider';
 }
+
+/// Get all recent messages for all conversations
+/// This is optimized to fetch all at once instead of N+1 requests
+
+@ProviderFor(recentMessages)
+const recentMessagesProvider = RecentMessagesProvider._();
+
+/// Get all recent messages for all conversations
+/// This is optimized to fetch all at once instead of N+1 requests
+
+final class RecentMessagesProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<Map<String, Message>>,
+          Map<String, Message>,
+          FutureOr<Map<String, Message>>
+        >
+    with
+        $FutureModifier<Map<String, Message>>,
+        $FutureProvider<Map<String, Message>> {
+  /// Get all recent messages for all conversations
+  /// This is optimized to fetch all at once instead of N+1 requests
+  const RecentMessagesProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'recentMessagesProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$recentMessagesHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<Map<String, Message>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<Map<String, Message>> create(Ref ref) {
+    return recentMessages(ref);
+  }
+}
+
+String _$recentMessagesHash() => r'88145bbb2633907ac65f6f6fa81cd92d7363fd61';
 
 /// Show send button state for each conversation
 
@@ -771,3 +883,49 @@ final class ConversationIdFamily extends $Family
   @override
   String toString() => r'conversationIdProvider';
 }
+
+/// Get list of recent conversations with details (Realtime)
+
+@ProviderFor(chatList)
+const chatListProvider = ChatListProvider._();
+
+/// Get list of recent conversations with details (Realtime)
+
+final class ChatListProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<Map<String, dynamic>>>,
+          List<Map<String, dynamic>>,
+          Stream<List<Map<String, dynamic>>>
+        >
+    with
+        $FutureModifier<List<Map<String, dynamic>>>,
+        $StreamProvider<List<Map<String, dynamic>>> {
+  /// Get list of recent conversations with details (Realtime)
+  const ChatListProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'chatListProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$chatListHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<List<Map<String, dynamic>>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<Map<String, dynamic>>> create(Ref ref) {
+    return chatList(ref);
+  }
+}
+
+String _$chatListHash() => r'e76301ccdd98faac27f91bca134aaa0f14c5ce1b';

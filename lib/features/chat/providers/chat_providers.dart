@@ -1,10 +1,21 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/data/repositories/chat_repository.dart';
 import 'package:moments/core/services/message_storage_service.dart';
 
 part 'chat_providers.g.dart';
+
+/// Tracks the currently active chat conversation ID
+/// Used to suppress notifications when the user is already viewing the chat
+@riverpod
+class CurrentChatId extends _$CurrentChatId {
+  @override
+  String? build() => null;
+
+  void set(String? id) => state = id;
+}
 
 /// Message storage service provider
 @riverpod
@@ -104,6 +115,19 @@ Future<String?> conversationWithFriend(Ref ref, String friendId) async {
   }
 }
 
+/// Get all recent messages for all conversations
+/// This is optimized to fetch all at once instead of N+1 requests
+@riverpod
+Future<Map<String, Message>> recentMessages(Ref ref) async {
+  final chatRepo = ref.watch(chatRepositoryProvider);
+  // This method must be added to ChatRepository
+  final conversations = await chatRepo.getRecentConversations();
+  return {
+    for (final c in conversations)
+      c['conversationId'] as String: c['lastMessage'] as Message,
+  };
+}
+
 /// Show send button state for each conversation
 @riverpod
 class ShowSendButton extends _$ShowSendButton {
@@ -175,4 +199,18 @@ Future<String> conversationId(Ref ref, String friendId) async {
   await storage.cacheConversationId(friendId, conversationId);
 
   return conversationId;
+}
+
+/// Get list of recent conversations with details (Realtime)
+@riverpod
+Stream<List<Map<String, dynamic>>> chatList(Ref ref) async* {
+  final chatRepo = ref.watch(chatRepositoryProvider);
+
+  // Initial fetch
+  yield await chatRepo.getRecentConversations();
+
+  // Listen for updates
+  await for (final _ in chatRepo.streamConversationsChanged()) {
+    yield await chatRepo.getRecentConversations();
+  }
 }

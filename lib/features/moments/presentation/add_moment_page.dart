@@ -221,7 +221,7 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
-                        'OR ADD TO EXISTING MOMENT:',
+                        'OR ADD TO EXISTING GROUP:',
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,

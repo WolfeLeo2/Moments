@@ -1,11 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/services/auth_service.dart';
 import 'package:moments/core/services/avatar_cache_service.dart';
 import 'package:moments/data/repositories/social_repository.dart';
+import 'package:moments/data/repositories/notification_repository.dart';
 import 'package:moments/data/models/profile.dart';
 import 'package:moments/data/models/friendship.dart';
 import 'package:moments/core/providers/moments_providers.dart';
+import 'package:moments/core/providers/realtime_providers.dart';
+import 'package:moments/features/chat/providers/chat_providers.dart';
 
 part 'providers.g.dart';
 
@@ -20,6 +24,11 @@ AuthService authService(Ref ref) => AuthService();
 /// Social repository provider - always same instance
 @riverpod
 SocialRepository socialRepository(Ref ref) => SocialRepository();
+
+/// Notification repository provider
+@riverpod
+NotificationRepository notificationRepository(Ref ref) =>
+    NotificationRepository();
 
 // ============================================
 // AUTH STATE
@@ -40,10 +49,98 @@ Future<Profile?> currentUserProfile(Ref ref) async {
 }
 
 // ============================================
+// NOTIFICATION COUNTS
+// ============================================
+
+/// Count of pending friend requests
+@riverpod
+Stream<int> friendRequestCount(Ref ref) async* {
+  final requestsAsync = ref.watch(pendingRequestsRealtimeProvider);
+  yield requestsAsync.value?.length ?? 0;
+}
+
+/// Count of unread chats
+@riverpod
+Stream<int> unreadChatCount(Ref ref) {
+  final chatRepo = ref.watch(chatRepositoryProvider);
+  return chatRepo.streamUnreadCount();
+}
+
+/// Count of general notifications (includes friend requests + collab invites + system)
+@riverpod
+Stream<int> notificationCount(Ref ref) async* {
+  final repo = ref.watch(notificationRepositoryProvider);
+  final requestsAsync = ref.watch(pendingRequestsRealtimeProvider);
+
+  // Combine: system notifications + friend requests count
+  await for (final systemCount in repo.streamUnreadCount()) {
+    final friendRequestCount = requestsAsync.value?.length ?? 0;
+    yield systemCount + friendRequestCount;
+  }
+}
+
+/// Provider for the list of notifications with caching and realtime updates
+@riverpod
+class NotificationsList extends _$NotificationsList {
+  @override
+  Future<List<Map<String, dynamic>>> build() async {
+    // Keep the provider alive even when not used (caching)
+    ref.keepAlive();
+
+    final repo = ref.read(notificationRepositoryProvider);
+
+    // Initial fetch
+    final notifications = await repo.getNotifications();
+
+    // Subscribe to realtime updates
+    final subscription = repo.streamUnreadCount().listen((_) async {
+      // When count changes (new notification), re-fetch the list
+      // We could optimize this to only fetch new ones, but for now full refresh is safer
+      state = const AsyncValue.loading();
+      state = await AsyncValue.guard(() => repo.getNotifications());
+    });
+
+    // Dispose subscription when provider is destroyed
+    ref.onDispose(() {
+      subscription.cancel();
+    });
+
+    return notifications;
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncValue.loading();
+    final repo = ref.read(notificationRepositoryProvider);
+    state = await AsyncValue.guard(() => repo.getNotifications());
+  }
+
+  Future<void> markAllAsRead() async {
+    final repo = ref.read(notificationRepositoryProvider);
+    await repo.markAllAsRead();
+    // Optimistic update or refresh
+    await refresh();
+  }
+
+  Future<void> markAsRead(String notificationId) async {
+    final repo = ref.read(notificationRepositoryProvider);
+    await repo.markAsRead(notificationId);
+    // Optimistic update: remove from list or mark as read
+    state = state.whenData((notifications) {
+      return notifications.map((n) {
+        if (n['id'] == notificationId) {
+          return {...n, 'is_read': true};
+        }
+        return n;
+      }).toList();
+    });
+  }
+}
+
+// ============================================
 // FRIENDS & REQUESTS
 // ============================================
 
-/// List of current user's friends with offline support
+/// List of current user's friends with offline support and realtime updates
 final friendsListProvider = StreamProvider<List<Profile>>((ref) async* {
   final socialRepo = ref.watch(socialRepositoryProvider);
   final storage = ref.watch(momentStorageProvider);
@@ -61,23 +158,41 @@ final friendsListProvider = StreamProvider<List<Profile>>((ref) async* {
     yield cachedProfiles;
   }
 
-  // 2. Fetch fresh data and update cache
+  // 2. Fetch fresh data initially
   try {
     final friends = await socialRepo.getFriendsProfiles();
     await storage.saveProfiles(friends);
 
-    // Update avatar cache with fresh data
+    // Update avatar cache
     for (final profile in friends) {
       if (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty) {
         avatarCache.updateCache(profile.id, profile.avatarUrl!);
       }
     }
-
     yield friends;
   } catch (e) {
     // If network fails and we have cache, we're good.
-    // If no cache, rethrow
     if (cachedProfiles.isEmpty) rethrow;
+  }
+
+  // 3. Subscribe to realtime updates on friendships table
+  // When a friendship is added/removed/accepted, re-fetch the friends list
+  await for (final _ in socialRepo.streamFriendshipChanges()) {
+    try {
+      final updatedFriends = await socialRepo.getFriendsProfiles();
+      await storage.saveProfiles(updatedFriends);
+
+      // Update avatar cache
+      for (final profile in updatedFriends) {
+        if (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty) {
+          avatarCache.updateCache(profile.id, profile.avatarUrl!);
+        }
+      }
+      yield updatedFriends;
+    } catch (e) {
+      // Ignore errors during stream updates to keep stream alive
+      debugPrint('Error updating friends list from stream: $e');
+    }
   }
 });
 
@@ -93,6 +208,20 @@ Future<List<Friendship>> pendingRequests(Ref ref) async {
 Future<Profile?> friendProfile(Ref ref, String friendId) async {
   final socialRepo = ref.watch(socialRepositoryProvider);
   return socialRepo.getProfileById(friendId);
+}
+
+/// Get mutual friends count between current user and a friend
+@riverpod
+Future<int> mutualFriendsCount(Ref ref, String friendId) async {
+  final socialRepo = ref.watch(socialRepositoryProvider);
+  return socialRepo.getMutualFriendsCount(friendId);
+}
+
+/// Get public moments count for a user
+@riverpod
+Future<int> userMomentsCount(Ref ref, String userId) async {
+  final socialRepo = ref.watch(socialRepositoryProvider);
+  return socialRepo.getUserMomentsCount(userId);
 }
 
 // ============================================

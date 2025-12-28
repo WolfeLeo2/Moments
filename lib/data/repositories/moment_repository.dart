@@ -462,11 +462,7 @@ class MomentRepository {
           (json) => (json as List)
               .map((m) => Moment.fromJson(m as Map<String, dynamic>))
               .toList(),
-        )
-        .handleError((e) {
-          print('Error streaming moments: $e');
-          return <Moment>[];
-        });
+        );
   }
 
   /// Stream moments where user is a contributor (for shared moments) via Realtime
@@ -552,8 +548,8 @@ class MomentRepository {
 
       final groupData = {
         'title': title,
-        'center_latitude': latitude,
-        'center_longitude': longitude,
+        'latitude': latitude,
+        'longitude': longitude,
         'created_by': userId,
         'is_public': true, // Default to public for now
         'created_at': DateTime.now().toIso8601String(),
@@ -999,6 +995,22 @@ class MomentRepository {
         });
   }
 
+  /// Check if a group is private
+  Future<bool> isGroupPrivate(String groupId) async {
+    try {
+      final response = await SupabaseConfig.client
+          .from('moment_groups')
+          .select('is_private')
+          .eq('id', groupId)
+          .maybeSingle();
+
+      if (response == null) return false;
+      return response['is_private'] as bool? ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /// Stream pending invitations for current user
   Stream<List<MomentContributor>> watchPendingInvitations() {
     final userId = SupabaseConfig.client.auth.currentUser?.id;
@@ -1015,13 +1027,36 @@ class MomentRepository {
           for (final json in data) {
             if (json['accepted_at'] != null) continue; // Skip accepted
 
+            // Fetch Invitee Profile (should be current user)
             final profileResponse = await SupabaseConfig.client
                 .from('profiles')
                 .select()
                 .eq('id', json['user_id'])
                 .maybeSingle();
 
-            final enrichedJson = {...json, 'profiles': profileResponse};
+            // Fetch Group Details (Title & Creator ID)
+            final groupResponse = await SupabaseConfig.client
+                .from('moment_groups')
+                .select('title, created_by')
+                .eq('id', json['moment_id'])
+                .maybeSingle();
+
+            // Fetch Creator/Inviter Profile
+            Map<String, dynamic>? inviterResponse;
+            if (groupResponse != null && groupResponse['created_by'] != null) {
+              inviterResponse = await SupabaseConfig.client
+                  .from('profiles')
+                  .select()
+                  .eq('id', groupResponse['created_by'])
+                  .maybeSingle();
+            }
+
+            final enrichedJson = {
+              ...json,
+              'profiles': profileResponse,
+              'moment_groups': groupResponse,
+              'inviter_profile': inviterResponse,
+            };
             pending.add(MomentContributor.fromJson(enrichedJson));
           }
           return pending;

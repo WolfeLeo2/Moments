@@ -8,7 +8,6 @@ A Flutter app that allows users to create location-based photo moments and view 
 - 📸 **Photo Moments**: Create moments with photos, titles, and descriptions
 - 🌍 **Location Services**: Auto-detect current location or manually select
 - 📱 **Cross-Platform**: iOS and Android support
-- 🔄 **Offline-First**: Create moments offline, sync when online
 - 🎨 **Beautiful UI**: Playful, layered design with smooth animations
 
 ## Setup Instructions
@@ -107,7 +106,7 @@ lib/
 
 - **Clean Architecture**: Separation of concerns with data, domain, and presentation layers
 - **Repository Pattern**: Centralized data access
-- **Offline-First**: Local caching with online sync
+- Local caching with online sync
 - **State Management**: StatefulWidget with minimal state
 
 ## Design System

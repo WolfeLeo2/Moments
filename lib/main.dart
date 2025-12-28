@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'core/services/firebase_messaging_service.dart';
+import 'core/services/notification_navigator.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/services/map_cache_service.dart';
@@ -15,8 +19,17 @@ void main() async {
   // Load environment variables
   await dotenv.load(fileName: '.env');
 
+  // Initialize Firebase
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   // Initialize Supabase
   await SupabaseConfig.initialize();
+
+  // Initialize Firebase Messaging
+  await FirebaseMessagingService().initialize();
+
+  // Initialize notification deep-link handler
+  NotificationNavigator.initialize();
 
   // Initialize map tile caching (async, non-blocking)
   MapCacheService().initialize();

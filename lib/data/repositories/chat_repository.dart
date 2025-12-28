@@ -120,6 +120,80 @@ class ChatRepository {
         });
   }
 
+  /// Get all conversations with their last message for the current user
+  Future<List<Map<String, dynamic>>> getRecentConversations() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return [];
+
+    // 1. Get all conversation IDs for the user
+    final participants = await _client
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', userId);
+
+    if (participants.isEmpty) return [];
+
+    final conversationIds = participants
+        .map((p) => p['conversation_id'] as String)
+        .toList();
+
+    // 2. Fetch last message for each conversation
+    // We use Future.wait to fetch them in parallel
+    final futures = conversationIds.map((conversationId) async {
+      try {
+        final response = await _client
+            .from('messages')
+            .select()
+            .eq('conversation_id', conversationId)
+            .order('created_at', ascending: false)
+            .limit(1)
+            .maybeSingle();
+
+        if (response != null) {
+          // Fetch other participant
+          final otherParticipantResponse = await _client
+              .from('conversation_participants')
+              .select('user_id')
+              .eq('conversation_id', conversationId)
+              .neq('user_id', userId)
+              .maybeSingle();
+
+          // Fetch unread count
+          final unreadCount = await _client
+              .from('messages')
+              .count(CountOption.exact)
+              .eq('conversation_id', conversationId)
+              .neq('sender_id', userId)
+              .eq('is_read', false);
+
+          if (otherParticipantResponse != null) {
+            return {
+              'conversationId': conversationId,
+              'lastMessage': Message.fromJson(response),
+              'otherUserId': otherParticipantResponse['user_id'] as String,
+              'unreadCount': unreadCount,
+            };
+          }
+        }
+      } catch (e) {
+        print('Error fetching last message for $conversationId: $e');
+      }
+      return null;
+    });
+
+    final results = await Future.wait(futures);
+    final conversations = results.whereType<Map<String, dynamic>>().toList();
+
+    // Sort by last message time (newest first)
+    conversations.sort((a, b) {
+      final msgA = a['lastMessage'] as Message;
+      final msgB = b['lastMessage'] as Message;
+      return msgB.createdAt.compareTo(msgA.createdAt);
+    });
+
+    return conversations;
+  }
+
   /// Send a text message
   Future<Message> sendMessage({
     required String conversationId,
@@ -386,6 +460,75 @@ class ChatRepository {
           },
         )
         .subscribe();
+
+    return controller.stream;
+  }
+
+  /// Stream unread message count
+  Stream<int> streamUnreadCount() {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return Stream.value(0);
+
+    final controller = StreamController<int>();
+
+    Future<void> fetch() async {
+      try {
+        final count = await _client.rpc('get_unread_chat_count');
+        if (!controller.isClosed) controller.add(count as int);
+      } catch (e) {
+        print('Error fetching unread chat count: $e');
+      }
+    }
+
+    // Initial fetch
+    fetch();
+
+    // Listen for changes in messages table
+    // Note: We listen to all message changes because we can't easily filter
+    // by "messages for me" without a join in the filter.
+    // This might be noisy but ensures accuracy.
+    final channel = _client.channel('public:messages_count');
+    channel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'messages',
+          callback: (payload) => fetch(),
+        )
+        .subscribe();
+
+    controller.onCancel = () async {
+      await _client.removeChannel(channel);
+      await controller.close();
+    };
+
+    return controller.stream;
+  }
+
+  /// Stream that emits when conversations list might have changed
+  Stream<void> streamConversationsChanged() {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return Stream.value(null);
+
+    final controller = StreamController<void>();
+
+    // Listen for new messages (which might create new conversations or update last message)
+    final channel = _client.channel('public:conversations_list');
+    channel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'messages',
+          callback: (payload) {
+            if (!controller.isClosed) controller.add(null);
+          },
+        )
+        .subscribe();
+
+    controller.onCancel = () async {
+      await _client.removeChannel(channel);
+      await controller.close();
+    };
 
     return controller.stream;
   }

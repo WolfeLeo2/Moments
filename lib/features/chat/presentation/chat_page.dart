@@ -21,6 +21,8 @@ import 'package:moments/features/chat/widgets/typing_indicator_bubble.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:icon_button_m3e/icon_button_m3e.dart';
 
+import 'package:moments/core/services/firebase_messaging_service.dart';
+
 class ChatPage extends ConsumerStatefulWidget {
   final String friendId;
   final String friendName;
@@ -43,6 +45,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
   final ScrollController _scrollController = ScrollController();
   Timer? _typingTimer;
 
+  bool _showScrollToBottomButton = false;
+  int _unreadCount = 0;
+  bool _isFirstLoad = true;
+
   @override
   bool get wantKeepAlive => true;
 
@@ -50,6 +56,54 @@ class _ChatPageState extends ConsumerState<ChatPage>
   void initState() {
     super.initState();
     _messageController.addListener(_onMessageChanged);
+    _scrollController.addListener(_onScroll);
+
+    // Set current chat ID to suppress notifications
+    // We need to get the conversation ID first
+    Future.delayed(Duration.zero, () {
+      final conversationAsync = ref.read(
+        conversationIdProvider(widget.friendId),
+      );
+      conversationAsync.whenData((id) {
+        // Update static var for service
+        FirebaseMessagingService.currentChatId = id;
+        // Clear any existing notification for this chat
+        FirebaseMessagingService.cancelNotificationByRelatedId(id);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    _typingTimer?.cancel();
+    FirebaseMessagingService.currentChatId = null; // Clear static var
+    super.dispose();
+  }
+
+  @override
+  void deactivate() {
+    FirebaseMessagingService.currentChatId = null;
+    super.deactivate();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.offset;
+    // Show button if we are more than 200 pixels away from bottom
+    final show = (maxScroll - currentScroll) > 200;
+
+    if (show != _showScrollToBottomButton) {
+      setState(() {
+        _showScrollToBottomButton = show;
+        if (!show) {
+          _unreadCount = 0; // Reset count when we scroll to bottom manually
+        }
+      });
+    }
   }
 
   void _onMessageChanged() {
@@ -152,26 +206,30 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
   }
 
-  void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 100), () {
+  void _scrollToBottom({bool animated = true}) {
+    // Use SchedulerBinding to ensure layout is complete
+    // A small delay helps when images/content are still sizing
+    Future.delayed(const Duration(milliseconds: 50), () {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+        if (animated) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+          );
+        } else {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        }
+        if (mounted) {
+          setState(() {
+            _unreadCount = 0;
+          });
+        }
       }
     });
   }
 
-  @override
-  void dispose() {
-    _messageController.removeListener(_onMessageChanged);
-    _messageController.dispose();
-    _scrollController.dispose();
-    _typingTimer?.cancel();
-    super.dispose();
-  }
+  // Removed duplicate dispose method
 
   @override
   Widget build(BuildContext context) {
@@ -199,7 +257,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundImage: AvatarCacheService().getAvatarImageProvider(widget.friendAvatarUrl),
+              backgroundImage: AvatarCacheService().getAvatarImageProvider(
+                widget.friendAvatarUrl,
+              ),
               backgroundColor: AppTheme.electricPurple.withValues(alpha: 0.2),
               child: widget.friendAvatarUrl == null
                   ? Text(
@@ -219,6 +279,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   color: Colors.black,
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
                 ),
               ),
             ),
@@ -244,24 +305,44 @@ class _ChatPageState extends ConsumerState<ChatPage>
           });
 
           // Listen to message updates to mark them as read in real-time
-          ref.listen<AsyncValue<List<Message>>>(
-            messagesStreamProvider(conversationId),
-            (previous, next) {
-              next.whenData((messages) {
-                if (messages.isEmpty) return;
+          ref.listen<
+            AsyncValue<List<Message>>
+          >(messagesStreamProvider(conversationId), (previous, next) {
+            next.whenData((messages) {
+              if (messages.isEmpty) return;
 
-                // Check if there are any unread messages from the other user
-                final hasUnreadMessages = messages.any(
-                  (m) => m.senderId != currentUserId && !m.isRead,
-                );
+              // Check if there are any unread messages from the other user
+              final hasUnreadMessages = messages.any(
+                (m) => m.senderId != currentUserId && !m.isRead,
+              );
 
-                if (hasUnreadMessages) {
-                  // Mark as read without awaiting to avoid blocking UI
-                  ref.read(chatRepositoryProvider).markAsRead(conversationId);
+              if (hasUnreadMessages) {
+                // Mark as read without awaiting to avoid blocking UI
+                ref.read(chatRepositoryProvider).markAsRead(conversationId);
+              }
+
+              // Handle Scroll Logic
+              final oldLen = previous?.value?.length ?? 0;
+              final newLen = messages.length;
+              if (newLen > oldLen) {
+                final lastMsg = messages.last;
+                final isMe = lastMsg.senderId == currentUserId;
+
+                if (isMe) {
+                  _scrollToBottom();
+                } else {
+                  // If user is near bottom (button hidden), scroll. Else show badge.
+                  if (!_showScrollToBottomButton) {
+                    _scrollToBottom();
+                  } else {
+                    setState(() {
+                      _unreadCount++;
+                    });
+                  }
                 }
-              });
-            },
-          );
+              }
+            });
+          });
 
           return Stack(
             children: [
@@ -306,17 +387,15 @@ class _ChatPageState extends ConsumerState<ChatPage>
                           );
                         }
 
-                        // Scroll to bottom when new messages arrive
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (_scrollController.hasClients) {
-                            _scrollController.animateTo(
-                              _scrollController.position.maxScrollExtent,
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeOut,
-                            );
-                            _scrollToBottom();
-                          }
-                        });
+                        // Initial Scroll Logic
+                        if (_isFirstLoad) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (_scrollController.hasClients) {
+                              _scrollToBottom(animated: false);
+                              _isFirstLoad = false;
+                            }
+                          });
+                        }
 
                         // Find the index of the last message sent by the current user
                         int lastMyMessageIndex = -1;
@@ -673,6 +752,61 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   ),
                 ),
               ),
+              // Scroll to bottom button
+              if (_showScrollToBottomButton)
+                Positioned(
+                  right: 16,
+                  bottom: 100,
+                  child: GestureDetector(
+                    onTap: () => _scrollToBottom(),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.black.withValues(alpha: 0.6),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Icon(
+                            Icons.keyboard_arrow_down,
+                            color: Colors.white,
+                          ),
+                          if (_unreadCount > 0)
+                            Positioned(
+                              top: -8,
+                              right: -8,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  _unreadCount.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
             ],
           );
         },

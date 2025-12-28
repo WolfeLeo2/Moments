@@ -44,7 +44,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
   // Track which moments we've loaded to avoid redundant loads
   Set<String> _loadedMomentIds = {};
   bool _isLoading = false;
-  
+
   // Reactions state (simplified - just total count)
   int _reactionCount = 0;
   String? _userReaction;
@@ -268,14 +268,14 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
   Future<void> _loadReactions() async {
     if (widget.moments.isEmpty) return;
-    
+
     // Load reactions for the front moment (most visible)
     final frontMoment = widget.moments.first;
-    
+
     try {
       final summaries = await _momentRepo.getReactionSummary(frontMoment.id);
       final userReaction = await _momentRepo.getUserReaction(frontMoment.id);
-      
+
       if (mounted) {
         // Calculate total count from all emoji summaries
         final totalCount = summaries.fold<int>(0, (sum, s) => sum + s.count);
@@ -291,20 +291,21 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
   Future<void> _toggleHeart() async {
     if (widget.moments.isEmpty) return;
-    
+
     final frontMoment = widget.moments.first;
     const heartEmoji = '❤️';
-    
+
     // Determine if this is a like or unlike action
     final isUnliking = _userReaction == heartEmoji;
-    
+
     // Show appropriate animation immediately for responsiveness
     setState(() {
       _showingHeartAnimation = true;
-      _isLikeAnimation = !isUnliking; // like animation if adding, dislike if removing
+      _isLikeAnimation =
+          !isUnliking; // like animation if adding, dislike if removing
     });
     HapticService.mediumTap();
-    
+
     // Hide animation after delay
     Future.delayed(const Duration(milliseconds: 1000), () {
       if (mounted) {
@@ -313,7 +314,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
         });
       }
     });
-    
+
     try {
       if (isUnliking) {
         // Remove heart
@@ -446,7 +447,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
                   // Title badge at bottom right
                   _buildTitleBadge(),
-                  
+
                   // Heart/Dislike animation overlay
                   if (_showingHeartAnimation)
                     Positioned.fill(
@@ -457,22 +458,28 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
                         ),
                       ),
                     ),
-                  
+
                   // Compact reaction indicator (bottom left, inside card bounds)
                   // Only show count when > 1
-                  if (_reactionCount > 1 || (_userReaction != null && _reactionCount <= 1))
+                  if (_reactionCount > 1 ||
+                      (_userReaction != null && _reactionCount <= 1))
                     Positioned(
                       bottom: -18,
                       left: -2,
                       child: Container(
-                        padding: _reactionCount > 1 
-                            ? const EdgeInsets.symmetric(horizontal: 6, vertical: 3)
+                        padding: _reactionCount > 1
+                            ? const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 3,
+                              )
                             : const EdgeInsets.all(5),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              _userReaction != null ? Icons.favorite : Icons.favorite_border,
+                              _userReaction != null
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
                               color: Colors.red,
                               size: 24,
                             ),
@@ -483,7 +490,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
                                 style: GoogleFonts.inter(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
-                                  color:Colors.black,
+                                  color: Colors.black,
                                 ),
                               ),
                             ],
@@ -675,64 +682,71 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
     return Transform.rotate(
       angle: 0.08, // Slight tilt for that casual sticker look
-      child: Container(
-        width: 40,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: AppTheme.borderBlack, width: 2),
-          boxShadow: const [
-            BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Top red part with month
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              decoration: const BoxDecoration(
-                color: Color(0xFFE53935), // Red
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(4),
-                  topRight: Radius.circular(4),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Container(
+          width: 40,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: AppTheme.borderBlack, width: 2),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black,
+                offset: Offset(2, 2),
+                blurRadius: 0,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Top red part with month
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE53935), // Red
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(4),
+                    topRight: Radius.circular(4),
+                  ),
+                ),
+                child: Text(
+                  month,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.bebasNeue(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    height: 1.0,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
-              child: Text(
-                month,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.bebasNeue(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
+              // Bottom white part with day
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                decoration: const BoxDecoration(
                   color: Colors.white,
-                  height: 1.0,
-                  letterSpacing: 0.5,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(4),
+                    bottomRight: Radius.circular(4),
+                  ),
+                ),
+                child: Text(
+                  day,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.bangers(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: AppTheme.borderBlack,
+                    height: 1.0,
+                  ),
                 ),
               ),
-            ),
-            // Bottom white part with day
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(4),
-                  bottomRight: Radius.circular(4),
-                ),
-              ),
-              child: Text(
-                day,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.bangers(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: AppTheme.borderBlack,
-                  height: 1.0,
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -765,23 +779,26 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     return Positioned(
       bottom: 0,
       right: -10,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          title.toUpperCase(),
-          style: GoogleFonts.bebasNeue(
-            fontSize: 24,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-            letterSpacing: 0.5,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(4),
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          child: Text(
+            title.toUpperCase(),
+            style: GoogleFonts.bebasNeue(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+              letterSpacing: 0.5,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
       ),
     );

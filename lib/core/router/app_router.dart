@@ -4,6 +4,7 @@ import '../../features/map/presentation/map_page_flutter_map.dart';
 import '../../features/moments/presentation/add_moment_page.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../services/auth_service.dart';
+import '../services/notification_navigator.dart';
 
 class AppRouter {
   static const String loginRoute = '/login';
@@ -14,6 +15,7 @@ class AppRouter {
   static final _authService = AuthService();
 
   static final GoRouter router = GoRouter(
+    navigatorKey: NotificationNavigator.navigatorKey,
     initialLocation: loginRoute,
     debugLogDiagnostics: false,
     redirect: (context, state) {

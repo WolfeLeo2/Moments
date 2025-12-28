@@ -804,7 +804,15 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
               width: 8.w,
             ), // Adjust this value (e.g., 4.w, 8.w) for the desired small gap
             // 3. Title Text
-            Text("GALLERY"),
+            Text(
+              'GALLERY',
+              style: GoogleFonts.bebasNeue(
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.5.sp,
+              ),
+            )
+            ,
           ],
         ),
         centerTitle: false,

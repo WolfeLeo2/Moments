@@ -26,10 +26,8 @@ class MomentGroup extends Equatable {
     this.isPrivate = false,
   });
 
-  // Legacy getters for backward compatibility
+  // Alias for title
   String get placeName => title;
-  double get centerLatitude => latitude;
-  double get centerLongitude => longitude;
 
   int get momentCount => moments.length;
 
@@ -96,8 +94,8 @@ class MomentGroup extends Equatable {
       id: json['id'] as String,
       title: json['title'] as String,
       moments: [], // Will be populated separately
-      latitude: (json['center_latitude'] as num).toDouble(),
-      longitude: (json['center_longitude'] as num).toDouble(),
+      latitude: (json['latitude'] as num).toDouble(),
+      longitude: (json['longitude'] as num).toDouble(),
       createdBy: json['created_by'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(
@@ -111,8 +109,8 @@ class MomentGroup extends Equatable {
     return {
       'id': id,
       'title': title,
-      'center_latitude': latitude,
-      'center_longitude': longitude,
+      'latitude': latitude,
+      'longitude': longitude,
       'created_by': createdBy,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),

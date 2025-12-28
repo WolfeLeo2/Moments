@@ -95,7 +95,7 @@ class AppTheme {
         foregroundColor: textDark,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.bebasNeue(
+        titleTextStyle: TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.w600,
           color: textDark,

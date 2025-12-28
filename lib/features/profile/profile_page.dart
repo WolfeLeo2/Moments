@@ -6,7 +6,11 @@ import '../../core/theme/app_theme.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/avatar_cache_service.dart';
 import '../../core/providers/moments_providers.dart';
+import '../../core/providers/providers.dart';
+import '../../data/repositories/social_repository.dart';
 import '../moments/presentation/year_in_review_page.dart';
+import 'package:moments/features/profile/collaborating_moments_page.dart';
+import 'notification_settings_page.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class ProfilePage extends ConsumerWidget {
@@ -16,6 +20,7 @@ class ProfilePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authService = AuthService();
     final momentsAsync = ref.watch(momentsStreamProvider);
+    final userProfileAsync = ref.watch(currentUserProfileProvider);
     final currentYear = DateTime.now().year;
 
     return Scaffold(
@@ -29,9 +34,19 @@ class ProfilePage extends ConsumerWidget {
         ),
         title: Text(
           'Profile',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.5,
+          ),
         ),
-        centerTitle: true,
+        centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit, color: Colors.black),
+            onPressed: () => _showEditProfileDialog(context, ref),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -41,7 +56,9 @@ class ProfilePage extends ConsumerWidget {
             CircleAvatar(
               radius: 50,
               backgroundColor: AppTheme.primaryBlue,
-              backgroundImage: AvatarCacheService().getAvatarImageProvider(authService.currentUserPhotoUrl),
+              backgroundImage: AvatarCacheService().getAvatarImageProvider(
+                authService.currentUserPhotoUrl,
+              ),
               child: authService.currentUserPhotoUrl == null
                   ? Text(
                       (authService.currentUserDisplayName ?? 'U')[0]
@@ -73,111 +90,138 @@ class ProfilePage extends ConsumerWidget {
                 style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
               ),
 
-            const SizedBox(height: 32),
-
-            // Year in Review Card - Featured!
-            momentsAsync.when(
-              data: (moments) {
-                final yearMoments = moments
-                    .where((m) => m.timestamp.year == currentYear)
-                    .toList();
-
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => YearInReviewPage(
-                          moments: moments,
-                          year: currentYear,
-                        ),
+            // Bio
+            userProfileAsync.when(
+              data: (profile) {
+                if (profile?.bio != null && profile!.bio!.isNotEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      profile.bio!,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.black87,
                       ),
-                    );
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: ShapeDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF1DB954), Color(0xFF191414)],
-                      ),
-                      shape: RoundedSuperellipseBorder(
-                      borderRadius: BorderRadiusGeometry.all(Radius.circular(20.sp)),
-                      ),
-                      shadows: [
-                        BoxShadow(
-                          color: const Color(0xFF1DB954).withValues(alpha:0.6),
-                          blurRadius: 50.r,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
                     ),
-
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '$currentYear WRAPPED',
-                                style: GoogleFonts.bebasNeue(
-                                  fontSize: 28,
-                                  color: Colors.white,
-                                  letterSpacing: 2,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${yearMoments.length} moments this year',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: Colors.white70,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  'View Your Year →',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF1DB954),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Icon(
-                          Icons.auto_awesome,
-                          color: Colors.white,
-                          size: 48.sp,
-                        ),
-                      ],
-                    ),
-                  ),
-                );
+                  );
+                }
+                return const SizedBox.shrink();
               },
-              loading: () => const SizedBox(
-                height: 140,
-                child: Center(child: CircularProgressIndicator()),
-              ),
+              loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink(),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
+
+            // Year in Review Card - Featured! (Only in December)
+            if (DateTime.now().month == 12)
+              momentsAsync.when(
+                data: (moments) {
+                  final yearMoments = moments
+                      .where((m) => m.timestamp.year == currentYear)
+                      .toList();
+
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => YearInReviewPage(
+                            moments: moments,
+                            year: currentYear,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: ShapeDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF1DB954), Color(0xFF191414)],
+                        ),
+                        shape: RoundedSuperellipseBorder(
+                          borderRadius: BorderRadiusGeometry.all(
+                            Radius.circular(20.sp),
+                          ),
+                        ),
+                        shadows: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFF1DB954,
+                            ).withValues(alpha: 0.6),
+                            blurRadius: 50.r,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '$currentYear WRAPPED',
+                                  style: GoogleFonts.bebasNeue(
+                                    fontSize: 28,
+                                    color: Colors.white,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${yearMoments.length} moments this year',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    'View Your Year →',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF1DB954),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Icon(
+                            Icons.auto_awesome,
+                            color: Colors.white,
+                            size: 48.sp,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+                loading: () => const SizedBox(
+                  height: 140,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (_, __) => const SizedBox.shrink(),
+              ),
+
+            if (DateTime.now().month == 12) const SizedBox(height: 24),
 
             // Settings section
             _buildSectionHeader('Settings'),
@@ -185,9 +229,30 @@ class ProfilePage extends ConsumerWidget {
 
             _buildSettingsTile(
               context: context,
+              icon: HugeIcons.strokeRoundedUserGroup,
+              title: 'Shared Moments',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CollaboratingMomentsPage(),
+                  ),
+                );
+              },
+            ),
+
+            _buildSettingsTile(
+              context: context,
               icon: HugeIcons.strokeRoundedNotification03,
               title: 'Notifications',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const NotificationSettingsPage(),
+                  ),
+                );
+              },
             ),
             _buildSettingsTile(
               context: context,
@@ -237,6 +302,62 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 
+  void _showEditProfileDialog(BuildContext context, WidgetRef ref) {
+    final userProfileAsync = ref.read(currentUserProfileProvider);
+    final bioController = TextEditingController();
+
+    userProfileAsync.whenData((profile) {
+      if (profile?.bio != null) {
+        bioController.text = profile!.bio!;
+      }
+    });
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Edit Profile', style: GoogleFonts.bebasNeue(fontSize: 24)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: bioController,
+              decoration: const InputDecoration(
+                labelText: 'Bio',
+                hintText: 'Tell us about yourself',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+              maxLength: 150,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                final repo = ref.read(socialRepositoryProvider);
+                await repo.updateCurrentUserProfile(bio: bioController.text);
+                ref.invalidate(currentUserProfileProvider);
+                if (context.mounted) Navigator.pop(context);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to update profile: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(String title) {
     return Align(
       alignment: Alignment.centerLeft,
@@ -263,9 +384,9 @@ class ProfilePage extends ConsumerWidget {
       decoration: ShapeDecoration(
         color: AppTheme.cardWhite,
         shape: RoundedSuperellipseBorder(
-        borderRadius: BorderRadiusGeometry.all(Radius.circular(12.sp)),
-        side: BorderSide(color: AppTheme.borderBlack),
-      ),
+          borderRadius: BorderRadiusGeometry.all(Radius.circular(12.sp)),
+          side: BorderSide(color: AppTheme.borderBlack),
+        ),
       ),
       child: ListTile(
         leading: HugeIcon(icon: icon, size: 22.sp, color: Colors.black87),

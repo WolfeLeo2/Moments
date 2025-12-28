@@ -204,7 +204,8 @@ class SocialRepository {
             'status': 'accepted',
             'responded_at': DateTime.now().toIso8601String(),
           })
-          .eq('id', friendshipId);
+          .eq('id', friendshipId)
+          .select();
 
       print('✅ [ACCEPT REQUEST] Successfully accepted friendship!');
     } catch (e, stackTrace) {
@@ -247,6 +248,19 @@ class SocialRepository {
     try {
       final userId = _client.auth.currentUser?.id;
       if (userId == null) return [];
+
+      // We need to fetch the sender's profile as well
+      // But Friendship model doesn't have profile data.
+      // We can fetch it separately or use a join if we update the model.
+      // For now, let's just fetch the friendships.
+      // The UI (NotificationsPage) seems to expect 'actorName' etc.
+      // Wait, NotificationsPage combines 'Friendship' objects into 'NotificationItem'.
+      // But 'Friendship' object only has IDs.
+      // Where does 'actorName' come from for Friend Requests?
+      // In _combineNotifications:
+      // items.add(NotificationItem(..., body: 'sent you a friend request', ...));
+      // It doesn't seem to fetch the profile!
+      // This is why the card might be missing info or looking generic.
 
       final response = await _client
           .from('friendships')
@@ -318,45 +332,69 @@ class SocialRepository {
       throw Exception('Failed to fetch friends profiles: $e');
     }
   }
+
+  /// Get mutual friends count between current user and another user
+  /// Mutual friends = users who are friends with BOTH the current user AND the target user
+  Future<int> getMutualFriendsCount(String friendId) async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) return 0;
+
+      // Get current user's friend IDs
+      final myFriendIds = await getFriendIds();
+      if (myFriendIds.isEmpty) return 0;
+
+      // Get the target user's friend IDs
+      final theirFriendships = await _client
+          .from('friendships')
+          .select()
+          .eq('status', 'accepted')
+          .or('user_id.eq.$friendId,friend_id.eq.$friendId');
+
+      final theirFriendIds = (theirFriendships as List).map((f) {
+        final friendship = f as Map<String, dynamic>;
+        final uId = friendship['user_id'] as String;
+        final fId = friendship['friend_id'] as String;
+        return uId == friendId ? fId : uId;
+      }).toSet();
+
+      // Count mutual: intersection of both friend lists (excluding each other)
+      final mutualCount = myFriendIds
+          .where(
+            (id) =>
+                theirFriendIds.contains(id) && id != friendId && id != userId,
+          )
+          .length;
+
+      return mutualCount;
+    } catch (e) {
+      print('Error getting mutual friends count: $e');
+      return 0;
+    }
+  }
+
+  /// Get count of public moments for a specific user
+  Future<int> getUserMomentsCount(String userId) async {
+    try {
+      final response = await _client
+          .from('moments')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('is_private', false);
+
+      return (response as List).length;
+    } catch (e) {
+      print('Error getting user moments count: $e');
+      return 0;
+    }
+  }
   // ============================================
   // REALTIME STREAMS
   // ============================================
 
-  /// Stream of friends profiles (Realtime)
-  /// Watches friendships table and fetches profiles when it changes
-  Stream<List<Profile>> streamFriends() {
-    final userId = _client.auth.currentUser?.id;
-    if (userId == null) {
-      return Stream.value(<Profile>[]);
-    }
-
-    // Watch friendships table for any accepted friendship involving the user
-    // Note: stream() does not support eq() directly in this version of the SDK for all platforms/versions
-    // or it behaves differently. The correct way usually is to just stream and filter in client
-    // or use eq() BEFORE stream() if supported (but stream() returns SupabaseStreamBuilder which might not have eq).
-    // Actually, in supabase_flutter v2, stream() takes filters as arguments or we filter on the collection BEFORE .stream()?
-    // No, .stream() is on the Table.
-    // Let's check the SDK version. It's ^2.10.3.
-    // In v2, we should use: .stream(primaryKey: ['id']).eq('status', 'accepted')
-    // If that fails, it means the builder returned by stream() doesn't have eq.
-    // Wait, the error says "The method 'eq' isn't defined for the type 'SupabaseStreamBuilder'".
-    // This means we cannot filter a stream on the server side with this SDK version using .eq() AFTER .stream().
-    // We must accept all events and filter in Dart, OR use a different approach.
-
-    // However, for 'streamPendingRequests', we really want to filter by user_id.
-    // Let's try to filter in Dart for now to be safe and fix the error.
-
-    return _client
-        .from('friendships')
-        .stream(primaryKey: ['id'])
-        .asyncMap((data) async {
-          // We just re-fetch everything to be safe and simple
-          return getFriendsProfiles();
-        })
-        .handleError((e) {
-          print('Error streaming friends: $e');
-          return <Profile>[];
-        });
+  /// Stream of ANY friendship changes (for triggering refreshes)
+  Stream<void> streamFriendshipChanges() {
+    return _client.from('friendships').stream(primaryKey: ['id']).map((_) {});
   }
 
   /// Stream of pending requests (Realtime)

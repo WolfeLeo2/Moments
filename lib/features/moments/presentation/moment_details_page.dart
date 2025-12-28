@@ -88,6 +88,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   // Collaborative moments state
   List<MomentContributor> _contributors = [];
   bool _isOwner = false;
+  bool _isGroupPrivate = false;
   MomentContributor? _userContribution;
 
   // Realtime moments list (starts with widget.moments, updates via stream)
@@ -133,9 +134,15 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     super.initState();
     // Initialize with widget moments, will be updated via stream
     _moments = List.from(widget.moments);
-    _groupId = widget.moments.isNotEmpty
-        ? widget.moments.first.momentGroupId
-        : null;
+
+    // Only enable realtime updates if all moments belong to the same group
+    // If it's a cluster of multiple groups, we don't watch a single group stream
+    final uniqueGroupIds = widget.moments
+        .map((m) => m.momentGroupId)
+        .where((id) => id != null)
+        .toSet();
+
+    _groupId = uniqueGroupIds.length == 1 ? uniqueGroupIds.first : null;
     _currentPage = widget.initialPage;
     _videoManager = VideoControllerManager(
       onControllerReady: () {
@@ -161,12 +168,17 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
       final contributors = await repository.getContributors(groupId);
       final userContribution = await repository.getUserContribution(groupId);
+      final isPrivate = await repository.isGroupPrivate(groupId);
 
       if (mounted) {
         setState(() {
           _contributors = contributors;
           _userContribution = userContribution;
-          _isOwner = _userContribution?.isOwner ?? false;
+          _isGroupPrivate = isPrivate;
+          // Fallback to moment ownership if group ownership is not explicitly defined
+          _isOwner =
+              (_userContribution?.isOwner ?? false) ||
+              (_moments.isNotEmpty && _isOwnMoment(_moments.first));
         });
       }
     } catch (e) {
@@ -214,6 +226,19 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
   /// Show contributors modal
   void _showContributorsModal() {
+    // If group is private, show warning that it needs to be public to invite others
+    if (_isGroupPrivate && !_contributors.any((c) => !c.isOwner)) {
+      // Only show if there are no other contributors yet (solo private group)
+      if (_moments.isNotEmpty && _isOwnMoment(_moments.first)) {
+        HapticService.error();
+        context.showSnackBar(
+          'Limited to public groups!',
+          backgroundColor: AppTheme.primaryBlue,
+        );
+        return;
+      }
+    }
+
     HapticService.lightTap();
     showModalBottomSheet(
       context: context,
@@ -1574,9 +1599,15 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     if (_groupId != null) {
       final momentsStream = ref.watch(momentsByGroupStreamProvider(_groupId!));
       momentsStream.whenData((updatedMoments) {
-        // Check if moments actually changed (by comparing IDs)
+        // Check if moments actually changed (by comparing IDs AND count)
         final currentIds = _moments.map((m) => m.id).toSet();
         final updatedIds = updatedMoments.map((m) => m.id).toSet();
+
+        // Skip update if IDs are identical (same moments, same count)
+        if (currentIds.length == updatedIds.length &&
+            currentIds.containsAll(updatedIds)) {
+          return; // No actual change, skip rebuild
+        }
 
         if (!currentIds.containsAll(updatedIds) ||
             !updatedIds.containsAll(currentIds)) {
@@ -1585,6 +1616,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             if (mounted) {
               // Find deleted moment IDs to clean up their cached data
               final deletedIds = currentIds.difference(updatedIds);
+              final addedIds = updatedIds.difference(currentIds);
+              final countChanged = _moments.length != updatedMoments.length;
 
               setState(() {
                 // Clean up cached data for deleted moments
@@ -1602,12 +1635,16 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                 }
               });
 
-              // Reinitialize animation controllers for new count
-              _initializeAnimationControllers();
-              _loadAllPhotoHeartStatuses();
+              // Only reinitialize animations if count changed (new/deleted moments)
+              if (countChanged) {
+                _initializeAnimationControllers();
+              }
 
-              // Load URLs for any new moments
-              _loadImageUrls();
+              // Load data for new moments only
+              if (addedIds.isNotEmpty) {
+                _loadAllPhotoHeartStatuses();
+                _loadImageUrls();
+              }
             }
           });
         }
@@ -1640,7 +1677,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                 child: InkWell(
                   onTap: _isUploading ? null : _handleAddPhotos,
                   borderRadius: BorderRadius.circular(
-                    AppTheme.radiusMedium - 2,
+                    (AppTheme.radiusMedium - 2).clamp(0.0, double.infinity),
                   ),
                   child: Padding(
                     padding: EdgeInsets.symmetric(

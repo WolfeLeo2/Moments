@@ -15,9 +15,20 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
-        <!-- Google Maps API Key -->
-        <meta-data android:name="com.google.android.geo.API_KEY"
-                   android:value="AIzaSyAOVYRIgupAurZup5y1PRh8Ismb1A3lLao"/>
+        <!-- FCM Default Notification Channel - HIGH importance for heads-up/pill notifications -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="high_importance_channel" />
+        
+        <!-- Default notification icon (optional - uses app icon if not set) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
+        
+        <!-- Default notification color -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
 
         <activity
             android:name=".MainActivity"

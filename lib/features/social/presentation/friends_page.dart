@@ -1,620 +1,132 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:moments/features/chat/providers/chat_providers.dart';
-import 'package:moments/features/chat/presentation/chat_page.dart';
-import '../../../core/services/avatar_cache_service.dart';
-import '../../../core/providers/providers.dart';
-import '../../../core/providers/realtime_providers.dart';
-import '../../../core/utils/extensions.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../data/models/friendship.dart';
-import '../../../data/models/profile.dart';
+import 'package:moments/core/theme/app_theme.dart';
+import 'package:moments/core/providers/providers.dart';
+import 'package:moments/features/social/presentation/widgets/friend_card.dart';
+import 'package:moments/features/social/presentation/widgets/invite_bottom_sheet.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-/// Page for managing friends and friend requests
-class FriendsPage extends ConsumerStatefulWidget {
+/// Page for viewing friends list.
+/// Friend requests have been moved to the Notifications page.
+class FriendsPage extends ConsumerWidget {
   const FriendsPage({super.key});
 
-  @override
-  ConsumerState<FriendsPage> createState() => _FriendsPageState();
-}
-
-class _FriendsPageState extends ConsumerState<FriendsPage>
-    with SingleTickerProviderStateMixin {
-  final TextEditingController _inviteCodeController = TextEditingController();
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _inviteCodeController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _sendFriendRequest() async {
-    final inviteCode = _inviteCodeController.text.trim().toUpperCase();
-    if (inviteCode.isEmpty) {
-      context.showErrorSnackBar('Please enter an invite code');
-      return;
-    }
-
-    if (inviteCode.length != 6) {
-      context.showErrorSnackBar('Invite code must be 6 characters');
-      return;
-    }
-
-    try {
-      await ref.read(addFriendProvider.notifier).sendFriendRequest(inviteCode);
-      _inviteCodeController.clear();
-      if (mounted) {
-        context.showSuccessSnackBar('Friend request sent!');
-        // Invalidate cache to refresh lists
-        ref.invalidate(friendsListProvider);
-        ref.invalidate(pendingRequestsProvider);
-      }
-    } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar(e.toString().replaceAll('Exception: ', ''));
-      }
-    }
-  }
-
-  Future<void> _acceptRequest(String friendshipId) async {
-    try {
-      await ref
-          .read(friendRequestProvider.notifier)
-          .acceptRequest(friendshipId);
-      if (mounted) {
-        context.showSuccessSnackBar('Friend request accepted!');
-        ref.invalidate(friendsListProvider);
-        ref.invalidate(pendingRequestsProvider);
-      }
-    } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar('Failed to accept request');
-      }
-    }
-  }
-
-  Future<void> _rejectRequest(String friendshipId) async {
-    try {
-      await ref
-          .read(friendRequestProvider.notifier)
-          .rejectRequest(friendshipId);
-      if (mounted) {
-        context.showSuccessSnackBar('Friend request rejected');
-        ref.invalidate(friendsListProvider);
-        ref.invalidate(pendingRequestsProvider);
-      }
-    } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar('Failed to reject request');
-      }
-    }
-  }
-
-  void _copyInviteCode(String code) {
-    Clipboard.setData(ClipboardData(text: code));
-    context.showSuccessSnackBar('Invite code copied!');
-  }
-
-  void _shareInviteCode(String code) {
-    Share.share(
-      'Join me on Moments! Use my invite code: $code',
-      subject: 'Join me on Moments',
-    );
-  }
-
-  void _showInviteBottomSheet(String inviteCode) {
+  void _showInviteBottomSheet(BuildContext context, String inviteCode) {
     showModalBottomSheet(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
       enableDrag: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-        child: Material(
-          borderRadius: BorderRadius.circular(24),
-          elevation: 8,
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppTheme.backgroundBeige,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.black, width: 3),
-            ),
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-              left: 24,
-              right: 24,
-              top: 8,
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Handle bar
-                  Center(
-                    child: Container(
-                      width: 48,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Title
-                  const Text(
-                    'Invite Friends',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.black87,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Share your code to connect',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Invite code card
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.black, width: 3),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black,
-                          offset: Offset(4, 4),
-                          blurRadius: 0,
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          'YOUR CODE',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.grey[600],
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          inviteCode,
-                          style: const TextStyle(
-                            fontSize: 42,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 8,
-                            fontFamily: 'monospace',
-                            color: AppTheme.primaryBlue,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Action buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => _copyInviteCode(inviteCode),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.black,
-                                width: 2.5,
-                              ),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Colors.black,
-                                  offset: Offset(3, 3),
-                                  blurRadius: 0,
-                                ),
-                              ],
-                            ),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                HugeIcon(
-                                  icon: HugeIcons.strokeRoundedCopy01,
-                                  size: 20,
-                                  color: Colors.black87,
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Copy',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => _shareInviteCode(inviteCode),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primaryBlue,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.black,
-                                width: 2.5,
-                              ),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Colors.black,
-                                  offset: Offset(3, 3),
-                                  blurRadius: 0,
-                                ),
-                              ],
-                            ),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                HugeIcon(
-                                  icon: HugeIcons.strokeRoundedShare01,
-                                  size: 20,
-                                  color: Colors.white,
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Share',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Divider
-                  Container(
-                    height: 2,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(1),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Add friend section
-                  Text(
-                    'Add a Friend',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey[700],
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _inviteCodeController,
-                    textCapitalization: TextCapitalization.characters,
-                    maxLength: 6,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 4,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'ENTER CODE',
-                      hintStyle: TextStyle(
-                        color: Colors.grey[400],
-                        letterSpacing: 2,
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Colors.black,
-                          width: 2.5,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Colors.black,
-                          width: 2.5,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: AppTheme.primaryBlue,
-                          width: 3,
-                        ),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 18,
-                      ),
-                      suffixIcon: IconButton(
-                        icon: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryBlue,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const HugeIcon(
-                            icon: HugeIcons.strokeRoundedArrowRight02,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                        onPressed: () {
-                          _sendFriendRequest();
-                          Navigator.pop(context);
-                        },
-                      ),
-                    ),
-                    onSubmitted: (_) {
-                      _sendFriendRequest();
-                      Navigator.pop(context);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+      builder: (context) => InviteBottomSheet(inviteCode: inviteCode),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(currentUserProfileProvider);
     final friendsAsync = ref.watch(friendsListProvider);
-    final requestsAsync = ref.watch(pendingRequestsRealtimeProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBeige,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(140),
-        child: AppBar(
-          backgroundColor: AppTheme.backgroundBeige,
-          leading: IconButton(
-            icon: SvgPicture.asset(
-              'assets/icons/Left arrow.svg',
-              width: 34.w,
-              height: 34.h,
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-            },
+      appBar: AppBar(
+        backgroundColor: AppTheme.backgroundBeige,
+        leading: IconButton(
+          icon: SvgPicture.asset(
+            'assets/icons/Left arrow.svg',
+            width: 34.w,
+            height: 34.h,
           ),
-          elevation: 0,
-          flexibleSpace: SafeArea(
-            child: Column(
-              children: [
-                // Header section
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(50, 10, 10, 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Title section
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+          onPressed: () => Navigator.pop(context),
+        ),
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Friends',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                color: Colors.black87,
+                letterSpacing: -0.5,
+              ),
+            ),
+            friendsAsync.when(
+              data: (friends) => Text(
+                '${friends.length} ${friends.length == 1 ? 'friend' : 'friends'}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey[600],
+                ),
+              ),
+              loading: () => Text(
+                'Loading...',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+          ],
+        ),
+        actions: [
+          // Invite button
+          profileAsync.when(
+            data: (profile) => profile != null
+                ? Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () =>
+                          _showInviteBottomSheet(context, profile.inviteCode),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryBlue,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: AppTheme.brutalShadowSmall,
+                          border: Border.all(
+                            color: Colors.black,
+                            width: AppTheme.borderThin,
+                          ),
+                        ),
+                        child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              'Friends',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.black87,
-                                letterSpacing: -0.5,
-                                height: 1.1,
-                              ),
+                            HugeIcon(
+                              icon: HugeIcons.strokeRoundedUserAdd02,
+                              color: Colors.white,
+                              size: 18,
                             ),
-                            SizedBox(height: 0),
+                            SizedBox(width: 6),
                             Text(
-                              'Stay connected',
+                              'Invite',
                               style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black54,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      // Invite button
-                      profileAsync.when(
-                        data: (profile) => profile != null
-                            ? GestureDetector(
-                                onTap: () =>
-                                    _showInviteBottomSheet(profile.inviteCode),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.primaryBlue,
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: AppTheme.brutalShadowSmall,
-                                    border: Border.all(
-                                      color: Colors.black,
-                                      width: AppTheme.borderThin,
-                                    ),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      HugeIcon(
-                                        icon: HugeIcons.strokeRoundedUserAdd02,
-                                        color: Colors.white,
-                                        size: 18,
-                                      ),
-                                      SizedBox(width: 6),
-                                      Text(
-                                        'Invite',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                            : const SizedBox.shrink(),
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, __) => const SizedBox.shrink(),
-                      ),
-                    ],
-                  ),
-                ),
-                // Tab Bar
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  child: Container(
-                    height: 48,
-                    decoration: ShapeDecoration(
-                      color: Colors.white,
-                      shape: RoundedSuperellipseBorder(
-                        borderRadius: BorderRadiusGeometry.all(
-                          Radius.circular(12.sp),
-                        ),
-                        side: BorderSide(
-                          color: Colors.black,
-                          width: AppTheme.borderThin,
-                        ),
-                      ),
-                      shadows: AppTheme.brutalShadowSmall,
                     ),
-                    child: TabBar(
-                      controller: _tabController,
-                      indicatorPadding: const EdgeInsets.symmetric(
-                        horizontal: -5,
-                      ),
-                      indicator: ShapeDecoration(
-                        color: AppTheme.primaryBlue,
-                        shape: RoundedSuperellipseBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                      labelColor: Colors.white,
-                      unselectedLabelColor: Colors.grey[700],
-                      labelStyle: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                      unselectedLabelStyle: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                      dividerColor: Colors.transparent,
-                      tabs: [
-                        friendsAsync.when(
-                          data: (friends) => Tab(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const HugeIcon(
-                                  icon: HugeIcons.strokeRoundedUserMultiple,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 6),
-                                Text('Friends (${friends.length})'),
-                              ],
-                            ),
-                          ),
-                          loading: () => const Tab(text: 'Friends'),
-                          error: (_, __) => const Tab(text: 'Friends'),
-                        ),
-                        requestsAsync.when(
-                          data: (requests) => Tab(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const HugeIcon(
-                                  icon: HugeIcons.strokeRoundedMail01,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 6),
-                                Text('Requests (${requests.length})'),
-                              ],
-                            ),
-                          ),
-                          loading: () => const Tab(text: 'Requests'),
-                          error: (_, __) => const Tab(text: 'Requests'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+                  )
+                : const SizedBox.shrink(),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildFriendsTab(friendsAsync),
-          _buildRequestsTab(requestsAsync),
         ],
       ),
+      body: _buildFriendsList(context, friendsAsync),
     );
   }
 
-  Widget _buildFriendsTab(AsyncValue friendsAsync) {
+  Widget _buildFriendsList(BuildContext context, AsyncValue friendsAsync) {
     return friendsAsync.when(
       data: (friends) {
         if (friends.isEmpty) {
@@ -622,13 +134,23 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   SvgPicture.asset(
                     'assets/svg/friends_empty.svg',
-                    width: MediaQuery.of(context).size.width * 0.8,
-                    height: MediaQuery.of(context).size.width * 0.8,
+                    width: MediaQuery.of(context).size.width * 0.7,
+                    height: MediaQuery.of(context).size.width * 0.7,
                   ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No friends yet',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Text(
                     'Invite friends to start sharing\nmoments together',
                     textAlign: TextAlign.center,
@@ -651,7 +173,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
             final friend = friends[index];
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _FriendCard(key: ValueKey(friend.id), friend: friend),
+              child: FriendCard(key: ValueKey(friend.id), friend: friend),
             );
           },
         );
@@ -659,9 +181,9 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
       loading: () => ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         itemCount: 4,
-        itemBuilder: (context, index) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _FriendCardSkeleton(),
+        itemBuilder: (context, index) => const Padding(
+          padding: EdgeInsets.only(bottom: 12),
+          child: FriendCardSkeleton(),
         ),
       ),
       error: (error, _) => Center(
@@ -704,918 +226,6 @@ class _FriendsPageState extends ConsumerState<FriendsPage>
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRequestsTab(AsyncValue requestsAsync) {
-    return requestsAsync.when(
-      data: (requests) {
-        if (requests.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  SvgPicture.asset(
-                    'assets/svg/requests_empty.svg',
-                    width: MediaQuery.of(context).size.width * 0.8,
-                    height: MediaQuery.of(context).size.width * 0.8,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'When friends send you requests,\nthey\'ll appear here',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          itemCount: requests.length,
-          itemBuilder: (context, index) {
-            final request = requests[index];
-            return _RequestCard(
-              key: ValueKey(request.id),
-              request: request,
-              onAccept: () => _acceptRequest(request.id),
-              onReject: () => _rejectRequest(request.id),
-              ref: ref,
-            );
-          },
-        );
-      },
-      loading: () => ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        itemCount: 3,
-        itemBuilder: (context, index) => const _RequestCardSkeleton(),
-      ),
-      error: (error, _) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            HugeIcon(
-              icon: HugeIcons.strokeRoundedAlertSquare,
-              size: 48,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Failed to load requests',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error.toString(),
-              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Modern request card with smooth interactions and atmospheric design
-class _RequestCard extends ConsumerStatefulWidget {
-  final Friendship request;
-  final VoidCallback onAccept;
-  final VoidCallback onReject;
-  final WidgetRef ref;
-
-  const _RequestCard({
-    required this.request,
-    required this.onAccept,
-    required this.onReject,
-    required this.ref,
-    required Key key,
-  }) : super(key: key);
-
-  @override
-  ConsumerState<_RequestCard> createState() => _RequestCardState();
-}
-
-class _RequestCardState extends ConsumerState<_RequestCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
-  bool _isRejecting = false;
-  bool _isAccepting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-
-    _fadeAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _handleAccept() async {
-    setState(() => _isAccepting = true);
-    try {
-      await _controller.forward();
-      widget.onAccept();
-    } finally {
-      if (mounted) {
-        setState(() => _isAccepting = false);
-      }
-    }
-  }
-
-  void _handleReject() async {
-    setState(() => _isRejecting = true);
-    try {
-      await _controller.forward();
-      widget.onReject();
-    } finally {
-      if (mounted) {
-        setState(() => _isRejecting = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Fetch the profile of the person who SENT the request (userId)
-    // NOT the friend_id (which is the current user receiving the request)
-    final profileAsync = widget.ref.watch(
-      friendProfileProvider(widget.request.userId),
-    );
-
-    return ScaleTransition(
-      scale: Tween<double>(
-        begin: 1.0,
-        end: 0.95,
-      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
-      child: FadeTransition(
-        opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: Tween<Offset>(begin: Offset.zero, end: const Offset(0, 0.5))
-              .animate(
-                CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-              ),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: profileAsync.when(
-              data: (profile) {
-                if (profile == null) {
-                  return const SizedBox.shrink();
-                }
-                return _buildRequestCard(profile);
-              },
-              loading: () => const _RequestCardSkeleton(),
-              error: (error, _) => _buildErrorCard(),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRequestCard(Profile profile) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black, width: AppTheme.borderMedium),
-        boxShadow: const [
-          BoxShadow(color: Colors.black, offset: Offset(4, 4), blurRadius: 0),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: null,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Profile section
-                Row(
-                  children: [
-                    // Avatar with brutal gradient ring
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            AppTheme.primaryBlue,
-                            AppTheme.electricPurple,
-                          ],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primaryBlue.withOpacity(0.4),
-                            blurRadius: 16,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(3),
-                      child: CircleAvatar(
-                        radius: 28,
-                        backgroundColor: Colors.white,
-                        child: CircleAvatar(
-                          radius: 26,
-                          backgroundColor: Colors.grey[200],
-                          backgroundImage: AvatarCacheService().getAvatarImageProvider(profile.avatarUrl),
-                          child: profile.avatarUrl == null
-                              ? HugeIcon(
-                                  icon: HugeIcons.strokeRoundedUser,
-                                  size: 28,
-                                  color: Colors.grey[400],
-                                )
-                              : null,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    // Name and username
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            profile.displayName ?? 'Unknown',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '@${profile.username ?? 'user'}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // Action buttons
-                Row(
-                  children: [
-                    // Reject button
-                    Expanded(
-                      child: _ActionButton(
-                        icon: HugeIcons.strokeRoundedMultiplicationSign,
-                        label: 'Decline',
-                        onPressed: _isRejecting ? null : _handleReject,
-                        isLoading: _isRejecting,
-                        variant: 'secondary',
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Accept button
-                    Expanded(
-                      child: _ActionButton(
-                        icon: HugeIcons.strokeRoundedTick01,
-                        label: 'Accept',
-                        onPressed: _isAccepting ? null : _handleAccept,
-                        isLoading: _isAccepting,
-                        variant: 'primary',
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.red[50],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black, width: AppTheme.borderMedium),
-        boxShadow: const [
-          BoxShadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          HugeIcon(
-            icon: HugeIcons.strokeRoundedAlertSquare,
-            color: Colors.red[400],
-            size: 24,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Failed to load request sender',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.red[700],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Modern friend card widget with neubrutalism style
-class _FriendCard extends StatefulWidget {
-  final Profile friend;
-
-  const _FriendCard({required this.friend, required Key key}) : super(key: key);
-
-  // Helper function to format time ago
-  static String _formatTimeAgo(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inMinutes < 1) {
-      return 'now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d';
-    } else {
-      return '${(difference.inDays / 7).floor()}w';
-    }
-  }
-
-  @override
-  State<_FriendCard> createState() => _FriendCardState();
-}
-
-class _FriendCardState extends State<_FriendCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 200),
-      vsync: this,
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        // Navigate to chat with friend
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChatPage(
-              friendId: widget.friend.id,
-              friendName:
-                  widget.friend.displayName ??
-                  widget.friend.username ??
-                  'Friend',
-              friendAvatarUrl: widget.friend.avatarUrl,
-            ),
-          ),
-        );
-      },
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: 1.0 + (_controller.value * 0.02),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Colors.white, Colors.grey[50] ?? Colors.white],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.black,
-                  width: AppTheme.borderMedium,
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black,
-                    offset: Offset(4, 4),
-                    blurRadius: 0,
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    // Avatar with multiple rings
-                    Stack(
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                AppTheme.primaryBlue,
-                                AppTheme.electricPurple,
-                              ],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.primaryBlue.withOpacity(0.4),
-                                blurRadius: 16,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          padding: const EdgeInsets.all(3),
-                          child: CircleAvatar(
-                            radius: 30,
-                            backgroundColor: Colors.white,
-                            child: CircleAvatar(
-                              radius: 28,
-                              backgroundColor: Colors.grey[200],
-                              backgroundImage: AvatarCacheService().getAvatarImageProvider(widget.friend.avatarUrl),
-                              child: widget.friend.avatarUrl == null
-                                  ? HugeIcon(
-                                      icon: HugeIcons.strokeRoundedUser,
-                                      size: 32,
-                                      color: Colors.grey[400],
-                                    )
-                                  : null,
-                            ),
-                          ),
-                        ),
-                        // Online status indicator
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            width: 16,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              color: AppTheme.vibrantGreen,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppTheme.vibrantGreen.withOpacity(0.6),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 16),
-                    // Friend info
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.friend.displayName ?? 'Unknown',
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.black87,
-                              letterSpacing: -0.3,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 6),
-                          // Last message preview with inline timestamp
-                          Consumer(
-                            builder: (context, ref, child) {
-                              final conversationAsync = ref.watch(
-                                conversationWithFriendProvider(
-                                  widget.friend.id,
-                                ),
-                              );
-
-                              return conversationAsync.when(
-                                data: (conversationId) {
-                                  if (conversationId == null) {
-                                    return Text(
-                                      'Say something 👋',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.grey[500],
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    );
-                                  }
-
-                                  final lastMessageAsync = ref.watch(
-                                    lastMessageProvider(conversationId),
-                                  );
-
-                                  return lastMessageAsync.when(
-                                    data: (lastMessage) {
-                                      if (lastMessage == null) {
-                                        return Text(
-                                          'Say something 👋',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.grey[500],
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        );
-                                      }
-
-                                      final timeAgo =
-                                          _FriendCard._formatTimeAgo(
-                                            lastMessage.createdAt,
-                                          );
-
-                                      return Text(
-                                        '${lastMessage.content} • $timeAgo',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey[600],
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      );
-                                    },
-                                    loading: () => Text(
-                                      'Say something 👋',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.grey[500],
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    error: (_, __) => Text(
-                                      'Say something 👋',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey[500],
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                loading: () => Text(
-                                  'Say something 👋',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey[500],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                error: (_, __) => Text(
-                                  'Say something 👋',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey[500],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Action button
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryBlue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: AppTheme.primaryBlue.withOpacity(0.3),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: HugeIcon(
-                        icon: HugeIcons.strokeRoundedMessage01,
-                        size: 20,
-                        color: AppTheme.primaryBlue,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// Skeleton loader for friend card
-class _FriendCardSkeleton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200] ?? Colors.grey, width: 1),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          // Avatar skeleton
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.grey[300],
-            ),
-          ),
-          const SizedBox(width: 14),
-          // Text skeleton
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  height: 16,
-                  width: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  height: 12,
-                  width: 80,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Action button for requests
-class _ActionButton extends StatefulWidget {
-  final dynamic icon;
-  final String label;
-  final VoidCallback? onPressed;
-  final bool isLoading;
-  final String variant;
-
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    this.onPressed,
-    this.isLoading = false,
-    this.variant = 'primary',
-  });
-
-  @override
-  State<_ActionButton> createState() => _ActionButtonState();
-}
-
-class _ActionButtonState extends State<_ActionButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animController;
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(
-      duration: const Duration(milliseconds: 200),
-      vsync: this,
-    );
-  }
-
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
-  }
-
-  void _onTapDown(TapDownDetails details) {
-    _animController.forward();
-  }
-
-  void _onTapUp(TapUpDetails details) {
-    _animController.reverse();
-    widget.onPressed?.call();
-  }
-
-  void _onTapCancel() {
-    _animController.reverse();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isPrimary = widget.variant == 'primary';
-    final bgColor = isPrimary ? Colors.black87 : Colors.grey[200];
-    final textColor = isPrimary ? Colors.white : Colors.black87;
-
-    return GestureDetector(
-      onTapDown: widget.onPressed != null ? _onTapDown : null,
-      onTapUp: widget.onPressed != null ? _onTapUp : null,
-      onTapCancel: widget.onPressed != null ? _onTapCancel : null,
-      child: ScaleTransition(
-        scale: Tween<double>(begin: 1.0, end: 0.95).animate(
-          CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
-        ),
-        child: Opacity(
-          opacity: widget.onPressed != null ? 1.0 : 0.5,
-          child: Container(
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.black.withOpacity(0.08),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: widget.isLoading
-                  ? SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(textColor),
-                      ),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        HugeIcon(icon: widget.icon, size: 18, color: textColor),
-                        const SizedBox(width: 8),
-                        Text(
-                          widget.label,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Skeleton loading card
-class _RequestCardSkeleton extends StatelessWidget {
-  const _RequestCardSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black, width: AppTheme.borderMedium),
-          boxShadow: const [
-            BoxShadow(color: Colors.black, offset: Offset(4, 4), blurRadius: 0),
-          ],
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                // Avatar skeleton
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.grey[300],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Text skeleton
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 16,
-                        width: 100,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        height: 12,
-                        width: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Button skeleton
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
         ),
       ),
     );

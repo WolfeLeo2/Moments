@@ -32,10 +32,15 @@ Stream<List<Moment>> momentsStream(Ref ref) async* {
   }
 
   // 2. Subscribe to Supabase realtime stream and update storage
-  await for (final moments in repo.streamAllMoments()) {
-    // Save to persistent storage
-    await storage.saveMoments(moments);
-    yield moments;
+  try {
+    await for (final moments in repo.streamAllMoments()) {
+      // Sync with persistent storage (handles deletions/privacy changes)
+      await storage.syncMoments(moments);
+      yield moments;
+    }
+  } catch (e) {
+    // Log error but keep yielding cached data if stream fails
+    print('Error in moments stream: $e');
   }
 }
 
