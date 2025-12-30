@@ -31,7 +31,7 @@ class PendingInvitationsWidget extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
+                color: Colors.orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const HugeIcon(
@@ -68,7 +68,7 @@ class PendingInvitationsWidget extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        
+
         // Invitations list
         ListView.separated(
           shrinkWrap: true,
@@ -109,7 +109,7 @@ class _InvitationCard extends StatelessWidget {
         border: Border.all(color: Colors.grey[200]!),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -146,8 +146,8 @@ class _InvitationCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      invitation.inviterDisplayName ?? 
-                          invitation.inviterUsername ?? 
+                      invitation.inviterDisplayName ??
+                          invitation.inviterUsername ??
                           'Someone',
                       style: GoogleFonts.inter(
                         fontSize: 14,
@@ -167,9 +167,9 @@ class _InvitationCard extends StatelessWidget {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 10),
-          
+
           // Moment preview
           if (invitation.momentLocationName != null)
             Container(
@@ -200,9 +200,9 @@ class _InvitationCard extends StatelessWidget {
                 ],
               ),
             ),
-          
+
           const SizedBox(height: 12),
-          
+
           // Action buttons
           Row(
             children: [
@@ -292,7 +292,7 @@ class PendingInvitation {
   factory PendingInvitation.fromJson(Map<String, dynamic> json) {
     final inviter = json['inviter'] as Map<String, dynamic>?;
     final momentGroup = json['moment_groups'] as Map<String, dynamic>?;
-    
+
     return PendingInvitation(
       id: json['id'] as String,
       momentId: json['moment_id'] as String,

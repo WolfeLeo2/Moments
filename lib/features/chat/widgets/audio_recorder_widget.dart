@@ -19,6 +19,7 @@ class AudioRecorderWidget extends StatefulWidget {
   State<AudioRecorderWidget> createState() => _AudioRecorderWidgetState();
 }
 
+
 class _AudioRecorderWidgetState extends State<AudioRecorderWidget> {
   final _audioRecorder = AudioRecorder();
   bool _isRecording = false;
@@ -113,7 +114,7 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget> {
               boxShadow: _isRecording
                   ? [
                       BoxShadow(
-                        color: Colors.red.withOpacity(0.5),
+                        color: Colors.red.withValues(alpha: 0.5),
                         blurRadius: 8,
                         spreadRadius: 2,
                       ),

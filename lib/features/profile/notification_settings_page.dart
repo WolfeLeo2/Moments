@@ -275,10 +275,10 @@ class _NotificationSettingsPageState
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryBlue.withOpacity(0.1),
+                          color: AppTheme.primaryBlue.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: AppTheme.primaryBlue.withOpacity(0.3),
+                            color: AppTheme.primaryBlue.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
@@ -334,7 +334,7 @@ class _NotificationSettingsPageState
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
             child: HugeIcon(
@@ -410,7 +410,9 @@ class _NotificationSettingsPageState
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: enabled ? iconColor.withOpacity(0.1) : Colors.grey[200],
+            color: enabled
+                ? iconColor.withValues(alpha: 0.1)
+                : Colors.grey[200],
             shape: BoxShape.circle,
           ),
           child: HugeIcon(

@@ -11,6 +11,10 @@ import 'core/router/app_router.dart';
 import 'core/services/map_cache_service.dart';
 import 'core/services/avatar_cache_service.dart';
 import 'data/sources/supabase_config.dart';
+import 'core/providers/providers.dart';
+import 'core/providers/database_provider.dart';
+import 'core/providers/router_provider.dart';
+import 'core/providers/theme_provider.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart'; // REQUIRED
 
 void main() async {
@@ -49,39 +53,74 @@ void main() async {
   );
 
   // 💡 Call the new root widget.
-  runApp(const MomentsRootApp());
+  runApp(const ProviderScope(child: MomentsRootApp()));
 }
 
 // -------------------------------------------------------------------
 
 // 1. Rename your root widget to avoid confusion and use the ScreenUtilInit widget
-class MomentsRootApp extends StatelessWidget {
+class MomentsRootApp extends ConsumerStatefulWidget {
   const MomentsRootApp({super.key});
 
   @override
+  ConsumerState<MomentsRootApp> createState() => _MomentsRootAppState();
+}
+
+class _MomentsRootAppState extends ConsumerState<MomentsRootApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Refresh badges when a notification arrives
+    FirebaseMessagingService.onMessageReceived = () {
+      if (mounted) {
+        ref.invalidate(unreadChatCountProvider);
+        ref.invalidate(notificationsListProvider);
+      }
+    };
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Watch database initialization state
+    final dbState = ref.watch(databaseInitializerProvider);
+
     return ScreenUtilInit(
-      designSize: const Size(375, 812), // Your chosen reference size
+      designSize: const Size(375, 812), // Standard design size (iPhone X)
       minTextAdapt: true,
       splitScreenMode: true,
-      // 3. Use the builder to return the rest of your app (ProviderScope and MaterialApp)
       builder: (context, child) {
-        return ProviderScope(
-          child: MaterialApp.router(
-            title: 'Moments',
-            theme: AppTheme.lightTheme,
-            routerConfig: AppRouter.router,
-            debugShowCheckedModeBanner: false,
-            builder: (context, router) {
-              final mediaQueryData = MediaQuery.of(context);
-              return MediaQuery(
-                data: mediaQueryData.copyWith(
-                  textScaler: TextScaler.linear(1.0),
-                ),
-                child: router!,
+        // Watch theme and router HERE, after ScreenUtil is initialized
+        final appTheme = ref.watch(appThemeProvider);
+        final appRouter = ref.watch(appRouterProvider);
+
+        return MaterialApp.router(
+          title: 'Moments',
+          debugShowCheckedModeBanner: false,
+          theme: appTheme,
+          routerConfig: appRouter,
+          builder: (context, widget) {
+            // Ensure textScaler is set for consistent text sizing
+            final mediaQueryData = MediaQuery.of(context);
+            final fixedMediaQueryData = mediaQueryData.copyWith(
+              textScaler: TextScaler.linear(1.0),
+            );
+
+            if (dbState.isLoading) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
               );
-            },
-          ),
+            }
+
+            if (dbState.hasError) {
+              return Scaffold(
+                body: Center(
+                  child: Text('Error initializing database: ${dbState.error}'),
+                ),
+              );
+            }
+
+            return MediaQuery(data: fixedMediaQueryData, child: widget!);
+          },
         );
       },
     );

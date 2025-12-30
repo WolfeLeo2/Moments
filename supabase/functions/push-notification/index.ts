@@ -85,25 +85,22 @@ Deno.serve(async (req) => {
   }
 
   // 3. Fetch actor's avatar for rich notifications (Sender Avatar)
-  // We prioritize the actor's avatar to ensure the "Sender Avatar" style for ALL notification types
-  // (Friend Requests, Invites, New Moments, etc.)
   let senderAvatarUrl = ''
   let senderName = ''
-  
+
   if (record.actor_id) {
     const { data: actorProfile } = await supabase
       .from('profiles')
       .select('avatar_url, display_name, username')
       .eq('id', record.actor_id)
       .maybeSingle()
-    
+
     if (actorProfile) {
       if (actorProfile.avatar_url) senderAvatarUrl = actorProfile.avatar_url
-      // Prioritize display_name, fallback to username
       senderName = actorProfile.display_name || actorProfile.username || ''
     }
   }
-  
+
   // Fallback: If no actor (e.g. system message), use the record's image_url if available
   if (!senderAvatarUrl && record.image_url) {
     senderAvatarUrl = record.image_url
@@ -123,28 +120,29 @@ Deno.serve(async (req) => {
     // 5. Send Notifications & Track invalid tokens
     const invalidTokenIds: string[] = []
 
-    const promises = devices.map(async (device) => {
-      // Build the FCM message
-      // We use DATA-ONLY messages to allow the Flutter app to handle the display
-      // This enables "MessagingStyle" notifications (Person avatar as icon) which isn't possible
-      // with standard notification payloads on Android.
-      const message: Record<string, unknown> = {
+    const promises = devices.map(async (device: { id: string; fcm_token: string }) => {
+      // Build FCM message with DATA-ONLY payload for Android
+      // Flutter handles notification display with MessagingStyle + Dynamic Shortcut
+      // iOS uses APNS notification block for native rendering
+      const message = {
         message: {
           token: device.fcm_token,
-          // notification: { ... }  <-- REMOVED to prevent auto-display
+          // NO notification block - Flutter handles display on Android
           android: {
-            priority: 'high', // Essential for data-only messages to wake the app
+            priority: 'high' as const,
+            // No notification sub-block - data-only for MessagingStyle
           },
           apns: {
             payload: {
               aps: {
-                'content-available': 1, // Essential for background execution on iOS
-                alert: { // Optional: Include alert for iOS fallback if data processing fails
-                   title: record.title,
-                   body: record.body,
+                alert: {
+                  title: senderName || record.title,
+                  body: record.body,
                 },
                 sound: 'default',
+                badge: 1,
                 'mutable-content': 1,
+                'thread-id': record.related_id || record.type, // iOS threading
               },
             },
             fcm_options: {
@@ -175,26 +173,25 @@ Deno.serve(async (req) => {
           body: JSON.stringify(message),
         }
       )
-      
+
       const result: FCMError = await res.json()
       console.log('FCM Result for device', device.id, ':', result)
-      
+
       // TOKEN CLEANUP: Check for invalid token errors
       if (result.error) {
         const errorCode = result.error.details?.[0]?.errorCode || result.error.status
-        // UNREGISTERED = app uninstalled, INVALID_ARGUMENT = malformed token
-        if (errorCode === 'UNREGISTERED' || errorCode === 'INVALID_ARGUMENT' || 
-            result.error.message?.includes('not a valid FCM registration token')) {
+        if (errorCode === 'UNREGISTERED' || errorCode === 'INVALID_ARGUMENT' ||
+          result.error.message?.includes('not a valid FCM registration token')) {
           console.log('Invalid token detected, marking for deletion:', device.id)
           invalidTokenIds.push(device.id)
         }
       }
-      
+
       return result
     })
 
     await Promise.all(promises)
-    
+
     // 6. TOKEN CLEANUP: Delete invalid tokens from database
     if (invalidTokenIds.length > 0) {
       console.log('Cleaning up invalid tokens:', invalidTokenIds)
@@ -202,7 +199,7 @@ Deno.serve(async (req) => {
         .from('user_devices')
         .delete()
         .in('id', invalidTokenIds)
-      
+
       if (deleteError) {
         console.error('Error deleting invalid tokens:', deleteError)
       } else {

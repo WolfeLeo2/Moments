@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/data/repositories/chat_repository.dart';
 import 'package:moments/core/services/message_storage_service.dart';
+import 'package:moments/core/services/chat_list_cache_service.dart';
 
 part 'chat_providers.g.dart';
 
@@ -202,15 +203,44 @@ Future<String> conversationId(Ref ref, String friendId) async {
 }
 
 /// Get list of recent conversations with details (Realtime)
+/// Yields cached data immediately for instant UI, then updates with fresh data
 @riverpod
 Stream<List<Map<String, dynamic>>> chatList(Ref ref) async* {
   final chatRepo = ref.watch(chatRepositoryProvider);
+  final cacheService = ChatListCacheService();
 
-  // Initial fetch
-  yield await chatRepo.getRecentConversations();
+  // 1. Yield cached data immediately for instant UI
+  final cachedData = await cacheService.loadChatList();
+  if (cachedData != null && cachedData.isNotEmpty) {
+    yield cachedData;
+  }
 
-  // Listen for updates
+  // 2. Fetch fresh data and update cache
+  try {
+    final freshData = await chatRepo.getRecentConversations();
+    if (freshData.isNotEmpty) {
+      await cacheService.saveChatList(freshData);
+    }
+    yield freshData;
+  } catch (e) {
+    // If network fails and we have cached data, we already yielded it
+    // If no cached data, rethrow to show error
+    if (cachedData == null || cachedData.isEmpty) {
+      rethrow;
+    }
+    debugPrint('chatList: Network failed, using cached data: $e');
+  }
+
+  // 3. Listen for realtime updates and save to cache
   await for (final _ in chatRepo.streamConversationsChanged()) {
-    yield await chatRepo.getRecentConversations();
+    try {
+      final updatedData = await chatRepo.getRecentConversations();
+      if (updatedData.isNotEmpty) {
+        await cacheService.saveChatList(updatedData);
+      }
+      yield updatedData;
+    } catch (e) {
+      debugPrint('chatList: Error in stream update: $e');
+    }
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:equatable/equatable.dart';
+import 'package:moments/data/models/reaction.dart';
 
 /// Message type enum
 enum MessageType {
@@ -31,6 +32,12 @@ class Message extends Equatable {
   final DateTime updatedAt;
   final bool isDeleted;
   final bool isRead;
+  // New fields for replies and editing
+  final String? replyToMessageId;
+  final Message? replyToMessage; // Nested reply data (not from DB)
+  final bool isEdited;
+  final String? deletedFor; // null, 'self', or 'everyone'
+  final List<Reaction> reactions; // Message reactions
 
   const Message({
     required this.id,
@@ -45,6 +52,11 @@ class Message extends Equatable {
     required this.updatedAt,
     this.isDeleted = false,
     this.isRead = false,
+    this.replyToMessageId,
+    this.replyToMessage,
+    this.isEdited = false,
+    this.deletedFor,
+    this.reactions = const [],
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
@@ -81,6 +93,17 @@ class Message extends Equatable {
       updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
       isDeleted: json['is_deleted'] as bool? ?? false,
       isRead: json['is_read'] as bool? ?? false,
+      replyToMessageId: json['reply_to_message_id'] as String?,
+      replyToMessage: json['reply_to_message'] != null
+          ? Message.fromJson(json['reply_to_message'] as Map<String, dynamic>)
+          : null,
+      isEdited: json['is_edited'] as bool? ?? false,
+      deletedFor: json['deleted_for'] as String?,
+      reactions:
+          (json['reactions'] as List<dynamic>?)
+              ?.map((e) => Reaction.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
     );
   }
 
@@ -98,6 +121,9 @@ class Message extends Equatable {
       'updated_at': updatedAt.toIso8601String(),
       'is_deleted': isDeleted,
       'is_read': isRead,
+      'reply_to_message_id': replyToMessageId,
+      'is_edited': isEdited,
+      'deleted_for': deletedFor,
     };
   }
 
@@ -114,6 +140,11 @@ class Message extends Equatable {
     DateTime? updatedAt,
     bool? isDeleted,
     bool? isRead,
+    String? replyToMessageId,
+    Message? replyToMessage,
+    bool? isEdited,
+    String? deletedFor,
+    List<Reaction>? reactions,
   }) {
     return Message(
       id: id ?? this.id,
@@ -128,6 +159,11 @@ class Message extends Equatable {
       updatedAt: updatedAt ?? this.updatedAt,
       isDeleted: isDeleted ?? this.isDeleted,
       isRead: isRead ?? this.isRead,
+      replyToMessageId: replyToMessageId ?? this.replyToMessageId,
+      replyToMessage: replyToMessage ?? this.replyToMessage,
+      isEdited: isEdited ?? this.isEdited,
+      deletedFor: deletedFor ?? this.deletedFor,
+      reactions: reactions ?? this.reactions,
     );
   }
 
@@ -145,5 +181,10 @@ class Message extends Equatable {
     updatedAt,
     isDeleted,
     isRead,
+    replyToMessageId,
+    replyToMessage,
+    isEdited,
+    deletedFor,
+    reactions,
   ];
 }

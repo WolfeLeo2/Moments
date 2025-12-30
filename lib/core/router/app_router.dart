@@ -6,7 +6,10 @@ import '../../features/auth/presentation/login_page.dart';
 import '../services/auth_service.dart';
 import '../services/notification_navigator.dart';
 
+import '../../features/splash/presentation/splash_page.dart'; // Import SplashPage
+
 class AppRouter {
+  static const String splashRoute = '/splash';
   static const String loginRoute = '/login';
   static const String mapRoute = '/';
   static const String momentDetailRoute = '/moment/:id';
@@ -16,11 +19,15 @@ class AppRouter {
 
   static final GoRouter router = GoRouter(
     navigatorKey: NotificationNavigator.navigatorKey,
-    initialLocation: loginRoute,
+    initialLocation: splashRoute, // Start at splash
     debugLogDiagnostics: false,
     redirect: (context, state) {
       final isSignedIn = _authService.isSignedIn;
       final isOnLoginPage = state.matchedLocation == loginRoute;
+      final isOnSplashPage = state.matchedLocation == splashRoute;
+
+      // Allow splash to run its course
+      if (isOnSplashPage) return null;
 
       // Redirect to login if not signed in and not already on login page
       if (!isSignedIn && !isOnLoginPage) {
@@ -31,9 +38,15 @@ class AppRouter {
       if (isSignedIn && isOnLoginPage) {
         return mapRoute;
       }
-      return null; // No redirect needed
+      return null;
     },
     routes: [
+      GoRoute(
+        path: splashRoute,
+        name: 'splash',
+        pageBuilder: (context, state) =>
+            MaterialPage(key: state.pageKey, child: const SplashPage()),
+      ),
       GoRoute(
         path: loginRoute,
         name: 'login',

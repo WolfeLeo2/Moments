@@ -6,6 +6,7 @@ import '../../core/services/haptic_service.dart';
 /// Common emoji reactions for moments
 const List<String> kDefaultReactions = ['❤️', '😍', '🔥', '😂', '😮', '👏'];
 
+
 /// A popup picker for selecting emoji reactions
 class ReactionPicker extends StatelessWidget {
   final Function(String emoji) onReactionSelected;
@@ -158,7 +159,7 @@ class _ReactionButtonState extends State<_ReactionButton>
               margin: const EdgeInsets.symmetric(horizontal: 2),
               decoration: BoxDecoration(
                 color: widget.isSelected
-                    ? AppTheme.primaryBlue.withOpacity(0.2)
+                    ? AppTheme.primaryBlue.withValues(alpha: 0.2)
                     : Colors.transparent,
                 shape: BoxShape.circle,
               ),
@@ -198,7 +199,7 @@ class _PopupReactionButton extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 2),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppTheme.primaryBlue.withOpacity(0.2)
+              ? AppTheme.primaryBlue.withValues(alpha:0.2)
               : Colors.transparent,
           shape: BoxShape.circle,
         ),
@@ -233,15 +234,15 @@ class ReactionSummaryRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: AppTheme.cardWhite.withOpacity(0.95),
+          color: AppTheme.cardWhite.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: AppTheme.borderBlack.withOpacity(0.3),
+            color: AppTheme.borderBlack.withValues(alpha: 0.3),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),

@@ -109,7 +109,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: AppTheme.textGray.withOpacity(0.3),
+              color: AppTheme.textGray.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),

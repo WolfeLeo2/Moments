@@ -226,7 +226,7 @@ class _ManagedVideoPlayerState extends State<_ManagedVideoPlayer> {
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withValues(alpha: 0.5),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -249,7 +249,7 @@ class _ManagedVideoPlayerState extends State<_ManagedVideoPlayer> {
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          Colors.black.withOpacity(0.7),
+                          Colors.black.withValues(alpha: 0.7),
                         ],
                       ),
                     ),

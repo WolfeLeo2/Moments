@@ -1,18 +1,65 @@
 import 'dart:io';
-import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:moments/core/theme/app_theme.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:moments/firebase_options.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+// Action keys
+const String _actionReply = 'REPLY';
+const String _actionMarkRead = 'MARK_READ';
+
+// Supabase config (hardcoded for background isolates)
+const String _supabaseUrl = 'https://voxutceosbctxfmlqjfk.supabase.co';
+const String _supabaseAnonKey =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZveHV0Y2Vvc2JjdHhmbWxxamZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0NTEzNjcsImV4cCI6MjA3ODAyNzM2N30.s2oXwNXV6UcJ4tMHWjZFxxG6JvsA32gqrToGoFhTwC0';
 
 // Top-level function for background messages
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint("Handling a background message: ${message.messageId}");
-  // Initialize local notifications for background isolate
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+
+    try {
+      await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseAnonKey);
+    } catch (_) {}
+  } catch (e) {
+    debugPrint("Failed to initialize background services: $e");
+  }
+
   await FirebaseMessagingService.showRichNotification(message);
+}
+
+// Top-level handler for notification actions (required for background)
+@pragma('vm:entry-point')
+Future<void> _notificationActionHandler(NotificationResponse response) async {
+  debugPrint('=== BACKGROUND ACTION HANDLER TRIGGERED ===');
+  debugPrint('ActionId: ${response.actionId}');
+  debugPrint('Input: ${response.input}');
+  debugPrint('Payload: ${response.payload}');
+
+  // Initialize services first
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (_) {}
+
+  try {
+    await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseAnonKey);
+  } catch (_) {}
+
+  await FirebaseMessagingService._handleNotificationAction(response);
 }
 
 /// A callback type for handling notification taps.
@@ -20,13 +67,16 @@ typedef NotificationTapCallback = void Function(Map<String, dynamic> data);
 
 class FirebaseMessagingService {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
-  final SupabaseClient _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
+
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
+  // Platform channel for native Android calls
+  static const platform = MethodChannel('com.wolfeleo2.moments/notifications');
+
   static NotificationTapCallback? onNotificationTap;
-  // We need a way to access the provider container or a global variable to check current chat
-  // Since this is a service, we might need to pass the container or use a static variable updated by the UI
+  static VoidCallback? onMessageReceived;
   static String? currentChatId;
 
   /// Cancel all local notifications
@@ -34,7 +84,7 @@ class FirebaseMessagingService {
     await _localNotifications.cancelAll();
   }
 
-  /// Cancel a specific notification by its related ID (e.g., conversation ID)
+  /// Cancel a specific notification by its related ID
   static Future<void> cancelNotificationByRelatedId(String relatedId) async {
     await _localNotifications.cancel(relatedId.hashCode);
   }
@@ -43,7 +93,7 @@ class FirebaseMessagingService {
   Future<void> initialize() async {
     // 1. Initialize Local Notifications
     const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
+      '@mipmap/launcher_icon',
     );
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
@@ -53,21 +103,8 @@ class FirebaseMessagingService {
 
     await _localNotifications.initialize(
       const InitializationSettings(android: androidSettings, iOS: iosSettings),
-      onDidReceiveNotificationResponse: (response) async {
-        // Cancel the notification that was tapped
-        if (response.id != null) {
-          await _localNotifications.cancel(response.id!);
-        }
-
-        if (response.payload != null) {
-          try {
-            final data = jsonDecode(response.payload!) as Map<String, dynamic>;
-            onNotificationTap?.call(data);
-          } catch (e) {
-            debugPrint('Error parsing notification payload: $e');
-          }
-        }
-      },
+      onDidReceiveNotificationResponse: _handleNotificationAction,
+      onDidReceiveBackgroundNotificationResponse: _notificationActionHandler,
     );
 
     // 2. Request FCM Permission
@@ -90,10 +127,9 @@ class FirebaseMessagingService {
           >()
           ?.createNotificationChannel(
             const AndroidNotificationChannel(
-              'high_importance_channel',
-              'Moments Notifications',
-              description:
-                  'Notifications for friend requests, messages, and updates',
+              'chats',
+              'Chats',
+              description: 'Chat notifications',
               importance: Importance.max,
             ),
           );
@@ -104,12 +140,11 @@ class FirebaseMessagingService {
 
     // 5. Handle Foreground Messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      // Check if we should suppress this notification
       final data = message.data;
       final relatedId = data['related_id'] as String?;
       final type = data['type'] as String?;
 
-      // If it's a message and we are currently viewing this conversation, don't show notification
+      // Suppress if user is viewing this chat
       if ((type == 'message' || type == 'chat_message') &&
           relatedId != null &&
           relatedId == currentChatId) {
@@ -117,6 +152,7 @@ class FirebaseMessagingService {
       }
 
       showRichNotification(message);
+      onMessageReceived?.call();
     });
 
     // 6. Handle Token
@@ -131,6 +167,143 @@ class FirebaseMessagingService {
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       onNotificationTap?.call(message.data);
     });
+  }
+
+  /// Handle notification action buttons (Reply, Mark as Read)
+  static Future<void> _handleNotificationAction(
+    NotificationResponse response,
+  ) async {
+    final actionId = response.actionId;
+    final payload = response.payload;
+    final inputText = response.input;
+
+    debugPrint('Action received - id: $actionId, input: $inputText');
+    debugPrint('Payload: $payload');
+
+    if (payload == null) {
+      debugPrint('No payload, cannot process action');
+      return;
+    }
+
+    // Parse payload
+    final data = Uri.splitQueryString(payload);
+    final conversationId = data['related_id'];
+
+    // Debug info
+    debugPrint('Parsed conversationId: $conversationId');
+
+    if (conversationId == null) {
+      debugPrint('No conversation ID in payload');
+      return;
+    }
+
+    // Initialize Firebase and Supabase for background
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    } catch (_) {}
+
+    try {
+      await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseAnonKey);
+    } catch (_) {}
+
+    final supabase = Supabase.instance.client;
+    final currentUserId = supabase.auth.currentUser?.id;
+
+    debugPrint('Current user ID: $currentUserId');
+
+    if (currentUserId == null) {
+      debugPrint('User not authenticated - cannot process action');
+      // Still dismiss the notification
+      await _localNotifications.cancel(conversationId.hashCode);
+      return;
+    }
+
+    switch (actionId) {
+      case _actionReply:
+        if (inputText != null && inputText.trim().isNotEmpty) {
+          debugPrint('Sending reply: "$inputText"');
+          await _sendReply(supabase, conversationId, currentUserId, inputText);
+        } else {
+          debugPrint('Empty reply text');
+        }
+        break;
+      case _actionMarkRead:
+        debugPrint('Marking as read');
+        await _markAsRead(supabase, conversationId, currentUserId);
+        break;
+      default:
+        // Regular tap - navigate to chat
+        debugPrint('Regular tap, navigating');
+        onNotificationTap?.call(data);
+    }
+  }
+
+  /// Send a reply message via Supabase
+  static Future<void> _sendReply(
+    SupabaseClient supabase,
+    String conversationId,
+    String senderId,
+    String content,
+  ) async {
+    try {
+      debugPrint('Inserting message to conversation: $conversationId');
+
+      // Insert the message
+      await supabase.from('messages').insert({
+        'conversation_id': conversationId,
+        'sender_id': senderId,
+        'content': content.trim(),
+        // 'created_at': Let Postgres default to now()
+      });
+
+      // Update conversation's updated_at timestamp
+      await supabase
+          .from('conversations')
+          .update({'updated_at': DateTime.now().toUtc().toIso8601String()})
+          .eq('id', conversationId);
+
+      debugPrint('Reply sent successfully');
+
+      // Dismiss the notification
+      await _localNotifications.cancel(conversationId.hashCode);
+    } catch (e, stack) {
+      debugPrint('Error sending reply: $e');
+      debugPrint('Stack: $stack');
+      // Still dismiss the notification even on error
+      await _localNotifications.cancel(conversationId.hashCode);
+    }
+  }
+
+  /// Mark all messages in conversation as read
+  static Future<void> _markAsRead(
+    SupabaseClient supabase,
+    String conversationId,
+    String userId,
+  ) async {
+    try {
+      debugPrint('Marking messages as read in: $conversationId');
+
+      // Mark all unread messages from OTHER people as read
+      final result = await supabase
+          .from('messages')
+          .update({'is_read': true})
+          .eq('conversation_id', conversationId)
+          .neq('sender_id', userId)
+          .eq('is_read', false)
+          .select();
+
+      debugPrint('Mark as read result: ${result.length} messages updated');
+
+      // Dismiss the notification
+      await _localNotifications.cancel(conversationId.hashCode);
+    } catch (e, stack) {
+      debugPrint('Error marking as read: $e');
+      debugPrint('Stack: $stack');
+      // Still dismiss the notification even on error
+      await _localNotifications.cancel(conversationId.hashCode);
+    }
   }
 
   Future<void> _handleToken() async {
@@ -150,71 +323,211 @@ class FirebaseMessagingService {
     }
   }
 
-  /// Shows a rich notification with WhatsApp-style avatar using MessagingStyle
-  /// The sender's avatar appears as the main icon with app icon as a small badge
+  /// Downloads an avatar image and returns its bytes
+  static Future<Uint8List?> _downloadAvatar(String? url) async {
+    if (url == null || url.isEmpty) return null;
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      }
+    } catch (e) {
+      debugPrint('Error downloading avatar: $e');
+    }
+    return null;
+  }
+
+  /// Crops an image to a circle
+  static Future<Uint8List?> _cropToCircle(Uint8List imageBytes) async {
+    try {
+      // Decode the image
+      final codec = await ui.instantiateImageCodec(imageBytes);
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+
+      // Create a square crop (use smaller dimension)
+      final size = image.width < image.height ? image.width : image.height;
+
+      // Create a picture recorder
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder);
+
+      // Create circular clip path
+      final paint = ui.Paint()..isAntiAlias = true;
+      final path = ui.Path()
+        ..addOval(ui.Rect.fromLTWH(0, 0, size.toDouble(), size.toDouble()));
+      canvas.clipPath(path);
+
+      // Draw the image centered
+      final srcRect = ui.Rect.fromLTWH(
+        (image.width - size) / 2,
+        (image.height - size) / 2,
+        size.toDouble(),
+        size.toDouble(),
+      );
+      final dstRect = ui.Rect.fromLTWH(0, 0, size.toDouble(), size.toDouble());
+      canvas.drawImageRect(image, srcRect, dstRect, paint);
+
+      // Convert to image
+      final picture = recorder.endRecording();
+      final croppedImage = await picture.toImage(size, size);
+      final byteData = await croppedImage.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+
+      return byteData?.buffer.asUint8List();
+    } catch (e) {
+      debugPrint('Error cropping image to circle: $e');
+      return imageBytes; // Return original if cropping fails
+    }
+  }
+
+  /// Shows a rich notification with MessagingStyle for Android
   static Future<void> showRichNotification(RemoteMessage message) async {
     try {
       final data = message.data;
-      // Use actor_name (display name) as the sender name
       final senderName =
           data['actor_name'] as String? ?? data['title'] ?? 'Moments';
       final body = data['body'] ?? message.notification?.body ?? '';
-      final avatarUrl = data['avatar_url'] as String?;
-      final type = data['type'] as String?;
+      final avatarUrl =
+          data['avatar_url'] as String? ?? data['sender_avatar_url'] as String?;
       final actorId = data['actor_id'] as String?;
+      final conversationId = data['related_id'] as String?;
 
-      // Download avatar if available
-      Uint8List? avatarBytes;
+      // Download avatar
+      Uint8List? avatarBytes = await _downloadAvatar(avatarUrl);
 
-      if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      // Manually crop to circle for reliable rounding
+      if (avatarBytes != null) {
+        avatarBytes = await _cropToCircle(avatarBytes);
+      }
+
+      // Push Dynamic Shortcut for Android 11+
+      if (Platform.isAndroid && conversationId != null) {
         try {
-          final response = await http.get(Uri.parse(avatarUrl));
-          if (response.statusCode == 200) {
-            avatarBytes = response.bodyBytes;
-          }
+          debugPrint(
+            'Pushing shortcut for $conversationId with avatar bytes: ${avatarBytes?.lengthInBytes}',
+          );
+          await platform.invokeMethod('pushConversationShortcut', {
+            'shortcutId': conversationId,
+            'personName': senderName,
+            'personIconBytes': avatarBytes,
+          });
         } catch (e) {
-          debugPrint('Error downloading avatar: $e');
+          debugPrint('Error pushing conversation shortcut: $e');
         }
       }
 
-      // Build the notification style
-      StyleInformation styleInformation;
+      // Build notification style
+      StyleInformation? styleInformation;
 
-      if (avatarBytes != null) {
-        // WhatsApp-style: MessagingStyle with Person (avatar as main icon)
-        final person = Person(
+      // Determine if this is a chat message
+      final isChat =
+          conversationId != null &&
+          (data['type'] == 'message' ||
+              data['type'] == 'chat_message' ||
+              data['type'] == null);
+
+      if (Platform.isAndroid && isChat) {
+        // Get current user ID
+        final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+
+        // Person representing the current user (me) - Important flag for round icon
+        final me = Person(name: 'Me', key: currentUserId, important: true);
+
+        // Person representing the sender - Important flag needed
+        final sender = Person(
           name: senderName,
-          icon: ByteArrayAndroidIcon(avatarBytes),
           key: actorId,
+          icon: avatarBytes != null ? ByteArrayAndroidIcon(avatarBytes) : null,
+          important: true,
         );
 
+        // Fetch unread messages for history threading
+        List<Message> messages = [];
+        try {
+          final supabase = Supabase.instance.client;
+          final recentMessagesData = await supabase
+              .from('messages')
+              .select('content, created_at, sender_id')
+              .eq('conversation_id', conversationId)
+              .eq('is_read', false)
+              .order('created_at', ascending: true)
+              .limit(10);
+
+          for (final msgData in recentMessagesData) {
+            final content = msgData['content'] as String? ?? '';
+            final timestamp =
+                DateTime.tryParse(msgData['created_at'].toString()) ??
+                DateTime.now();
+            final senderId = msgData['sender_id'] as String?;
+
+            final isFromMe = senderId == currentUserId;
+
+            messages.add(Message(content, timestamp, isFromMe ? null : sender));
+          }
+        } catch (e) {
+          debugPrint('Error fetching chat history: $e');
+        }
+
+        // Ensure current message is included
+        if (messages.isEmpty ||
+            (messages.isNotEmpty && messages.last.text != body)) {
+          messages.add(Message(body, DateTime.now(), sender));
+        }
+
+        // Create MessagingStyleInformation with history
         styleInformation = MessagingStyleInformation(
-          person,
+          me,
           groupConversation: false,
-          messages: [Message(body, DateTime.now(), person)],
+          messages: messages,
+          conversationTitle: senderName,
         );
       } else {
-        // Fallback: BigTextStyle when no avatar
+        // Standard style for likes/other notifications
         styleInformation = BigTextStyleInformation(
           body,
+          htmlFormatBigText: true,
           contentTitle: senderName,
-          summaryText: 'Moments',
+          htmlFormatContentTitle: true,
         );
       }
 
+      // Build Android notification details
       final androidDetails = AndroidNotificationDetails(
-        'high_importance_channel',
-        'Moments Notifications',
-        channelDescription:
-            'Notifications for friend requests, messages, and updates',
+        'chats',
+        'Chats',
+        channelDescription: 'Chat notifications',
         importance: Importance.max,
         priority: Priority.high,
         styleInformation: styleInformation,
-        color: AppTheme.primaryBlue,
-        category: type == 'message'
-            ? AndroidNotificationCategory.message
+        largeIcon: avatarBytes != null
+            ? ByteArrayAndroidBitmap(avatarBytes)
             : null,
-        autoCancel: true,
+        category: AndroidNotificationCategory.message,
+        groupKey: conversationId,
+        shortcutId: conversationId,
+        playSound: true,
+        enableVibration: true,
+        fullScreenIntent: true,
+        // Action buttons
+        actions: [
+          const AndroidNotificationAction(
+            _actionReply,
+            'Reply',
+            inputs: [
+              AndroidNotificationActionInput(label: 'Type a message...'),
+            ],
+            showsUserInterface: false,
+            cancelNotification: false,
+          ),
+          const AndroidNotificationAction(
+            _actionMarkRead,
+            'Mark as Read',
+            showsUserInterface: false,
+            cancelNotification: false,
+          ),
+        ],
       );
 
       const iosDetails = DarwinNotificationDetails(
@@ -223,16 +536,20 @@ class FirebaseMessagingService {
         presentSound: true,
       );
 
-      // Use a stable notification ID based on related_id for grouping/updating
-      final relatedId = data['related_id'] as String?;
-      final notificationId = relatedId?.hashCode ?? message.hashCode;
+      // Use stable notification ID based on conversation
+      final notificationId = conversationId?.hashCode ?? message.hashCode;
+
+      // Encode payload as query string for easy parsing
+      final payload = Uri(
+        queryParameters: data.map((k, v) => MapEntry(k, v.toString())),
+      ).query;
 
       await _localNotifications.show(
         notificationId,
         senderName,
         body,
         NotificationDetails(android: androidDetails, iOS: iosDetails),
-        payload: jsonEncode(data),
+        payload: payload,
       );
     } catch (e) {
       debugPrint('Error showing notification: $e');
@@ -248,7 +565,7 @@ class FirebaseMessagingService {
         'user_id': userId,
         'fcm_token': token,
         'platform': Platform.isAndroid ? 'android' : 'ios',
-        'last_active_at': DateTime.now().toIso8601String(),
+        'last_active_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'fcm_token');
     } catch (e) {
       debugPrint("Error saving FCM token: $e");

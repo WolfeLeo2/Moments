@@ -6,13 +6,13 @@ import 'package:moments/core/providers/moments_providers.dart';
 import 'package:moments/core/utils/extensions.dart';
 import 'package:moments/data/models/friendship.dart';
 import 'package:moments/data/models/moment_contributor.dart';
-import 'package:moments/core/services/avatar_cache_service.dart';
 import 'package:moments/core/widgets/time_ago_text.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:lottie/lottie.dart';
 import 'package:moments/core/services/firebase_messaging_service.dart';
+import 'package:moments/features/moments/presentation/moment_details_page.dart';
 
 enum NotificationType {
   friendRequest,
@@ -459,12 +459,12 @@ class _NotificationCard extends ConsumerWidget {
           decoration: BoxDecoration(
             color: item.isRead
                 ? Colors.white
-                : AppTheme.primaryBlue.withOpacity(0.05),
+                : AppTheme.primaryBlue.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
             border: Border.all(
               color: item.isRead
                   ? Colors.grey[200]!
-                  : AppTheme.primaryBlue.withOpacity(0.2),
+                  : AppTheme.primaryBlue.withValues(alpha: 0.2),
             ),
           ),
           child: Row(
@@ -515,6 +515,15 @@ class _NotificationCard extends ConsumerWidget {
                         padding: const EdgeInsets.only(top: 8.0),
                         child: _buildFriendRequestActions(context, ref, item),
                       ),
+                    if (item.type == NotificationType.collaborationInvite)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: _buildCollaborationInviteActions(
+                          context,
+                          ref,
+                          item,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -562,39 +571,162 @@ class _NotificationCard extends ConsumerWidget {
       case NotificationType.friendRequest:
         icon = HugeIcons.strokeRoundedUserAdd01;
         color = AppTheme.primaryBlue;
-        bg = AppTheme.primaryBlue.withOpacity(0.1);
+        bg = AppTheme.primaryBlue.withValues(alpha:0.1);
         break;
       case NotificationType.collaborationInvite:
       case NotificationType.momentInvite:
         icon = HugeIcons.strokeRoundedImageAdd02;
         color = AppTheme.electricPurple;
-        bg = AppTheme.electricPurple.withOpacity(0.1);
+        bg = AppTheme.electricPurple.withValues(alpha: 0.1);
         break;
       case NotificationType.newMoment:
         icon = HugeIcons.strokeRoundedImage01;
         color = Colors.green;
-        bg = Colors.green.withOpacity(0.1);
+        bg = Colors.green.withValues(alpha: 0.1);
         break;
       case NotificationType.system:
         icon = HugeIcons.strokeRoundedNotification01;
         color = Colors.orange;
-        bg = Colors.orange.withOpacity(0.1);
+        bg = Colors.orange.withValues(alpha: 0.1);
         break;
       case NotificationType.promo:
         icon = HugeIcons.strokeRoundedGift;
         color = AppTheme.neonPink;
-        bg = AppTheme.neonPink.withOpacity(0.1);
+        bg = AppTheme.neonPink.withValues(alpha: 0.1);
         break;
       default:
         icon = HugeIcons.strokeRoundedNotification01;
         color = Colors.grey;
-        bg = Colors.grey.withOpacity(0.1);
+        bg = Colors.grey.withValues(alpha: 0.1);
     }
 
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
       child: HugeIcon(icon: icon, color: color, size: 24),
+    );
+  }
+
+  Widget _buildCollaborationInviteActions(
+    BuildContext context,
+    WidgetRef ref,
+    NotificationItem item,
+  ) {
+    // Check if data is MomentContributor (from app state)
+    // or generic Map (from push notification if not synced yet)
+    String? inviteId;
+    String? momentId;
+
+    if (item.data is MomentContributor) {
+      final invite = item.data as MomentContributor;
+      inviteId = invite.id;
+      momentId = invite.momentId;
+    } else if (item.data is Map) {
+      // If it's a generic notification payload, we might need to rely on 'related_id' or similar
+      // But typically 'collaborationInvite' comes from the StreamProvider<List<MomentContributor>>
+      return const SizedBox.shrink(); // Hide actions if we can't parse invite
+    }
+
+    if (inviteId == null || momentId == null) return const SizedBox.shrink();
+
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: () async {
+              try {
+                // Call repository directly or via provider
+                await ref
+                    .read(momentRepositoryProvider)
+                    .acceptInvitation(inviteId!);
+
+                if (context.mounted) {
+                  context.showSuccessSnackBar('Joined moment group!');
+
+                  // Fetch moments for the group before navigating
+                  try {
+                    final moments = await ref
+                        .read(momentRepositoryProvider)
+                        .getMomentsByGroup(momentId!);
+
+                    if (context.mounted && moments.isNotEmpty) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MomentDetailsPage(
+                            locationName: moments.first.location,
+                            moments: moments,
+                          ),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    debugPrint('Failed to load moments for navigation: $e');
+                  }
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  context.showErrorSnackBar('Failed to join group: $e');
+                }
+              }
+            },
+            style: OutlinedButton.styleFrom(
+              backgroundColor: AppTheme.primaryBlue,
+              side: BorderSide.none,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 0),
+              minimumSize: const Size(0, 32),
+            ),
+            child: const Text(
+              'Accept',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: OutlinedButton(
+            onPressed: () async {
+              try {
+                await ref
+                    .read(momentRepositoryProvider)
+                    .removeContributor(inviteId!);
+
+                if (context.mounted) {
+                  context.showSuccessSnackBar('Invite declined');
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  context.showErrorSnackBar('Failed to decline invite');
+                }
+              }
+            },
+            style: OutlinedButton.styleFrom(
+              backgroundColor: Colors.grey[100],
+              side: BorderSide.none,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 0),
+              minimumSize: const Size(0, 32),
+            ),
+            child: Text(
+              'Decline',
+              style: TextStyle(
+                color: Colors.grey[700],
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

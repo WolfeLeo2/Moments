@@ -1,111 +1,110 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-	<key>CFBundleDevelopmentRegion</key>
-	<string>$(DEVELOPMENT_LANGUAGE)</string>
-	<key>CFBundleDisplayName</key>
-	<string>Moments</string>
-	<key>CFBundleExecutable</key>
-	<string>$(EXECUTABLE_NAME)</string>
-	<key>CFBundleIdentifier</key>
-	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>CFBundleName</key>
-	<string>moments</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>$(FLUTTER_BUILD_NAME)</string>
-	<key>CFBundleSignature</key>
-	<string>????</string>
-	<key>CFBundleVersion</key>
-	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
-	<key>GIDClientID</key>
-	<string>837716303354-135himrkif8vjfhpap1q9mu68f2b70gg.apps.googleusercontent.com</string>
-	<!-- URL scheme for Google Sign-In callback -->
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<!-- Reversed client ID from Google Cloud Console -->
-				<string>com.googleusercontent.apps.837716303354-135himrkif8vjfhpap1q9mu68f2b70gg</string>
-			</array>
-		</dict>
-	</array>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>fetch</string>
-		<string>remote-notification</string>
-	</array>
-	<key>UILaunchStoryboardName</key>
-	<string>LaunchScreen</string>
-	<key>UIMainStoryboardFile</key>
-	<string>Main</string>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>UIApplicationShortcutItems</key>
-	<array>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>action_camera</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Take Photo</string>
-			<key>UIApplicationShortcutItemIconType</key>
-			<string>UIApplicationShortcutIconTypeCapturePhoto</string>
-		</dict>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>action_video</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Record Video</string>
-			<key>UIApplicationShortcutItemIconType</key>
-			<string>UIApplicationShortcutIconTypeCaptureVideo</string>
-		</dict>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>action_gallery</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Upload from Gallery</string>
-			<key>UIApplicationShortcutItemIconType</key>
-			<string>UIApplicationShortcutIconTypeTask</string>
-		</dict>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-
-	<!-- Location permissions -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs location access to show your current position and create location-based moments.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs location access to show your current position and create location-based moments.</string>
-
-	<!-- Camera and Photo Library permissions -->
-	<key>NSCameraUsageDescription</key>
-	<string>This app needs camera access to take photos for your moments.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs photo library access to select photos for your moments.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>This app needs microphone access to record audio for voice chat.</string>
-
-</dict>
+	<dict>
+		<key>CFBundleDevelopmentRegion</key>
+		<string>$(DEVELOPMENT_LANGUAGE)</string>
+		<key>CFBundleDisplayName</key>
+		<string>Moments</string>
+		<key>CFBundleExecutable</key>
+		<string>$(EXECUTABLE_NAME)</string>
+		<key>CFBundleIdentifier</key>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+		<key>CFBundleInfoDictionaryVersion</key>
+		<string>6.0</string>
+		<key>CFBundleName</key>
+		<string>moments</string>
+		<key>CFBundlePackageType</key>
+		<string>APPL</string>
+		<key>CFBundleShortVersionString</key>
+		<string>$(FLUTTER_BUILD_NAME)</string>
+		<key>CFBundleSignature</key>
+		<string>????</string>
+		<key>CFBundleVersion</key>
+		<string>$(FLUTTER_BUILD_NUMBER)</string>
+		<key>LSRequiresIPhoneOS</key>
+		<true/>
+		<key>GIDClientID</key>
+		<string>837716303354-135himrkif8vjfhpap1q9mu68f2b70gg.apps.googleusercontent.com</string>
+		<!-- URL scheme for Google Sign-In callback -->
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<!-- Reversed client ID from Google Cloud Console -->
+					<string>com.googleusercontent.apps.837716303354-135himrkif8vjfhpap1q9mu68f2b70gg</string>
+				</array>
+			</dict>
+		</array>
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>fetch</string>
+			<string>remote-notification</string>
+		</array>
+		<key>UILaunchStoryboardName</key>
+		<string>LaunchScreen</string>
+		<key>UIMainStoryboardFile</key>
+		<string>Main</string>
+		<key>UISupportedInterfaceOrientations</key>
+		<array>
+			<string>UIInterfaceOrientationPortrait</string>
+			<string>UIInterfaceOrientationLandscapeLeft</string>
+			<string>UIInterfaceOrientationLandscapeRight</string>
+		</array>
+		<key>UIApplicationShortcutItems</key>
+		<array>
+			<dict>
+				<key>UIApplicationShortcutItemType</key>
+				<string>action_camera</string>
+				<key>UIApplicationShortcutItemTitle</key>
+				<string>Take Photo</string>
+				<key>UIApplicationShortcutItemIconType</key>
+				<string>UIApplicationShortcutIconTypeCapturePhoto</string>
+			</dict>
+			<dict>
+				<key>UIApplicationShortcutItemType</key>
+				<string>action_video</string>
+				<key>UIApplicationShortcutItemTitle</key>
+				<string>Record Video</string>
+				<key>UIApplicationShortcutItemIconType</key>
+				<string>UIApplicationShortcutIconTypeCaptureVideo</string>
+			</dict>
+			<dict>
+				<key>UIApplicationShortcutItemType</key>
+				<string>action_gallery</string>
+				<key>UIApplicationShortcutItemTitle</key>
+				<string>Upload from Gallery</string>
+				<key>UIApplicationShortcutItemIconType</key>
+				<string>UIApplicationShortcutIconTypeTask</string>
+			</dict>
+		</array>
+		<key>UISupportedInterfaceOrientations~ipad</key>
+		<array>
+			<string>UIInterfaceOrientationPortrait</string>
+			<string>UIInterfaceOrientationPortraitUpsideDown</string>
+			<string>UIInterfaceOrientationLandscapeLeft</string>
+			<string>UIInterfaceOrientationLandscapeRight</string>
+		</array>
+		<key>CADisableMinimumFrameDurationOnPhone</key>
+		<true/>
+		<key>UIApplicationSupportsIndirectInputEvents</key>
+		<true/>
+		<!-- Location permissions -->
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>This app needs location access to show your current position and create location-based moments.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>This app needs location access to show your current position and create location-based moments.</string>
+		<!-- Camera and Photo Library permissions -->
+		<key>NSCameraUsageDescription</key>
+		<string>This app needs camera access to take photos for your moments.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>This app needs photo library access to select photos for your moments.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>This app needs microphone access to record audio for voice chat.</string>
+		<key>UIStatusBarHidden</key>
+		<false/>
+	</dict>
 </plist>

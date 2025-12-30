@@ -23,7 +23,9 @@ class ContributorsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final acceptedContributors = contributors.where((c) => c.hasAccepted).toList();
+    final acceptedContributors = contributors
+        .where((c) => c.hasAccepted)
+        .toList();
     final pendingContributors = contributors.where((c) => c.isPending).toList();
 
     return Column(
@@ -54,12 +56,15 @@ class ContributorsList extends StatelessWidget {
                   onInvite!();
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryBlue.withOpacity(0.1),
+                    color: AppTheme.primaryBlue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: AppTheme.primaryBlue.withOpacity(0.3),
+                      color: AppTheme.primaryBlue.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -85,45 +90,50 @@ class ContributorsList extends StatelessWidget {
               ),
           ],
         ),
-        
+
         const SizedBox(height: 12),
-        
+
         // Accepted contributors
         if (acceptedContributors.isNotEmpty) ...[
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: acceptedContributors.map((c) => _ContributorChip(
-              contributor: c,
-              canRemove: isOwner && !c.isOwner,
-              onRemove: onRemove,
-            )).toList(),
+            children: acceptedContributors
+                .map(
+                  (c) => _ContributorChip(
+                    contributor: c,
+                    canRemove: isOwner && !c.isOwner,
+                    onRemove: onRemove,
+                  ),
+                )
+                .toList(),
           ),
         ],
-        
+
         // Pending invitations
         if (pendingContributors.isNotEmpty) ...[
           const SizedBox(height: 12),
           Text(
             'Pending invitations',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
+            style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
           ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: pendingContributors.map((c) => _ContributorChip(
-              contributor: c,
-              isPending: true,
-              canRemove: isOwner,
-              onRemove: onRemove,
-            )).toList(),
+            children: pendingContributors
+                .map(
+                  (c) => _ContributorChip(
+                    contributor: c,
+                    isPending: true,
+                    canRemove: isOwner,
+                    onRemove: onRemove,
+                  ),
+                )
+                .toList(),
           ),
         ],
-        
+
         // Empty state
         if (contributors.length <= 1) // Only owner
           Padding(
@@ -157,25 +167,24 @@ class _ContributorChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayName = contributor.displayName ?? 
-                        contributor.username ?? 
-                        'User';
-    
+    final displayName =
+        contributor.displayName ?? contributor.username ?? 'User';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: isPending 
-            ? Colors.orange.withOpacity(0.1)
-            : contributor.isOwner 
-                ? AppTheme.primaryBlue.withOpacity(0.1)
-                : Colors.grey[100],
+        color: isPending
+            ? Colors.orange.withValues(alpha: 0.1)
+            : contributor.isOwner
+            ? AppTheme.primaryBlue.withValues(alpha: 0.1)
+            : Colors.grey[100],
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isPending 
-              ? Colors.orange.withOpacity(0.3)
-              : contributor.isOwner 
-                  ? AppTheme.primaryBlue.withOpacity(0.3)
-                  : Colors.grey[300]!,
+          color: isPending
+              ? Colors.orange.withValues(alpha: 0.3)
+              : contributor.isOwner
+              ? AppTheme.primaryBlue.withValues(alpha: 0.3)
+              : Colors.grey[300]!,
         ),
       ),
       child: Row(
@@ -200,7 +209,7 @@ class _ContributorChip extends StatelessWidget {
                 : null,
           ),
           const SizedBox(width: 6),
-          
+
           // Name
           Text(
             displayName,
@@ -210,7 +219,7 @@ class _ContributorChip extends StatelessWidget {
               color: AppTheme.textDark,
             ),
           ),
-          
+
           // Role badge for owner
           if (contributor.isOwner) ...[
             const SizedBox(width: 4),
@@ -230,7 +239,7 @@ class _ContributorChip extends StatelessWidget {
               ),
             ),
           ],
-          
+
           // Pending indicator
           if (isPending) ...[
             const SizedBox(width: 4),
@@ -250,7 +259,7 @@ class _ContributorChip extends StatelessWidget {
               ),
             ),
           ],
-          
+
           // Remove button
           if (canRemove && onRemove != null) ...[
             const SizedBox(width: 4),
@@ -259,11 +268,7 @@ class _ContributorChip extends StatelessWidget {
                 HapticService.lightTap();
                 onRemove!(contributor);
               },
-              child: const Icon(
-                Icons.close,
-                size: 14,
-                color: Colors.grey,
-              ),
+              child: const Icon(Icons.close, size: 14, color: Colors.grey),
             ),
           ],
         ],

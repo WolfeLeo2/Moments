@@ -10,7 +10,7 @@ class SocialRepository {
   // ============================================
   // PROFILE MANAGEMENT
   // ============================================
-
+  
   /// Get current user's profile
   Future<Profile?> getCurrentUserProfile() async {
     try {
@@ -204,8 +204,7 @@ class SocialRepository {
             'status': 'accepted',
             'responded_at': DateTime.now().toIso8601String(),
           })
-          .eq('id', friendshipId)
-          .select();
+          .eq('id', friendshipId);
 
       print('✅ [ACCEPT REQUEST] Successfully accepted friendship!');
     } catch (e, stackTrace) {

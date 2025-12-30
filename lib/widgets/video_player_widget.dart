@@ -167,7 +167,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withValues(alpha:0.5),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -190,7 +190,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          Colors.black.withOpacity(0.7),
+                          Colors.black.withValues(alpha: 0.7),
                         ],
                       ),
                     ),
@@ -207,8 +207,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                             allowScrubbing: true,
                             colors: VideoProgressColors(
                               playedColor: Colors.white,
-                              bufferedColor: Colors.white.withOpacity(0.5),
-                              backgroundColor: Colors.white.withOpacity(0.3),
+                              bufferedColor: Colors.white.withValues(alpha: 0.5),
+                              backgroundColor: Colors.white.withValues(alpha: 0.3),
                             ),
                           ),
                           const SizedBox(height: 8),

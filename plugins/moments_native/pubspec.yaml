@@ -1,0 +1,15 @@
+name: moments_native
+description: Native Android Code for Moments
+version: 0.0.1
+homepage: https://github.com/wolfeleo2/moments
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.0.0"
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.wolfeleo2.moments_native
+        pluginClass: MomentsNativePlugin

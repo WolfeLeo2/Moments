@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/painting.dart';
 import 'package:moments/data/models/message.dart';
+import 'package:moments/data/models/reaction.dart';
 import 'package:moments/data/sources/supabase_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -107,16 +108,103 @@ class ChatRepository {
 
   /// Stream messages in a conversation (real-time)
   Stream<List<Message>> streamMessages(String conversationId) {
+    final currentUserId = _client.auth.currentUser?.id;
+
     return _client
         .from('messages')
         .stream(primaryKey: ['id'])
         .eq('conversation_id', conversationId)
         .order('created_at', ascending: true)
-        .map((data) {
-          return (data as List)
+        .asyncMap((data) async {
+          final messages = (data as List)
               .map((json) => Message.fromJson(json as Map<String, dynamic>))
-              .where((msg) => !msg.isDeleted)
+              .where((msg) {
+                // Filter out hard-deleted messages
+                if (msg.isDeleted && msg.deletedFor != 'everyone') return false;
+                // Filter out messages deleted for this specific user
+                if (msg.deletedFor == currentUserId) return false;
+                return true;
+              })
               .toList();
+
+          if (messages.isEmpty) return messages;
+
+          // Collections IDs for bulk fetching
+          final messageIds = messages.map((m) => m.id).toList();
+          final replyIds = messages
+              .where(
+                (m) => m.replyToMessageId != null && m.replyToMessage == null,
+              )
+              .map((m) => m.replyToMessageId!)
+              .toSet() // Deduplicate
+              .toList();
+
+          // Fetch all replies and reactions in parallel batch requests
+          final futures = <Future<dynamic>>[];
+
+          // 1. Fetch replies
+          if (replyIds.isNotEmpty) {
+            futures.add(
+              _client.from('messages').select().filter('id', 'in', replyIds),
+            );
+          } else {
+            futures.add(Future.value([]));
+          }
+
+          // 2. Fetch reactions
+          if (messageIds.isNotEmpty) {
+            futures.add(
+              _client
+                  .from('message_reactions')
+                  .select()
+                  .filter('message_id', 'in', messageIds),
+            );
+          } else {
+            futures.add(Future.value([]));
+          }
+
+          final results = await Future.wait(futures);
+          final repliesList = results[0] as List;
+          final reactionsList = results[1] as List;
+
+          // Build Maps for O(1) Lookup
+          final replyMap = {
+            for (var item in repliesList)
+              item['id'] as String: Message.fromJson(
+                item as Map<String, dynamic>,
+              ),
+          };
+
+          final reactionsMap = <String, List<Reaction>>{};
+          for (var item in reactionsList) {
+            final reaction = Reaction.fromJson(item as Map<String, dynamic>);
+            if (!reactionsMap.containsKey(reaction.messageId)) {
+              reactionsMap[reaction.messageId] = [];
+            }
+            reactionsMap[reaction.messageId]!.add(reaction);
+          }
+
+          // Enrich messages
+          return messages.map((msg) {
+            var enrichedMsg = msg;
+
+            // Add reply
+            if (msg.replyToMessageId != null &&
+                replyMap.containsKey(msg.replyToMessageId)) {
+              enrichedMsg = enrichedMsg.copyWith(
+                replyToMessage: replyMap[msg.replyToMessageId],
+              );
+            }
+
+            // Add reactions
+            if (reactionsMap.containsKey(msg.id)) {
+              enrichedMsg = enrichedMsg.copyWith(
+                reactions: reactionsMap[msg.id],
+              );
+            }
+
+            return enrichedMsg;
+          }).toList();
         });
   }
 
@@ -194,26 +282,199 @@ class ChatRepository {
     return conversations;
   }
 
-  /// Send a text message
+  /// Send a text message (with optional reply)
   Future<Message> sendMessage({
     required String conversationId,
     required String content,
+    String? replyToMessageId,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not authenticated');
 
+    final messageData = {
+      'conversation_id': conversationId,
+      'sender_id': userId,
+      'content': content,
+      'message_type': 'text',
+    };
+
+    if (replyToMessageId != null) {
+      messageData['reply_to_message_id'] = replyToMessageId;
+    }
+
     final response = await _client
         .from('messages')
-        .insert({
-          'conversation_id': conversationId,
-          'sender_id': userId,
-          'content': content,
-          'message_type': 'text',
-        })
+        .insert(messageData)
         .select()
         .single();
 
     return Message.fromJson(response);
+  }
+
+  /// Edit a message (only own messages, within 15 minutes)
+  Future<void> editMessage({
+    required String messageId,
+    required String newContent,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not authenticated');
+
+    // Fetch the message to check ownership and time
+    final message = await _client
+        .from('messages')
+        .select()
+        .eq('id', messageId)
+        .single();
+
+    if (message['sender_id'] != userId) {
+      throw Exception('You can only edit your own messages');
+    }
+
+    final createdAt = DateTime.parse(message['created_at'] as String);
+    final timeSinceSent = DateTime.now().difference(createdAt);
+    if (timeSinceSent.inMinutes > 15) {
+      throw Exception('Messages can only be edited within 15 minutes');
+    }
+
+    await _client
+        .from('messages')
+        .update({
+          'content': newContent,
+          'is_edited': true,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', messageId);
+  }
+
+  /// Delete a message for self only
+  Future<void> deleteMessageForSelf(String messageId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not authenticated');
+
+    await _client
+        .from('messages')
+        .update({
+          'deleted_for': userId, // Store the user ID who deleted it
+        })
+        .eq('id', messageId);
+  }
+
+  /// Delete a message for everyone (only own messages)
+  Future<void> deleteMessageForEveryone(String messageId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not authenticated');
+
+    // Verify ownership
+    final message = await _client
+        .from('messages')
+        .select()
+        .eq('id', messageId)
+        .single();
+
+    if (message['sender_id'] != userId) {
+      throw Exception('You can only delete your own messages for everyone');
+    }
+
+    // Also delete all reactions for this message
+    await _client
+        .from('message_reactions')
+        .delete()
+        .eq('message_id', messageId);
+
+    await _client
+        .from('messages')
+        .update({
+          'is_deleted': true,
+          'deleted_for': 'everyone',
+          'content': '', // Clear content for privacy, but keep record
+        })
+        .eq('id', messageId);
+  }
+
+  /// Add a reaction to a message
+  Future<void> addReaction(String messageId, String emoji) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not authenticated');
+
+    // Check if user already reacted with this emoji
+    final existing = await _client
+        .from('message_reactions')
+        .select()
+        .eq('message_id', messageId)
+        .eq('user_id', userId)
+        .eq('emoji', emoji)
+        .maybeSingle();
+
+    if (existing != null) {
+      // Already reacted with this emoji, remove it (toggle)
+      await _client.from('message_reactions').delete().eq('id', existing['id']);
+    } else {
+      // Remove any existing reaction from this user on this message
+      await _client
+          .from('message_reactions')
+          .delete()
+          .eq('message_id', messageId)
+          .eq('user_id', userId);
+
+      // Add new reaction
+      await _client.from('message_reactions').insert({
+        'message_id': messageId,
+        'user_id': userId,
+        'emoji': emoji,
+      });
+    }
+
+    // Touch the message to trigger a stream update
+    await _client
+        .from('messages')
+        .update({'updated_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', messageId);
+  }
+
+  /// Remove a reaction from a message
+  Future<void> removeReaction(String messageId, String emoji) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not authenticated');
+
+    await _client
+        .from('message_reactions')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('user_id', userId)
+        .eq('emoji', emoji);
+
+    // Touch the message to trigger a stream update
+    await _client
+        .from('messages')
+        .update({'updated_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', messageId);
+  }
+
+  /// Get reactions for a message
+  Future<List<Map<String, dynamic>>> getReactionsForMessage(
+    String messageId,
+  ) async {
+    final response = await _client
+        .from('message_reactions')
+        .select('id, user_id, emoji, created_at')
+        .eq('message_id', messageId);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Fetch a single message by ID with its reply data
+  Future<Message?> getMessageById(String messageId) async {
+    try {
+      final response = await _client
+          .from('messages')
+          .select()
+          .eq('id', messageId)
+          .maybeSingle();
+
+      if (response == null) return null;
+      return Message.fromJson(response);
+    } catch (e) {
+      return null;
+    }
   }
 
   /// Get the last message in a conversation
@@ -248,19 +509,16 @@ class ChatRepository {
 
       for (final row in myConversations) {
         final conversationId = row['conversation_id'] as String;
-
-        final participants = await _client
+        // Check if friend is in this conversation
+        final friendParticipation = await _client
             .from('conversation_participants')
-            .select('user_id')
-            .eq('conversation_id', conversationId);
+            .select()
+            .eq('conversation_id', conversationId)
+            .eq('user_id', friendId)
+            .maybeSingle();
 
-        if (participants.length == 2) {
-          final userIds = participants
-              .map((p) => p['user_id'] as String)
-              .toList();
-          if (userIds.contains(userId) && userIds.contains(friendId)) {
-            return conversationId;
-          }
+        if (friendParticipation != null) {
+          return conversationId;
         }
       }
       return null;
@@ -277,7 +535,7 @@ class ChatRepository {
     // Update last_read_at for the participant
     await _client
         .from('conversation_participants')
-        .update({'last_read_at': DateTime.now().toIso8601String()})
+        .update({'last_read_at': DateTime.now().toUtc().toIso8601String()})
         .eq('conversation_id', conversationId)
         .eq('user_id', userId);
 

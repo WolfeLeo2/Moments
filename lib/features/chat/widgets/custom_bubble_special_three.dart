@@ -307,7 +307,9 @@ class _SpecialChatBubbleThree extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(CustomPainter oldDelegate) {
-    return true;
+  bool shouldRepaint(_SpecialChatBubbleThree oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.alignment != alignment ||
+        oldDelegate.tail != tail;
   }
 }

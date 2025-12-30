@@ -46,7 +46,7 @@ class MomentShareCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -60,7 +60,7 @@ class MomentShareCard extends StatelessWidget {
             margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
             decoration: BoxDecoration(
               border: Border.all(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 width: 1,
               ),
             ),
@@ -146,7 +146,7 @@ class MomentShareCard extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+                  colors: [Colors.transparent, Colors.black.withValues(alpha:0.7)],
                   stops: const [0.5, 1.0],
                 ),
               ),
@@ -220,7 +220,7 @@ class MomentShareCard extends StatelessWidget {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha:0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -247,7 +247,7 @@ class MomentShareCard extends StatelessWidget {
       height: 600,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+        border: Border.all(color: Colors.white.withValues(alpha:0.3), width: 2),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(30),
@@ -268,7 +268,7 @@ class MomentShareCard extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Colors.black.withOpacity(0.5), Colors.transparent],
+                    colors: [Colors.black.withValues(alpha:0.5), Colors.transparent],
                   ),
                 ),
               ),
@@ -285,7 +285,7 @@ class MomentShareCard extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
-                    colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+                    colors: [Colors.black.withValues(alpha:0.8), Colors.transparent],
                   ),
                 ),
               ),
@@ -447,7 +447,7 @@ class MomentShareCard extends StatelessWidget {
                           child: Center(
                             child: Icon(
                               Icons.favorite,
-                              color: AppTheme.neonPink.withOpacity(0.7),
+                              color: AppTheme.neonPink.withValues(alpha:0.7),
                               size: 24,
                             ),
                           ),
@@ -545,7 +545,7 @@ class MomentShareCard extends StatelessWidget {
 
   Widget _buildPlaceholder() {
     return Container(
-      color: AppTheme.borderGray.withOpacity(0.3),
+      color: AppTheme.borderGray.withValues(alpha: 0.3),
       child: Center(
         child: Icon(Icons.photo, size: 48, color: AppTheme.textGray),
       ),

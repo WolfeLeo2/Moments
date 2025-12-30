@@ -885,11 +885,13 @@ final class ConversationIdFamily extends $Family
 }
 
 /// Get list of recent conversations with details (Realtime)
+/// Yields cached data immediately for instant UI, then updates with fresh data
 
 @ProviderFor(chatList)
 const chatListProvider = ChatListProvider._();
 
 /// Get list of recent conversations with details (Realtime)
+/// Yields cached data immediately for instant UI, then updates with fresh data
 
 final class ChatListProvider
     extends
@@ -902,6 +904,7 @@ final class ChatListProvider
         $FutureModifier<List<Map<String, dynamic>>>,
         $StreamProvider<List<Map<String, dynamic>>> {
   /// Get list of recent conversations with details (Realtime)
+  /// Yields cached data immediately for instant UI, then updates with fresh data
   const ChatListProvider._()
     : super(
         from: null,
@@ -928,4 +931,4 @@ final class ChatListProvider
   }
 }
 
-String _$chatListHash() => r'e76301ccdd98faac27f91bca134aaa0f14c5ce1b';
+String _$chatListHash() => r'dfb912e1c75038ed0dce9ed0e1aa5800cdb47126';

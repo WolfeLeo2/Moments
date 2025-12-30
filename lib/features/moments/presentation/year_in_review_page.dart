@@ -150,7 +150,7 @@ class _YearInReviewPageState extends State<YearInReviewPage>
                   decoration: BoxDecoration(
                     color: _currentPage == index
                         ? Colors.white
-                        : Colors.white.withOpacity(0.3),
+                        : Colors.white.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 );
@@ -367,7 +367,7 @@ class _YearInReviewPageState extends State<YearInReviewPage>
                     vertical: 16,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
@@ -539,7 +539,7 @@ class _YearInReviewPageState extends State<YearInReviewPage>
                             decoration: BoxDecoration(
                               color: isBusiest
                                   ? Colors.white
-                                  : Colors.white.withOpacity(0.4),
+                                  : Colors.white.withValues(alpha: 0.4),
                               borderRadius: BorderRadius.circular(4),
                             ),
                           ),
@@ -679,7 +679,7 @@ class _YearInReviewPageState extends State<YearInReviewPage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(30),
       ),
       child: Row(

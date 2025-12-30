@@ -155,7 +155,7 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
@@ -650,7 +650,7 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(4.r),
                   border: Border.all(
-                    color: Colors.black.withOpacity(1),
+                    color: Colors.black.withValues(alpha: 1),
                     width: 1,
                   ),
                 ),

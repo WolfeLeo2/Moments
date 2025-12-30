@@ -140,7 +140,7 @@ class _AudioMessageBubbleState extends ConsumerState<AudioMessageBubble>
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
+                  color: color.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -165,7 +165,7 @@ class _AudioMessageBubbleState extends ConsumerState<AudioMessageBubble>
                       value: _duration.inMilliseconds > 0
                           ? _position.inMilliseconds / _duration.inMilliseconds
                           : 0,
-                      backgroundColor: color.withOpacity(0.2),
+                      backgroundColor: color.withValues(alpha: 0.2),
                       valueColor: AlwaysStoppedAnimation<Color>(color),
                       minHeight: 4,
                     ),
@@ -176,7 +176,7 @@ class _AudioMessageBubbleState extends ConsumerState<AudioMessageBubble>
                   Text(
                     '${_formatDuration(_position)} / ${_formatDuration(_duration)}',
                     style: TextStyle(
-                      color: color.withOpacity(0.7),
+                      color: color.withValues(alpha: 0.7),
                       fontSize: 12,
                     ),
                   ),

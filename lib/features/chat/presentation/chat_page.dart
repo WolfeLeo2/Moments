@@ -2,22 +2,26 @@ import 'dart:async';
 import 'dart:ui';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
 import 'package:moments/core/theme/app_theme.dart';
+import 'package:moments/core/utils/extensions.dart';
 import 'package:moments/core/services/avatar_cache_service.dart';
+import 'package:moments/data/models/message.dart';
+import 'package:moments/data/sources/supabase_config.dart';
 import 'package:moments/features/chat/providers/chat_providers.dart';
 import 'package:moments/features/chat/widgets/message_bubble.dart';
-import 'package:moments/core/utils/extensions.dart';
-import 'package:moments/data/sources/supabase_config.dart';
-import 'package:moments/data/models/message.dart';
-import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import 'package:moments/features/chat/widgets/audio_message_bubble.dart';
-import 'package:moments/features/chat/widgets/audio_recorder_widget.dart';
 import 'package:moments/features/chat/widgets/image_message_bubble.dart';
 import 'package:moments/features/chat/widgets/video_message_bubble.dart';
+import 'package:moments/features/chat/widgets/audio_recorder_widget.dart';
 import 'package:moments/features/chat/widgets/typing_indicator_bubble.dart';
+import 'package:moments/features/chat/widgets/reply_preview.dart';
+import 'package:moments/features/chat/widgets/message_context_menu.dart';
+import 'package:moments/features/chat/widgets/swipeable_message.dart';
+import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:icon_button_m3e/icon_button_m3e.dart';
 
@@ -49,6 +53,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
   int _unreadCount = 0;
   bool _isFirstLoad = true;
 
+  // Reply/Edit state
+  Message? _replyingToMessage;
+  Message? _editingMessage;
+
+  // Track messages being deleted (for poof animation)
+
   @override
   bool get wantKeepAlive => true;
 
@@ -58,19 +68,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
     _messageController.addListener(_onMessageChanged);
     _scrollController.addListener(_onScroll);
 
-    // Set current chat ID to suppress notifications
-    // We need to get the conversation ID first
-    Future.delayed(Duration.zero, () {
-      final conversationAsync = ref.read(
-        conversationIdProvider(widget.friendId),
-      );
-      conversationAsync.whenData((id) {
-        // Update static var for service
+    // Listen to conversation ID changes to set currentChatId
+    ref.listenManual(conversationIdProvider(widget.friendId), (previous, next) {
+      next.whenData((id) {
         FirebaseMessagingService.currentChatId = id;
-        // Clear any existing notification for this chat
         FirebaseMessagingService.cancelNotificationByRelatedId(id);
+
+        // Mark messages as read
+        ref.read(chatRepositoryProvider).markAsRead(id);
       });
-    });
+    }, fireImmediately: true);
   }
 
   @override
@@ -171,14 +178,96 @@ class _ChatPageState extends ConsumerState<ChatPage>
 
     try {
       final chatRepo = ref.read(chatRepositoryProvider);
-      await chatRepo.sendMessage(
-        conversationId: conversationId,
-        content: content,
-      );
+
+      if (_editingMessage != null) {
+        // Edit existing message
+        await chatRepo.editMessage(
+          messageId: _editingMessage!.id,
+          newContent: content,
+        );
+        setState(() => _editingMessage = null);
+      } else {
+        // Send new message (with optional reply)
+        await chatRepo.sendMessage(
+          conversationId: conversationId,
+          content: content,
+          replyToMessageId: _replyingToMessage?.id,
+        );
+        if (_replyingToMessage != null) {
+          setState(() => _replyingToMessage = null);
+        }
+      }
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to send message');
+        context.showErrorSnackBar('Failed to send message: $e');
       }
+    }
+  }
+
+  void _startReply(Message message) {
+    setState(() {
+      _replyingToMessage = message;
+      _editingMessage = null;
+    });
+  }
+
+  void _startEdit(Message message) {
+    setState(() {
+      _editingMessage = message;
+      _replyingToMessage = null;
+      _messageController.text = message.content;
+    });
+  }
+
+  void _cancelReplyOrEdit() {
+    setState(() {
+      _replyingToMessage = null;
+      _editingMessage = null;
+      _messageController.clear();
+    });
+  }
+
+  Future<void> _handleMessageAction(
+    Message message,
+    MessageAction action,
+  ) async {
+    final chatRepo = ref.read(chatRepositoryProvider);
+
+    switch (action) {
+      case MessageAction.reply:
+        _startReply(message);
+        break;
+
+      case MessageAction.edit:
+        _startEdit(message);
+        break;
+
+      case MessageAction.copy:
+        await Clipboard.setData(ClipboardData(text: message.content));
+        if (mounted) {
+          context.showSuccessSnackBar('Copied to clipboard');
+        }
+        break;
+
+      case MessageAction.deleteForSelf:
+        try {
+          await chatRepo.deleteMessageForSelf(message.id);
+        } catch (e) {
+          if (mounted) {
+            context.showErrorSnackBar('Failed to delete: $e');
+          }
+        }
+        break;
+
+      case MessageAction.deleteForEveryone:
+        try {
+          await chatRepo.deleteMessageForEveryone(message.id);
+        } catch (e) {
+          if (mounted) {
+            context.showErrorSnackBar('Failed to delete: $e');
+          }
+        }
+        break;
     }
   }
 
@@ -485,12 +574,80 @@ class _ChatPageState extends ConsumerState<ChatPage>
                               isMe: isMe,
                             );
                           } else {
+                            // Determine reply sender name
+                            String? replySenderName;
+                            if (message.replyToMessage != null) {
+                              final currentUserId =
+                                  SupabaseConfig.client.auth.currentUser?.id;
+                              replySenderName =
+                                  message.replyToMessage!.senderId ==
+                                      currentUserId
+                                  ? 'You'
+                                  : widget.friendName;
+                            }
+
                             bubble = MessageBubble(
                               message: message,
                               isMe: isMe,
                               tail: tail,
+                              replySenderName: replySenderName,
                             );
                           }
+
+                          // Wrap all bubbles with swipeable and long-press for context menu
+                          final bubbleKey = GlobalKey();
+                          bubble = SwipeableMessage(
+                            key: ValueKey('swipe_${message.id}'),
+                            isMe: isMe,
+                            onSwipe: () => _startReply(message),
+                            child: GestureDetector(
+                              key: bubbleKey,
+                              onLongPress: () {
+                                // Get the position of the bubble
+                                final renderBox =
+                                    bubbleKey.currentContext?.findRenderObject()
+                                        as RenderBox?;
+                                if (renderBox == null) return;
+                                final position = renderBox.localToGlobal(
+                                  Offset.zero,
+                                );
+                                final size = renderBox.size;
+                                final anchorRect = Rect.fromLTWH(
+                                  position.dx,
+                                  position.dy,
+                                  size.width,
+                                  size.height,
+                                );
+
+                                showFloatingMessageMenu(
+                                  context: context,
+                                  message: message,
+                                  isMe: isMe,
+                                  anchorRect: anchorRect,
+                                  onAction: (action) =>
+                                      _handleMessageAction(message, action),
+                                  onReaction: (emoji) async {
+                                    final chatRepo = ref.read(
+                                      chatRepositoryProvider,
+                                    );
+                                    try {
+                                      await chatRepo.addReaction(
+                                        message.id,
+                                        emoji,
+                                      );
+                                    } catch (e) {
+                                      if (mounted) {
+                                        context.showErrorSnackBar(
+                                          'Failed to add reaction: $e',
+                                        );
+                                      }
+                                    }
+                                  },
+                                );
+                              },
+                              child: bubble,
+                            ),
+                          );
 
                           chatItems.add(
                             Padding(
@@ -629,123 +786,202 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                         .stop();
                                   },
                                 )
-                              : Row(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
+                              : Column(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    IconButtonM3E(
-                                      variant: IconButtonM3EVariant.filled,
-                                      shape: IconButtonM3EShapeVariant.square,
-                                      icon: const Icon(
-                                        Icons.add,
-                                        color: Colors.white,
+                                    // Reply/Edit preview
+                                    if (_replyingToMessage != null)
+                                      ReplyPreview(
+                                        message: _replyingToMessage!,
+                                        senderName:
+                                            _replyingToMessage!.senderId ==
+                                                SupabaseConfig
+                                                    .client
+                                                    .auth
+                                                    .currentUser
+                                                    ?.id
+                                            ? 'You'
+                                            : widget.friendName,
+                                        onCancel: _cancelReplyOrEdit,
                                       ),
-                                      onPressed: () =>
-                                          _pickMedia(conversationId),
-                                    ),
-                                    Expanded(
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            AppTheme.radiusLarge + 2,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.grey.withValues(
-                                              alpha: 0.2,
-                                            ),
-                                          ),
+                                    if (_editingMessage != null)
+                                      Container(
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
                                         ),
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.amber.withValues(
+                                            alpha: 0.15,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: const Border(
+                                            left: BorderSide(
+                                              color: Colors.amber,
+                                              width: 3,
+                                            ),
+                                          ),
                                         ),
                                         child: Row(
                                           children: [
-                                            Expanded(
-                                              child: TextField(
-                                                controller: _messageController,
-                                                style: const TextStyle(
-                                                  color: Colors.black87,
+                                            const Icon(
+                                              Icons.edit,
+                                              size: 16,
+                                              color: Colors.amber,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Expanded(
+                                              child: Text(
+                                                'Editing message',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.amber,
                                                 ),
-                                                decoration: InputDecoration(
-                                                  hintText: 'Message...',
-                                                  hintStyle: TextStyle(
-                                                    color: Colors.grey[500],
-                                                  ),
-                                                  border: InputBorder.none,
-                                                  contentPadding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 10,
-                                                      ),
-                                                ),
-                                                maxLines: null,
-                                                textCapitalization:
-                                                    TextCapitalization
-                                                        .sentences,
-                                                onSubmitted: (_) =>
-                                                    _sendMessage(
-                                                      conversationId,
-                                                    ),
                                               ),
                                             ),
-                                            IconButton(
-                                              icon: Icon(
-                                                Icons.sticky_note_2_outlined,
-                                                color: Colors.grey[600],
-                                                size: 24,
+                                            GestureDetector(
+                                              onTap: _cancelReplyOrEdit,
+                                              child: const Icon(
+                                                Icons.close,
+                                                size: 18,
+                                                color: Colors.grey,
                                               ),
-                                              onPressed:
-                                                  () {}, // TODO: Stickers
-                                              padding: EdgeInsets.zero,
-                                              constraints:
-                                                  const BoxConstraints(),
                                             ),
                                           ],
                                         ),
                                       ),
-                                    ),
-
-                                    IconButtonM3E(
-                                      variant: IconButtonM3EVariant.filled,
-                                      icon: const Icon(
-                                        Icons.camera_alt_outlined,
-                                        color: Colors.white,
-                                      ),
-                                      onPressed: () =>
-                                          _pickCameraImage(conversationId),
-                                    ),
-                                    Consumer(
-                                      builder: (context, ref, child) {
-                                        final showSend = ref.watch(
-                                          showSendButtonProvider(
-                                            conversationId,
-                                          ),
-                                        );
-
-                                        return IconButtonM3E(
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        IconButtonM3E(
                                           variant: IconButtonM3EVariant.filled,
-                                          icon: Icon(
-                                            showSend
-                                                ? Icons.send
-                                                : Icons.mic_none_outlined,
+                                          shape:
+                                              IconButtonM3EShapeVariant.square,
+                                          icon: const Icon(
+                                            Icons.add,
                                             color: Colors.white,
                                           ),
-                                          onPressed: showSend
-                                              ? () =>
-                                                    _sendMessage(conversationId)
-                                              : () {
-                                                  ref
-                                                      .read(
-                                                        isRecordingProvider(
+                                          onPressed: () =>
+                                              _pickMedia(conversationId),
+                                        ),
+                                        Expanded(
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                    AppTheme.radiusLarge + 2,
+                                                  ),
+                                              border: Border.all(
+                                                color: Colors.grey.withValues(
+                                                  alpha: 0.2,
+                                                ),
+                                              ),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: TextField(
+                                                    controller:
+                                                        _messageController,
+                                                    style: const TextStyle(
+                                                      color: Colors.black87,
+                                                    ),
+                                                    decoration: InputDecoration(
+                                                      hintText: 'Message...',
+                                                      hintStyle: TextStyle(
+                                                        color: Colors.grey[500],
+                                                      ),
+                                                      border: InputBorder.none,
+                                                      contentPadding:
+                                                          const EdgeInsets.symmetric(
+                                                            vertical: 10,
+                                                          ),
+                                                    ),
+                                                    maxLines: null,
+                                                    textCapitalization:
+                                                        TextCapitalization
+                                                            .sentences,
+                                                    onSubmitted: (_) =>
+                                                        _sendMessage(
                                                           conversationId,
-                                                        ).notifier,
-                                                      )
-                                                      .start();
-                                                },
-                                        );
-                                      },
-                                    ),
+                                                        ),
+                                                  ),
+                                                ),
+                                                IconButton(
+                                                  icon: Icon(
+                                                    Icons
+                                                        .sticky_note_2_outlined,
+                                                    color: Colors.grey[600],
+                                                    size: 24,
+                                                  ),
+                                                  onPressed:
+                                                      () {}, // TODO: Stickers
+                                                  padding: EdgeInsets.zero,
+                                                  constraints:
+                                                      const BoxConstraints(),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+
+                                        IconButtonM3E(
+                                          variant: IconButtonM3EVariant.filled,
+                                          icon: const Icon(
+                                            Icons.camera_alt_outlined,
+                                            color: Colors.white,
+                                          ),
+                                          onPressed: () =>
+                                              _pickCameraImage(conversationId),
+                                        ),
+                                        Consumer(
+                                          builder: (context, ref, child) {
+                                            final showSend = ref.watch(
+                                              showSendButtonProvider(
+                                                conversationId,
+                                              ),
+                                            );
+
+                                            return IconButtonM3E(
+                                              variant:
+                                                  IconButtonM3EVariant.filled,
+                                              icon: Icon(
+                                                showSend
+                                                    ? Icons.send
+                                                    : Icons.mic_none_outlined,
+                                                color: Colors.white,
+                                              ),
+                                              onPressed: showSend
+                                                  ? () => _sendMessage(
+                                                      conversationId,
+                                                    )
+                                                  : () {
+                                                      ref
+                                                          .read(
+                                                            isRecordingProvider(
+                                                              conversationId,
+                                                            ).notifier,
+                                                          )
+                                                          .start();
+                                                    },
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ), // Close Row
                                   ],
-                                );
+                                ); // Close Column
                         },
                       ),
                     ),

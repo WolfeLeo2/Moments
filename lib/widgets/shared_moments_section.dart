@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/haptic_service.dart';
 
+
 /// Section showing moments shared with the user
 class SharedMomentsSection extends StatelessWidget {
   final List<SharedMomentPreview> moments;
@@ -29,7 +30,7 @@ class SharedMomentsSection extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: AppTheme.primaryBlue.withOpacity(0.1),
+                color: AppTheme.primaryBlue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const HugeIcon(
@@ -52,7 +53,7 @@ class SharedMomentsSection extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryBlue.withOpacity(0.1),
+                  color: AppTheme.primaryBlue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -91,7 +92,7 @@ class SharedMomentsSection extends StatelessWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: moments.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            separatorBuilder: (_,_) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
               return _SharedMomentCard(
                 moment: moments[index],
@@ -176,7 +177,7 @@ class _SharedMomentCard extends StatelessWidget {
           border: Border.all(color: Colors.grey[200]!),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -197,13 +198,13 @@ class _SharedMomentCard extends StatelessWidget {
                     ? CachedNetworkImage(
                         imageUrl: moment.thumbnailUrl!,
                         fit: BoxFit.cover,
-                        placeholder: (_, __) => Container(
+                        placeholder: (_, _) => Container(
                           color: Colors.grey[200],
                           child: const Center(
                             child: CircularProgressIndicator(strokeWidth: 2),
                           ),
                         ),
-                        errorWidget: (_, __, ___) => Container(
+                        errorWidget: (_,_,_) => Container(
                           color: Colors.grey[200],
                           child: const HugeIcon(
                             icon: HugeIcons.strokeRoundedImage01,

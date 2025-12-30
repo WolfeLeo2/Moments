@@ -75,12 +75,12 @@ class _ActionButtonState extends State<ActionButton>
               color: bgColor,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha: 0.08),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withValues(alpha: 0.08),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
