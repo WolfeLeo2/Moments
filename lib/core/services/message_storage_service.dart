@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:moments/data/models/message.dart';
+import 'package:moments/data/models/reaction.dart';
 
 /// Message storage service for persistent local data storage (like WhatsApp)
 /// Stores messages from Supabase streams to SQLite permanently
@@ -28,7 +29,7 @@ class MessageStorageService {
 
     return await openDatabase(
       path,
-      version: 2, // Updated version for conversations table
+      version: 3, // v3: Added reply, reactions, edited, deleted_for columns
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE messages (
@@ -41,7 +42,13 @@ class MessageStorageService {
             metadata TEXT,
             created_at INTEGER NOT NULL,
             is_read INTEGER NOT NULL,
-            is_deleted INTEGER NOT NULL
+            is_deleted INTEGER NOT NULL,
+            reply_to_message_id TEXT,
+            reply_to_content TEXT,
+            reply_sender_name TEXT,
+            reactions TEXT,
+            deleted_for TEXT,
+            is_edited INTEGER DEFAULT 0
           )
         ''');
 
@@ -63,12 +70,29 @@ class MessageStorageService {
         // Migrate from version 1 to 2
         if (oldVersion < 2) {
           await db.execute('''
-            CREATE TABLE conversations (
+            CREATE TABLE IF NOT EXISTS conversations (
               friend_id TEXT PRIMARY KEY,
               conversation_id TEXT NOT NULL,
               cached_at INTEGER NOT NULL
             )
           ''');
+        }
+        // Migrate from version 2 to 3: Add reply, reactions, edited, deleted_for columns
+        if (oldVersion < 3) {
+          await db.execute(
+            'ALTER TABLE messages ADD COLUMN reply_to_message_id TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE messages ADD COLUMN reply_to_content TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE messages ADD COLUMN reply_sender_name TEXT',
+          );
+          await db.execute('ALTER TABLE messages ADD COLUMN reactions TEXT');
+          await db.execute('ALTER TABLE messages ADD COLUMN deleted_for TEXT');
+          await db.execute(
+            'ALTER TABLE messages ADD COLUMN is_edited INTEGER DEFAULT 0',
+          );
         }
       },
     );
@@ -101,6 +125,35 @@ class MessageStorageService {
         }
       }
 
+      // Parse reactions from JSON
+      List<Reaction> reactions = [];
+      final reactionsJson = row['reactions'] as String?;
+      if (reactionsJson != null && reactionsJson.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(reactionsJson);
+          if (decoded is List) {
+            reactions = decoded
+                .map((e) => Reaction.fromJson(e as Map<String, dynamic>))
+                .toList();
+          }
+        } catch (_) {}
+      }
+
+      // Build reply message if we have cached reply content
+      Message? replyToMessage;
+      final replyToContent = row['reply_to_content'] as String?;
+      if (replyToContent != null && replyToContent.isNotEmpty) {
+        replyToMessage = Message(
+          id: row['reply_to_message_id'] as String? ?? '',
+          conversationId: row['conversation_id'] as String,
+          senderId: '', // We don't cache the sender ID, just the name
+          content: replyToContent,
+          messageType: MessageType.text,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+      }
+
       return Message(
         id: row['id'] as String,
         conversationId: row['conversation_id'] as String,
@@ -117,6 +170,11 @@ class MessageStorageService {
         ),
         isRead: (row['is_read'] as int) == 1,
         isDeleted: (row['is_deleted'] as int) == 1,
+        replyToMessageId: row['reply_to_message_id'] as String?,
+        replyToMessage: replyToMessage,
+        isEdited: (row['is_edited'] as int?) == 1,
+        deletedFor: row['deleted_for'] as String?,
+        reactions: reactions,
       );
     }).toList();
   }
@@ -130,6 +188,14 @@ class MessageStorageService {
     final batch = db.batch();
 
     for (final message in messages) {
+      // Serialize reactions to JSON
+      String? reactionsJson;
+      if (message.reactions.isNotEmpty) {
+        reactionsJson = jsonEncode(
+          message.reactions.map((r) => r.toJson()).toList(),
+        );
+      }
+
       batch.insert('messages', {
         'id': message.id,
         'conversation_id': message.conversationId,
@@ -143,6 +209,12 @@ class MessageStorageService {
         'created_at': message.createdAt.millisecondsSinceEpoch,
         'is_read': message.isRead ? 1 : 0,
         'is_deleted': message.isDeleted ? 1 : 0,
+        'reply_to_message_id': message.replyToMessageId,
+        'reply_to_content': message.replyToMessage?.content,
+        'reply_sender_name': null, // Sender name comes from provider lookup
+        'reactions': reactionsJson,
+        'deleted_for': message.deletedFor,
+        'is_edited': message.isEdited ? 1 : 0,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 

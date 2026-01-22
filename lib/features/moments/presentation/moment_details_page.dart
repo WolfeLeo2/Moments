@@ -180,6 +180,9 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
               (_userContribution?.isOwner ?? false) ||
               (_moments.isNotEmpty && _isOwnMoment(_moments.first));
         });
+
+        // Reload avatars now that contributors are available
+        _loadUserAvatars();
       }
     } catch (e) {
       debugPrint('Failed to load contributors: $e');
@@ -719,12 +722,17 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   }
 
   Future<void> _loadUserAvatars() async {
-    // Get unique user IDs
-    final userIds = _moments
+    // Get unique user IDs from moments
+    final momentUserIds = _moments
         .where((m) => m.userId != null)
         .map((m) => m.userId!)
-        .toSet()
-        .toList();
+        .toSet();
+
+    // Also get user IDs from contributors (in case they haven't posted yet)
+    final contributorUserIds = _contributors.map((c) => c.userId).toSet();
+
+    // Combine both sets
+    final userIds = {...momentUserIds, ...contributorUserIds}.toList();
 
     if (userIds.isEmpty) return;
 
@@ -859,11 +867,21 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
   List<String> _getUniqueContributorIds() {
     final Set<String> contributorIds = {};
+
+    // Get user IDs from moments
     for (var moment in _moments) {
       if (moment.userId != null) {
         contributorIds.add(moment.userId!);
       }
     }
+
+    // Also include accepted contributors who may not have posted moments yet
+    for (var contributor in _contributors) {
+      if (contributor.hasAccepted) {
+        contributorIds.add(contributor.userId);
+      }
+    }
+
     return contributorIds.toList();
   }
 
@@ -1490,6 +1508,17 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         'You can only change privacy on your own photos',
       );
       return;
+    }
+
+    // Check if group has contributors - cannot make shared groups private
+    if (groupId != null && isPrivate) {
+      final nonOwnerContributors = _contributors
+          .where((c) => !c.isOwner)
+          .toList();
+      if (nonOwnerContributors.isNotEmpty) {
+        context.showErrorSnackBar('Cannot make shared group private');
+        return;
+      }
     }
 
     try {

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/theme/app_theme.dart';
@@ -13,11 +14,17 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:lottie/lottie.dart';
 import 'package:moments/core/services/firebase_messaging_service.dart';
 import 'package:moments/features/moments/presentation/moment_details_page.dart';
+import 'package:moments/features/notifications/widgets/swipeable_notification.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:moments/features/map/providers/map_control_provider.dart';
+import 'package:moments/data/repositories/moment_repository.dart';
+import 'package:moments/data/models/moment.dart';
 
 enum NotificationType {
   friendRequest,
   collaborationInvite,
   newMoment,
+  momentLike, // Reactions to moments
   momentInvite,
   system,
   promo,
@@ -68,9 +75,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     // Clear all local notifications from the phone panel when opening this page
     FirebaseMessagingService.cancelAllNotifications();
 
-    // Mark all as read when opening the page
-    // We delay slightly to ensure the UI builds first
-    Future.delayed(Duration.zero, () {
+    // Mark all notifications as read on page open (Instagram style)
+    // and refresh the list to ensure we have the latest data (since we use keepAlive)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.refresh(notificationsListProvider);
       ref.read(notificationsListProvider.notifier).markAllAsRead();
     });
   }
@@ -107,26 +115,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           ),
         ),
         centerTitle: false,
-        actions: [
-          // Only show "Mark all as read" if there are notifications
-          if (notificationsAsync.value?.isNotEmpty == true)
-            TextButton(
-              onPressed: () async {
-                await ref
-                    .read(notificationsListProvider.notifier)
-                    .markAllAsRead();
-              },
-              child: const Text(
-                'Mark all as read',
-                style: TextStyle(
-                  color: AppTheme.primaryBlue,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          const SizedBox(width: 8),
-        ],
+        actions: const [SizedBox(width: 8)],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Container(
@@ -261,16 +250,19 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       );
     }
 
-    // Collaboration Invites
+    // Collaboration Invites - use group and inviter info
     for (final invite in collabInvites) {
       items.add(
         NotificationItem(
           id: invite.id,
           type: NotificationType.collaborationInvite,
-          title: 'Collaboration Invite',
-          body: 'invited you to join a moment',
+          title: invite.groupTitle ?? 'Moment Group',
+          body: 'wants you to collaborate',
           createdAt: invite.invitedAt,
           isRead: false,
+          actorName: invite.inviterUsername,
+          actorAvatarUrl: invite.inviterAvatarUrl,
+          groupTitle: invite.groupTitle,
           data: invite,
         ),
       );
@@ -291,6 +283,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       if (typeStr == 'system') type = NotificationType.system;
       if (typeStr == 'promo') type = NotificationType.promo;
       if (typeStr == 'moment_invite') type = NotificationType.momentInvite;
+      if (typeStr == 'moment_like') type = NotificationType.momentLike;
       if (typeStr == 'new_moment_group' || typeStr == 'new_moment_post')
         type = NotificationType.newMoment;
 
@@ -302,8 +295,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
       final isRead = notif['is_read'] as bool? ?? false;
 
-      // Skip read notifications (User wants them dismissed/cleared when read)
-      if (isRead) continue;
+      // Note: We no longer skip read notifications - they are shown but styled differently
+      // This ensures consistency between badge count and displayed notifications
 
       items.add(
         NotificationItem(
@@ -320,9 +313,23 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       );
     }
 
+    // Deduplicate by ID (in case same notification appears from multiple sources)
+    final seenIds = <String>{};
+    final deduplicatedItems = <NotificationItem>[];
+    for (final item in items) {
+      if (!seenIds.contains(item.id)) {
+        seenIds.add(item.id);
+        deduplicatedItems.add(item);
+      } else {
+        debugPrint(
+          'NotificationsPage: Duplicate notification ID ${item.id}, skipping',
+        );
+      }
+    }
+
     // Sort by date descending
-    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return items;
+    deduplicatedItems.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return deduplicatedItems;
   }
 
   Widget _buildEmptyState() {
@@ -372,7 +379,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       separatorBuilder: (context, index) => const SizedBox(height: 16),
       itemBuilder: (context, index) {
         final item = items[index];
-        return _NotificationCard(item: item);
+        return _NotificationCard(key: ValueKey(item.id), item: item);
       },
     );
   }
@@ -381,7 +388,78 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 class _NotificationCard extends ConsumerWidget {
   final NotificationItem item;
 
-  const _NotificationCard({required this.item});
+  const _NotificationCard({super.key, required this.item});
+
+  /// Navigate to moment location on map
+  Future<void> _navigateToMomentOnMap(
+    BuildContext context,
+    WidgetRef ref,
+    String momentId,
+  ) async {
+    try {
+      // Fetch moment to get coordinates
+      final repo = ref.read(momentRepositoryProvider);
+      final moment = await repo.getMomentById(momentId);
+
+      if (moment != null && context.mounted) {
+        // Pop notifications page
+        Navigator.pop(context);
+
+        // Set map camera target to fly to this location
+        ref
+            .read(mapCameraTargetProvider.notifier)
+            .setTarget(LatLng(moment.latitude, moment.longitude));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        context.showErrorSnackBar('Could not find moment location');
+      }
+    }
+  }
+
+  /// Navigate to moment details page
+  Future<void> _navigateToMomentDetails(
+    BuildContext context,
+    WidgetRef ref,
+    String momentId,
+  ) async {
+    try {
+      final repo = ref.read(momentRepositoryProvider);
+      final moment = await repo.getMomentById(momentId);
+
+      if (moment != null && context.mounted) {
+        // Get all moments in the same group (if it's part of a group)
+        List<Moment> moments;
+        int initialPage = 0;
+
+        if (moment.momentGroupId != null) {
+          moments = await repo.getMomentsByGroup(moment.momentGroupId!);
+          // Find the index of the specific moment
+          initialPage = moments.indexWhere((m) => m.id == momentId);
+          if (initialPage < 0) initialPage = 0;
+        } else {
+          moments = [moment];
+        }
+
+        if (context.mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MomentDetailsPage(
+                locationName: moment.location,
+                moments: moments,
+                initialPage: initialPage,
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        context.showErrorSnackBar('Could not load moment');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -427,121 +505,148 @@ class _NotificationCard extends ConsumerWidget {
     WidgetRef ref,
     NotificationItem item,
   ) {
-    return Dismissible(
-      key: Key(item.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        decoration: BoxDecoration(
-          color: Colors.red,
-          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        ),
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      onDismissed: (direction) {
-        if (item.type != NotificationType.friendRequest) {
+    // Check if this notification requires action buttons (not swipe-dismissible)
+    final requiresAction =
+        item.type == NotificationType.friendRequest ||
+        item.type == NotificationType.collaborationInvite;
+
+    final cardContent = GestureDetector(
+      onTap: () {
+        // Mark as read on tap (user explicitly interacted)
+        if (!item.isRead) {
           ref.read(notificationsListProvider.notifier).markAsRead(item.id);
         }
-      },
-      child: GestureDetector(
-        onTap: () {
-          if (item.type == NotificationType.newMoment ||
-              item.type == NotificationType.momentInvite) {
-            final relatedId = item.data is Map ? item.data['related_id'] : null;
-            if (relatedId != null) {
-              Navigator.pop(context);
-            }
+
+        // Navigate based on notification type
+        if (item.type == NotificationType.momentLike) {
+          // Navigate to moment details for reactions
+          final relatedId = item.data is Map ? item.data['related_id'] : null;
+          if (relatedId != null) {
+            _navigateToMomentDetails(context, ref, relatedId.toString());
           }
-        },
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
+        } else if (item.type == NotificationType.newMoment) {
+          // Navigate to map for new moments
+          final relatedId = item.data is Map ? item.data['related_id'] : null;
+          if (relatedId != null) {
+            _navigateToMomentOnMap(context, ref, relatedId.toString());
+          }
+        } else if (item.type == NotificationType.momentInvite) {
+          final relatedId = item.data is Map ? item.data['related_id'] : null;
+          if (relatedId != null) {
+            _navigateToMomentOnMap(context, ref, relatedId.toString());
+          }
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: item.isRead
+              ? Colors.white
+              : AppTheme.primaryBlue.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          border: Border.all(
             color: item.isRead
-                ? Colors.white
-                : AppTheme.primaryBlue.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-            border: Border.all(
-              color: item.isRead
-                  ? Colors.grey[200]!
-                  : AppTheme.primaryBlue.withValues(alpha: 0.2),
-            ),
+                ? Colors.grey[200]!
+                : AppTheme.primaryBlue.withValues(alpha: 0.2),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildAvatar(item),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    RichText(
-                      text: TextSpan(
-                        style: TextStyle(
-                          color: Colors.black87,
-                          fontSize: 14,
-                          height: 1.4,
-                          fontFamily: Theme.of(
-                            context,
-                          ).textTheme.bodyMedium?.fontFamily,
-                        ),
-                        children: [
-                          if (item.actorName != null)
-                            TextSpan(
-                              text: '${item.actorName} ',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          TextSpan(text: _getBodyText(item)),
-                          const TextSpan(text: '  '),
-                          WidgetSpan(
-                            alignment: PlaceholderAlignment.baseline,
-                            baseline: TextBaseline.alphabetic,
-                            child: TimeAgoText(
-                              dateTime: item.createdAt,
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 12,
-                              ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildAvatar(item),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RichText(
+                    text: TextSpan(
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontSize: 14,
+                        height: 1.4,
+                        fontFamily: Theme.of(
+                          context,
+                        ).textTheme.bodyMedium?.fontFamily,
+                      ),
+                      children: [
+                        if (item.actorName != null)
+                          TextSpan(
+                            text: '${item.actorName} ',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        TextSpan(text: _getBodyText(item)),
+                        // Show group name in parentheses for collab invites
+                        if (item.type == NotificationType.collaborationInvite &&
+                            item.groupTitle != null)
+                          TextSpan(
+                            text: ' (${item.groupTitle})',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                        ],
+                        const TextSpan(text: '  '),
+                        WidgetSpan(
+                          alignment: PlaceholderAlignment.baseline,
+                          baseline: TextBaseline.alphabetic,
+                          child: TimeAgoText(
+                            dateTime: item.createdAt,
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (item.type == NotificationType.friendRequest)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: _buildFriendRequestActions(context, ref, item),
+                    ),
+                  if (item.type == NotificationType.collaborationInvite)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: _buildCollaborationInviteActions(
+                        context,
+                        ref,
+                        item,
                       ),
                     ),
-                    if (item.type == NotificationType.friendRequest)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: _buildFriendRequestActions(context, ref, item),
-                      ),
-                    if (item.type == NotificationType.collaborationInvite)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: _buildCollaborationInviteActions(
-                          context,
-                          ref,
-                          item,
-                        ),
-                      ),
-                  ],
+                ],
+              ),
+            ),
+            if (!item.isRead)
+              Container(
+                margin: const EdgeInsets.only(left: 8, top: 4),
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: AppTheme.primaryBlue,
+                  shape: BoxShape.circle,
                 ),
               ),
-              if (!item.isRead)
-                Container(
-                  margin: const EdgeInsets.only(left: 8, top: 4),
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppTheme.primaryBlue,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-            ],
-          ),
+          ],
         ),
       ),
     );
+
+    // Use elastic swipe for non-action notifications
+    if (!requiresAction) {
+      return SwipeableNotification(
+        onDismiss: () {
+          ref
+              .read(notificationsListProvider.notifier)
+              .removeNotification(item.id);
+        },
+        child: cardContent,
+      );
+    }
+
+    // Action notifications (friend request, collab invite) - no swipe dismiss
+    return cardContent;
   }
 
   String _getBodyText(NotificationItem item) {
@@ -571,13 +676,18 @@ class _NotificationCard extends ConsumerWidget {
       case NotificationType.friendRequest:
         icon = HugeIcons.strokeRoundedUserAdd01;
         color = AppTheme.primaryBlue;
-        bg = AppTheme.primaryBlue.withValues(alpha:0.1);
+        bg = AppTheme.primaryBlue.withValues(alpha: 0.1);
         break;
       case NotificationType.collaborationInvite:
       case NotificationType.momentInvite:
         icon = HugeIcons.strokeRoundedImageAdd02;
         color = AppTheme.electricPurple;
         bg = AppTheme.electricPurple.withValues(alpha: 0.1);
+        break;
+      case NotificationType.momentLike:
+        icon = HugeIcons.strokeRoundedFavourite;
+        color = Colors.red;
+        bg = Colors.red.withValues(alpha: 0.1);
         break;
       case NotificationType.newMoment:
         icon = HugeIcons.strokeRoundedImage01;

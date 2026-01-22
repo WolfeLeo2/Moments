@@ -551,7 +551,7 @@ class MomentRepository {
         'latitude': latitude,
         'longitude': longitude,
         'created_by': userId,
-        'is_public': true, // Default to public for now
+        'is_private': false, // Default to public (is_private = false)
         'created_at': DateTime.now().toIso8601String(),
       };
 

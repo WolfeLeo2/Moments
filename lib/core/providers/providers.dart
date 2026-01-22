@@ -66,46 +66,25 @@ Stream<int> unreadChatCount(Ref ref) {
   return chatRepo.streamUnreadCount();
 }
 
-/// Count of general notifications (includes friend requests + collab invites + system)
+/// Count of general notifications (system notifications only, excludes messages)
+/// Friend requests and collab invites are counted separately in the RPC function
 @riverpod
-Stream<int> notificationCount(Ref ref) async* {
+Stream<int> notificationCount(Ref ref) {
   final repo = ref.watch(notificationRepositoryProvider);
-  final requestsAsync = ref.watch(pendingRequestsRealtimeProvider);
-
-  // Combine: system notifications + friend requests count
-  await for (final systemCount in repo.streamUnreadCount()) {
-    final friendRequestCount = requestsAsync.value?.length ?? 0;
-    yield systemCount + friendRequestCount;
-  }
+  // RPC already counts: friend_request, moment_like, new_moment_group, etc.
+  // It excludes 'message' type, so we just use it directly
+  return repo.streamUnreadCount();
 }
 
-/// Provider for the list of notifications with caching and realtime updates
-@riverpod
+/// Provider for the list of notifications - simple fetch without realtime
+/// No auto-mark-as-read, user must interact with notifications to mark them read
+@Riverpod(keepAlive: true)
 class NotificationsList extends _$NotificationsList {
   @override
   Future<List<Map<String, dynamic>>> build() async {
-    // Keep the provider alive even when not used (caching)
-    ref.keepAlive();
-
+    debugPrint('NotificationsList: build() called');
     final repo = ref.read(notificationRepositoryProvider);
-
-    // Initial fetch
-    final notifications = await repo.getNotifications();
-
-    // Subscribe to realtime updates
-    final subscription = repo.streamUnreadCount().listen((_) async {
-      // When count changes (new notification), re-fetch the list
-      // We could optimize this to only fetch new ones, but for now full refresh is safer
-      state = const AsyncValue.loading();
-      state = await AsyncValue.guard(() => repo.getNotifications());
-    });
-
-    // Dispose subscription when provider is destroyed
-    ref.onDispose(() {
-      subscription.cancel();
-    });
-
-    return notifications;
+    return repo.getNotifications();
   }
 
   Future<void> refresh() async {
@@ -114,17 +93,41 @@ class NotificationsList extends _$NotificationsList {
     state = await AsyncValue.guard(() => repo.getNotifications());
   }
 
-  Future<void> markAllAsRead() async {
-    final repo = ref.read(notificationRepositoryProvider);
-    await repo.markAllAsRead();
-    // Optimistic update or refresh
-    await refresh();
+  /// Remove a notification from the list and mark as read in DB
+  /// This is called when user swipes to dismiss
+  /// Remove a notification from the list (swipe to dismiss = delete)
+  Future<void> removeNotification(String notificationId) async {
+    debugPrint(
+      'NotificationsList: removeNotification called for $notificationId',
+    );
+
+    // Remove from local state immediately (optimistic)
+    state = state.whenData((notifications) {
+      final updated = notifications
+          .where((n) => n['id'] != notificationId)
+          .toList();
+      debugPrint(
+        'NotificationsList: Optimistic update, remaining: ${updated.length}',
+      );
+      return updated;
+    });
+
+    try {
+      // Delete from DB (in background)
+      final repo = ref.read(notificationRepositoryProvider);
+      await repo.deleteNotification(notificationId);
+      debugPrint('NotificationsList: DB delete requested for $notificationId');
+    } catch (e) {
+      debugPrint('NotificationsList: Error deleting notification: $e');
+    }
   }
 
+  /// Mark a single notification as read (without removing from list)
   Future<void> markAsRead(String notificationId) async {
     final repo = ref.read(notificationRepositoryProvider);
     await repo.markAsRead(notificationId);
-    // Optimistic update: remove from list or mark as read
+
+    // Update local state immediately (optimistic)
     state = state.whenData((notifications) {
       return notifications.map((n) {
         if (n['id'] == notificationId) {
@@ -133,6 +136,29 @@ class NotificationsList extends _$NotificationsList {
         return n;
       }).toList();
     });
+  }
+
+  /// Mark all notifications as read (called on page open - Instagram style)
+  Future<void> markAllAsRead() async {
+    final repo = ref.read(notificationRepositoryProvider);
+
+    // Get all unread notification IDs from current state
+    if (!state.hasValue) return;
+    final notifications = state.value!;
+
+    final hasUnread = notifications.any((n) => n['is_read'] != true);
+    if (!hasUnread) return;
+
+    // Update local state immediately (optimistic)
+    state = state.whenData((notifications) {
+      return notifications.map((n) {
+        return {...n, 'is_read': true};
+      }).toList();
+    });
+
+    // Mark all as read in DB using batch update
+    debugPrint('NotificationsList: Batch marking all as read');
+    await repo.markAllAsRead();
   }
 }
 

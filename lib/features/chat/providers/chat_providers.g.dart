@@ -931,4 +931,4 @@ final class ChatListProvider
   }
 }
 
-String _$chatListHash() => r'dfb912e1c75038ed0dce9ed0e1aa5800cdb47126';
+String _$chatListHash() => r'38fc1e0d6fcc5711799ee1d08adc9f06b5c90f91';

@@ -157,6 +157,8 @@ Deno.serve(async (req) => {
             actor_id: record.actor_id ?? '',
             actor_name: senderName,
             avatar_url: senderAvatarUrl,
+            // For moment_like, use the moment's image instead of avatar
+            image_url: record.type === 'moment_like' && record.image_url ? record.image_url : senderAvatarUrl,
             click_action: 'FLUTTER_NOTIFICATION_CLICK',
           },
         },

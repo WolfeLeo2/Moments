@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'core/services/firebase_messaging_service.dart';
 import 'core/services/notification_navigator.dart';
+import 'core/services/sync_queue_processor.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/services/map_cache_service.dart';
@@ -41,6 +42,10 @@ void main() async {
   // Initialize avatar caching (async, non-blocking)
   // This loads cached avatars from SQLite so they're ready immediately
   AvatarCacheService().initialize();
+
+  // Initialize offline sync queue processor
+  // Listens for connectivity changes and syncs pending actions
+  SyncQueueProcessor().initialize();
 
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(

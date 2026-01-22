@@ -119,20 +119,42 @@ class FirebaseMessagingService {
       return;
     }
 
-    // 3. Create Android Channel
+    // 3. Create Android Notification Channels
     if (Platform.isAndroid) {
-      await _localNotifications
+      final androidPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
-          >()
-          ?.createNotificationChannel(
-            const AndroidNotificationChannel(
-              'chats',
-              'Chats',
-              description: 'Chat notifications',
-              importance: Importance.max,
-            ),
-          );
+          >();
+
+      // Chats channel - for direct messages
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'chats',
+          'Messages',
+          description: 'Chat messages and conversations',
+          importance: Importance.max,
+        ),
+      );
+
+      // Social channel - for friend requests, reactions
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'social',
+          'Social',
+          description: 'Friend requests, likes, and reactions',
+          importance: Importance.high,
+        ),
+      );
+
+      // Moments channel - for collab invites, new moments
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'moments',
+          'Moments',
+          description: 'Collaboration invites and new moment notifications',
+          importance: Importance.high,
+        ),
+      );
     }
 
     // 4. Set Background Handler
@@ -402,8 +424,45 @@ class FirebaseMessagingService {
         avatarBytes = await _cropToCircle(avatarBytes);
       }
 
-      // Push Dynamic Shortcut for Android 11+
-      if (Platform.isAndroid && conversationId != null) {
+      // Determine notification type and channel
+      final notificationType = data['type'] as String?;
+      final isChat =
+          notificationType == 'message' ||
+          notificationType == 'chat_message' ||
+          notificationType == null;
+      final isSocial =
+          notificationType == 'friend_request' ||
+          notificationType == 'moment_like';
+      // Note: Everything else (moment_invite, new_moment_group, etc.) routes to 'moments' channel
+
+      // Channel routing
+      String channelId;
+      String channelName;
+      String channelDesc;
+      AndroidNotificationCategory category;
+
+      if (isChat) {
+        channelId = 'chats';
+        channelName = 'Messages';
+        channelDesc = 'Chat messages and conversations';
+        category = AndroidNotificationCategory.message;
+      } else if (isSocial) {
+        channelId = 'social';
+        channelName = 'Social';
+        channelDesc = 'Friend requests, likes, and reactions';
+        category = AndroidNotificationCategory.social;
+      } else {
+        channelId = 'moments';
+        channelName = 'Moments';
+        channelDesc = 'Collaboration invites and new moment notifications';
+        category = AndroidNotificationCategory.recommendation;
+      }
+
+      // Avatar is used as largeIcon for all notification types
+      // Android's small icon (@mipmap/launcher_icon) handles app branding with theme support
+
+      // Push Dynamic Shortcut for Android 11+ (only for chats)
+      if (Platform.isAndroid && conversationId != null && isChat) {
         try {
           debugPrint(
             'Pushing shortcut for $conversationId with avatar bytes: ${avatarBytes?.lengthInBytes}',
@@ -418,24 +477,14 @@ class FirebaseMessagingService {
         }
       }
 
-      // Build notification style
+      // Build notification style based on type
       StyleInformation? styleInformation;
-
-      // Determine if this is a chat message
-      final isChat =
-          conversationId != null &&
-          (data['type'] == 'message' ||
-              data['type'] == 'chat_message' ||
-              data['type'] == null);
+      List<AndroidNotificationAction>? actions;
 
       if (Platform.isAndroid && isChat) {
-        // Get current user ID
+        // Chat message - use MessagingStyle with reply actions
         final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-
-        // Person representing the current user (me) - Important flag for round icon
         final me = Person(name: 'Me', key: currentUserId, important: true);
-
-        // Person representing the sender - Important flag needed
         final sender = Person(
           name: senderName,
           key: actorId,
@@ -450,7 +499,7 @@ class FirebaseMessagingService {
           final recentMessagesData = await supabase
               .from('messages')
               .select('content, created_at, sender_id')
-              .eq('conversation_id', conversationId)
+              .eq('conversation_id', conversationId!)
               .eq('is_read', false)
               .order('created_at', ascending: true)
               .limit(10);
@@ -461,57 +510,27 @@ class FirebaseMessagingService {
                 DateTime.tryParse(msgData['created_at'].toString()) ??
                 DateTime.now();
             final senderId = msgData['sender_id'] as String?;
-
             final isFromMe = senderId == currentUserId;
-
             messages.add(Message(content, timestamp, isFromMe ? null : sender));
           }
         } catch (e) {
           debugPrint('Error fetching chat history: $e');
         }
 
-        // Ensure current message is included
         if (messages.isEmpty ||
             (messages.isNotEmpty && messages.last.text != body)) {
           messages.add(Message(body, DateTime.now(), sender));
         }
 
-        // Create MessagingStyleInformation with history
         styleInformation = MessagingStyleInformation(
           me,
           groupConversation: false,
           messages: messages,
           conversationTitle: senderName,
         );
-      } else {
-        // Standard style for likes/other notifications
-        styleInformation = BigTextStyleInformation(
-          body,
-          htmlFormatBigText: true,
-          contentTitle: senderName,
-          htmlFormatContentTitle: true,
-        );
-      }
 
-      // Build Android notification details
-      final androidDetails = AndroidNotificationDetails(
-        'chats',
-        'Chats',
-        channelDescription: 'Chat notifications',
-        importance: Importance.max,
-        priority: Priority.high,
-        styleInformation: styleInformation,
-        largeIcon: avatarBytes != null
-            ? ByteArrayAndroidBitmap(avatarBytes)
-            : null,
-        category: AndroidNotificationCategory.message,
-        groupKey: conversationId,
-        shortcutId: conversationId,
-        playSound: true,
-        enableVibration: true,
-        fullScreenIntent: true,
-        // Action buttons
-        actions: [
+        // Reply and Mark as Read actions for chats
+        actions = [
           const AndroidNotificationAction(
             _actionReply,
             'Reply',
@@ -527,7 +546,36 @@ class FirebaseMessagingService {
             showsUserInterface: false,
             cancelNotification: false,
           ),
-        ],
+        ];
+      } else {
+        // Non-chat notifications - use BigTextStyle
+        styleInformation = BigTextStyleInformation(
+          body,
+          htmlFormatBigText: true,
+          contentTitle: senderName,
+          htmlFormatContentTitle: true,
+        );
+        actions = null; // No actions for non-chat notifications
+      }
+
+      // Build Android notification details with correct channel
+      final androidDetails = AndroidNotificationDetails(
+        channelId,
+        channelName,
+        channelDescription: channelDesc,
+        importance: isChat ? Importance.max : Importance.high,
+        priority: Priority.high,
+        styleInformation: styleInformation,
+        largeIcon: avatarBytes != null
+            ? ByteArrayAndroidBitmap(avatarBytes)
+            : null,
+        category: category,
+        groupKey: isChat ? conversationId : notificationType,
+        shortcutId: isChat ? conversationId : null,
+        playSound: true,
+        enableVibration: true,
+        fullScreenIntent: isChat,
+        actions: actions,
       );
 
       const iosDetails = DarwinNotificationDetails(

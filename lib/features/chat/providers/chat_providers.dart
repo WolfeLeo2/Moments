@@ -5,6 +5,7 @@ import 'package:moments/data/models/message.dart';
 import 'package:moments/data/repositories/chat_repository.dart';
 import 'package:moments/core/services/message_storage_service.dart';
 import 'package:moments/core/services/chat_list_cache_service.dart';
+import 'package:moments/core/providers/sync_provider.dart';
 
 part 'chat_providers.g.dart';
 
@@ -223,6 +224,10 @@ Stream<List<Map<String, dynamic>>> chatList(Ref ref) async* {
     }
     yield freshData;
   } catch (e) {
+    // Log sync error
+    ref
+        .read(syncStateProvider.notifier)
+        .addError('chat', 'Failed to load chat list', details: e.toString());
     // If network fails and we have cached data, we already yielded it
     // If no cached data, rethrow to show error
     if (cachedData == null || cachedData.isEmpty) {
@@ -240,6 +245,13 @@ Stream<List<Map<String, dynamic>>> chatList(Ref ref) async* {
       }
       yield updatedData;
     } catch (e) {
+      ref
+          .read(syncStateProvider.notifier)
+          .addError(
+            'chat',
+            'Failed to refresh chat list',
+            details: e.toString(),
+          );
       debugPrint('chatList: Error in stream update: $e');
     }
   }

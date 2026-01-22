@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/data/repositories/moment_repository.dart';
 import 'package:moments/data/models/moment.dart';
 import 'package:moments/data/models/moment_contributor.dart';
+import 'package:moments/data/models/moment_reaction.dart';
 import 'package:moments/core/services/moment_storage_service.dart';
 
 part 'moments_providers.g.dart';
@@ -85,4 +86,12 @@ Future<Moment?> momentDetails(Ref ref, String momentId) async {
 void invalidateMomentsCache(WidgetRef ref) {
   ref.invalidate(momentsStreamProvider);
   ref.invalidate(sharedMomentsStreamProvider);
+}
+
+/// Realtime stream of reactions for a specific moment
+/// Used by MomentDetailsPage for instant reaction updates
+@riverpod
+Stream<List<MomentReaction>> reactionsForMoment(Ref ref, String momentId) {
+  final repo = ref.watch(momentRepositoryProvider);
+  return repo.watchReactionsForMoment(momentId);
 }

@@ -313,17 +313,20 @@ final class UnreadChatCountProvider
 
 String _$unreadChatCountHash() => r'67146228e2019f36bfb2122f845bf432256e8dd9';
 
-/// Count of general notifications (includes friend requests + collab invites + system)
+/// Count of general notifications (system notifications only, excludes messages)
+/// Friend requests and collab invites are counted separately in the RPC function
 
 @ProviderFor(notificationCount)
 const notificationCountProvider = NotificationCountProvider._();
 
-/// Count of general notifications (includes friend requests + collab invites + system)
+/// Count of general notifications (system notifications only, excludes messages)
+/// Friend requests and collab invites are counted separately in the RPC function
 
 final class NotificationCountProvider
     extends $FunctionalProvider<AsyncValue<int>, int, Stream<int>>
     with $FutureModifier<int>, $StreamProvider<int> {
-  /// Count of general notifications (includes friend requests + collab invites + system)
+  /// Count of general notifications (system notifications only, excludes messages)
+  /// Friend requests and collab invites are counted separately in the RPC function
   const NotificationCountProvider._()
     : super(
         from: null,
@@ -349,25 +352,28 @@ final class NotificationCountProvider
   }
 }
 
-String _$notificationCountHash() => r'c7799c2263aaf925227d5ba1ae2a8a2166d7ef54';
+String _$notificationCountHash() => r'add8309690ec3cea931f5dc403ef75f0a98a09c8';
 
-/// Provider for the list of notifications with caching and realtime updates
+/// Provider for the list of notifications - simple fetch without realtime
+/// No auto-mark-as-read, user must interact with notifications to mark them read
 
 @ProviderFor(NotificationsList)
 const notificationsListProvider = NotificationsListProvider._();
 
-/// Provider for the list of notifications with caching and realtime updates
+/// Provider for the list of notifications - simple fetch without realtime
+/// No auto-mark-as-read, user must interact with notifications to mark them read
 final class NotificationsListProvider
     extends
         $AsyncNotifierProvider<NotificationsList, List<Map<String, dynamic>>> {
-  /// Provider for the list of notifications with caching and realtime updates
+  /// Provider for the list of notifications - simple fetch without realtime
+  /// No auto-mark-as-read, user must interact with notifications to mark them read
   const NotificationsListProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
         name: r'notificationsListProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -380,9 +386,10 @@ final class NotificationsListProvider
   NotificationsList create() => NotificationsList();
 }
 
-String _$notificationsListHash() => r'f9528eff1290aead16d6a1c20a892864dc1c5f0d';
+String _$notificationsListHash() => r'37b36fbe4b74c883439b98595abc86b50e84d352';
 
-/// Provider for the list of notifications with caching and realtime updates
+/// Provider for the list of notifications - simple fetch without realtime
+/// No auto-mark-as-read, user must interact with notifications to mark them read
 
 abstract class _$NotificationsList
     extends $AsyncNotifier<List<Map<String, dynamic>>> {

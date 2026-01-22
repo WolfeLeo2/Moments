@@ -416,3 +416,95 @@ final class MomentDetailsFamily extends $Family
   @override
   String toString() => r'momentDetailsProvider';
 }
+
+/// Realtime stream of reactions for a specific moment
+/// Used by MomentDetailsPage for instant reaction updates
+
+@ProviderFor(reactionsForMoment)
+const reactionsForMomentProvider = ReactionsForMomentFamily._();
+
+/// Realtime stream of reactions for a specific moment
+/// Used by MomentDetailsPage for instant reaction updates
+
+final class ReactionsForMomentProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<MomentReaction>>,
+          List<MomentReaction>,
+          Stream<List<MomentReaction>>
+        >
+    with
+        $FutureModifier<List<MomentReaction>>,
+        $StreamProvider<List<MomentReaction>> {
+  /// Realtime stream of reactions for a specific moment
+  /// Used by MomentDetailsPage for instant reaction updates
+  const ReactionsForMomentProvider._({
+    required ReactionsForMomentFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'reactionsForMomentProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$reactionsForMomentHash();
+
+  @override
+  String toString() {
+    return r'reactionsForMomentProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<List<MomentReaction>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<MomentReaction>> create(Ref ref) {
+    final argument = this.argument as String;
+    return reactionsForMoment(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ReactionsForMomentProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$reactionsForMomentHash() =>
+    r'da72aba8a4fcf323eb057bf5377dc2e58d556ebf';
+
+/// Realtime stream of reactions for a specific moment
+/// Used by MomentDetailsPage for instant reaction updates
+
+final class ReactionsForMomentFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<List<MomentReaction>>, String> {
+  const ReactionsForMomentFamily._()
+    : super(
+        retry: null,
+        name: r'reactionsForMomentProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Realtime stream of reactions for a specific moment
+  /// Used by MomentDetailsPage for instant reaction updates
+
+  ReactionsForMomentProvider call(String momentId) =>
+      ReactionsForMomentProvider._(argument: momentId, from: this);
+
+  @override
+  String toString() => r'reactionsForMomentProvider';
+}

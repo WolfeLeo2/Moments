@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../sources/supabase_config.dart';
 
@@ -22,12 +23,17 @@ class NotificationRepository {
   /// Stream of unread notification count
   Stream<int> streamUnreadCount() {
     final userId = _client.auth.currentUser?.id;
-    if (userId == null) return Stream.value(0);
+    if (userId == null) {
+      debugPrint('NotificationRepository: No user, returning 0 count');
+      return Stream.value(0);
+    }
 
     final controller = StreamController<int>();
 
     void fetch() {
+      debugPrint('NotificationRepository: Fetching unread count for $userId');
       getUnreadCount().then((c) {
+        debugPrint('NotificationRepository: Unread count = $c');
         if (!controller.isClosed) controller.add(c);
       });
     }
@@ -35,23 +41,41 @@ class NotificationRepository {
     // Initial fetch
     fetch();
 
-    // Listen for changes in notifications table for this user
-    final channel = _client.channel('public:notifications:$userId');
+    // Listen for ALL changes in notifications table (simpler, more reliable)
+    // Filter is checked in callback to ensure it works with Supabase Realtime
+    debugPrint(
+      'NotificationRepository: Setting up realtime channel for notifications',
+    );
+    final channel = _client.channel('notification-changes-$userId');
     channel
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'notifications',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'user_id',
-            value: userId,
-          ),
-          callback: (payload) => fetch(),
+          callback: (payload) {
+            // Check if this change affects the current user
+            final newRecord = payload.newRecord;
+            final oldRecord = payload.oldRecord;
+            final affectedUserId = newRecord['user_id'] ?? oldRecord['user_id'];
+
+            debugPrint(
+              'NotificationRepository: Realtime change detected for user $affectedUserId',
+            );
+
+            if (affectedUserId == userId) {
+              debugPrint(
+                'NotificationRepository: Change is for current user, refetching count',
+              );
+              fetch();
+            }
+          },
         )
-        .subscribe();
+        .subscribe((status, _) {
+          debugPrint('NotificationRepository: Channel status = $status');
+        });
 
     controller.onCancel = () async {
+      debugPrint('NotificationRepository: Closing notification count stream');
       await _client.removeChannel(channel);
       await controller.close();
     };
@@ -83,10 +107,12 @@ class NotificationRepository {
         .eq('user_id', userId);
   }
 
-  /// Get all notifications (last 24 hours)
+  /// Get notifications (last 7 days, max 50)
   Future<List<Map<String, dynamic>>> getNotifications() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return [];
+
+    debugPrint('NotificationRepository: Fetching notifications for $userId');
 
     final response = await _client
         .from('notifications')
@@ -94,10 +120,36 @@ class NotificationRepository {
         .eq('user_id', userId)
         .gt(
           'created_at',
-          DateTime.now().subtract(const Duration(hours: 24)).toIso8601String(),
+          DateTime.now().subtract(const Duration(days: 7)).toIso8601String(),
         )
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .limit(50);
 
     return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Delete a notification
+  Future<void> deleteNotification(String notificationId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      debugPrint('NotificationRepository: Cannot delete, user not logged in');
+      return;
+    }
+
+    debugPrint(
+      'NotificationRepository: Deleting notification $notificationId for user $userId',
+    );
+
+    try {
+      await _client
+          .from('notifications')
+          .delete()
+          .eq('id', notificationId)
+          .eq('user_id', userId);
+      debugPrint('NotificationRepository: Delete successful');
+    } catch (e) {
+      debugPrint('NotificationRepository: Delete failed: $e');
+      rethrow;
+    }
   }
 }

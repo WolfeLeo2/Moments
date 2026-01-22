@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
@@ -59,29 +60,46 @@ class MapCacheService {
   }
 
   /// Initialize Flutter Map Tile Caching (FMTC) for efficient tile storage.
+  /// Uses runZonedGuarded to catch all async errors from ObjectBox backend.
   Future<void> _initializeFMTC() async {
     if (_fmtcInitialized) return;
 
-    try {
-      // Initialize the ObjectBox backend for FMTC
-      await FMTCObjectBoxBackend().initialise();
+    final completer = Completer<void>();
 
-      // Create the map tile store if it doesn't exist
-      final store = FMTCStore(_fmtcStoreName);
-      await store.manage.create();
+    runZonedGuarded(
+      () async {
+        try {
+          await FMTCObjectBoxBackend().initialise();
+          final store = FMTCStore(_fmtcStoreName);
+          await store.manage.create();
+          _tileProvider = FMTCTileProvider(
+            stores: const {
+              _fmtcStoreName: BrowseStoreStrategy.readUpdateCreate,
+            },
+          );
+          _fmtcInitialized = true;
+          print('FMTC tile caching initialized successfully');
+          if (!completer.isCompleted) completer.complete();
+        } catch (e) {
+          print(
+            'FMTC initialization failed (map will work without caching): $e',
+          );
+          _fmtcInitialized = false;
+          _tileProvider = null;
+          if (!completer.isCompleted) completer.complete();
+        }
+      },
+      (error, stack) {
+        print(
+          'FMTC async error caught (map will work without caching): $error',
+        );
+        _fmtcInitialized = false;
+        _tileProvider = null;
+        if (!completer.isCompleted) completer.complete();
+      },
+    );
 
-      // Create the tile provider with browse caching strategy:
-      // - readUpdateCreate: reads from cache, updates existing tiles, creates new cached tiles
-      _tileProvider = FMTCTileProvider(
-        stores: const {_fmtcStoreName: BrowseStoreStrategy.readUpdateCreate},
-      );
-
-      _fmtcInitialized = true;
-      print('FMTC tile caching initialized successfully');
-    } catch (e) {
-      print('FMTC initialization failed (map will work without caching): $e');
-      _fmtcInitialized = false;
-    }
+    await completer.future;
   }
 
   /// Get statistics about the tile cache.

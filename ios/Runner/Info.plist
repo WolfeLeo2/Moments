@@ -92,6 +92,24 @@
 		<true/>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
+		<!-- App Transport Security - Allow network requests for map tiles -->
+		<key>NSAppTransportSecurity</key>
+		<dict>
+			<key>NSAllowsArbitraryLoads</key>
+			<false/>
+			<key>NSExceptionDomains</key>
+			<dict>
+				<key>mapbox.com</key>
+				<dict>
+					<key>NSIncludesSubdomains</key>
+					<true/>
+					<key>NSExceptionAllowsInsecureHTTPLoads</key>
+					<false/>
+					<key>NSExceptionMinimumTLSVersion</key>
+					<string>TLSv1.2</string>
+				</dict>
+			</dict>
+		</dict>
 		<!-- Location permissions -->
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>This app needs location access to show your current position and create location-based moments.</string>

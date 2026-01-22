@@ -161,7 +161,13 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // When app resumes, check location permissions/status again
+    // But skip if we just navigated from a notification (to preserve target location)
     if (state == AppLifecycleState.resumed) {
+      final notifier = ref.read(mapCameraTargetProvider.notifier);
+      if (notifier.skipNextLocationUpdate) {
+        notifier.clearSkipFlag();
+        return; // Skip location update to preserve notification navigation target
+      }
       _getCurrentLocation();
     }
   }
@@ -197,46 +203,59 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
 
       // Check if location services are enabled
       bool serviceEnabled = await location.serviceEnabled();
+      print('📍 Location service enabled: $serviceEnabled');
       if (!serviceEnabled) {
         serviceEnabled = await location.requestService();
         if (!serviceEnabled) {
-          // User declined to enable location
+          print('📍 User declined to enable location service');
           return;
         }
       }
 
       // Check permission status
       PermissionStatus permission = await location.hasPermission();
+      print('📍 Location permission: $permission');
 
       if (permission == PermissionStatus.denied) {
         permission = await location.requestPermission();
         if (permission == PermissionStatus.denied) {
-          return; // User denied
+          print('📍 User denied location permission');
+          return;
         }
       }
 
       if (permission == PermissionStatus.deniedForever) {
-        // We can't easily open app settings with location package directly like geolocator
-        // but normally requestPermission handles the flow well.
-        // If needed, we could use permission_handler package, but for now we stick to location package.
+        print('📍 Location permission denied forever');
         return;
       }
 
       // Get the current position
+      print('📍 Getting location...');
       final position = await location.getLocation();
+      print(
+        '📍 Got location: lat=${position.latitude}, lng=${position.longitude}',
+      );
 
       if (mounted && position.latitude != null && position.longitude != null) {
+        // Check if coordinates are valid (not 0,0 which is ocean)
+        if (position.latitude == 0.0 && position.longitude == 0.0) {
+          print('📍 WARNING: Location is (0,0) - likely invalid!');
+        }
+
         setState(() => _currentPosition = position);
         // Auto-center map to user's location
         _mapController.move(
           LatLng(position.latitude!, position.longitude!),
           14.0,
         );
+        print('📍 Map moved to: ${position.latitude}, ${position.longitude}');
         // Ensure city name is updated effectively
         _loadCityName();
+      } else {
+        print('📍 Location has null coordinates or widget not mounted');
       }
     } catch (e) {
-      print('Error getting location: $e');
+      print('📍 Error getting location: $e');
     }
   }
 
@@ -520,6 +539,14 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
         );
       },
       data: (moments) {
+        // Filter out friends' private moments - only show:
+        // 1. User's own moments (always visible to self)
+        // 2. Friends' public moments (isPrivate == false)
+        final currentUserId = _authService.currentUser?.id;
+        final visibleMoments = moments.where((m) {
+          return m.userId == currentUserId || !m.isPrivate;
+        }).toList();
+
         // Group moments by place
         // Removed: final placeGroups = _groupMomentsByPlace(moments);
         return Scaffold(
@@ -600,7 +627,9 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                     urlTemplate:
                         'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/512/{z}/{x}/{y}@2x?access_token=pk.eyJ1Ijoid29sZmVsZW8iLCJhIjoiY21oYXRxMW82MW5nNjJqcGc4aDA0YndoeSJ9.gvLhQFM-46KlcUdAKFGMYg',
                     userAgentPackageName: 'com.moments.app',
-                    tileProvider: _mapCacheService.tileProvider,
+                    // Use FMTC tile provider if available, otherwise fallback to network provider
+                    tileProvider:
+                        _mapCacheService.tileProvider ?? NetworkTileProvider(),
                     tileSize:
                         512, // Critical: Draw 512px image into 256px space for HiDPI/Retina crispness
                     zoomOffset:
@@ -647,7 +676,7 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                     builder: (context, zoom, child) {
                       // Group moments by place using the extracted service
                       final placeGroups = MapLogicService.groupMomentsByPlace(
-                        moments,
+                        visibleMoments,
                         zoom,
                       );
 

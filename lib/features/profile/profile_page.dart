@@ -7,6 +7,7 @@ import '../../core/services/auth_service.dart';
 import '../../core/services/avatar_cache_service.dart';
 import '../../core/providers/moments_providers.dart';
 import '../../core/providers/providers.dart';
+import '../../core/providers/sync_provider.dart';
 import '../../data/repositories/social_repository.dart';
 import '../moments/presentation/year_in_review_page.dart';
 import 'package:moments/features/profile/collaborating_moments_page.dart';
@@ -267,6 +268,21 @@ class ProfilePage extends ConsumerWidget {
               onTap: () {},
             ),
 
+            // Sync Status tile with error indicator
+            Builder(
+              builder: (context) {
+                final syncStatus = ref.watch(syncStatusProvider);
+                final errorCount = ref.watch(syncErrorCountProvider);
+
+                return _buildSyncStatusTile(
+                  context: context,
+                  ref: ref,
+                  syncStatus: syncStatus,
+                  errorCount: errorCount,
+                );
+              },
+            ),
+
             SizedBox(height: 24.h),
 
             // Logout button
@@ -404,5 +420,161 @@ class ProfilePage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildSyncStatusTile({
+    required BuildContext context,
+    required WidgetRef ref,
+    required SyncStatus syncStatus,
+    required int errorCount,
+  }) {
+    final hasErrors = syncStatus == SyncStatus.error;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: ShapeDecoration(
+        color: AppTheme.cardWhite,
+        shape: RoundedSuperellipseBorder(
+          borderRadius: BorderRadiusGeometry.all(Radius.circular(12.sp)),
+          side: BorderSide(color: AppTheme.borderBlack),
+        ),
+      ),
+      child: ListTile(
+        leading: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedRefresh,
+              size: 22.sp,
+              color: Colors.black87,
+            ),
+            if (hasErrors)
+              Positioned(
+                right: -4,
+                top: -4,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 14,
+                    minHeight: 14,
+                  ),
+                  child: Text(
+                    '$errorCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        title: Text(
+          'Sync Status',
+          style: GoogleFonts.rubik(fontSize: 16.sp, color: Colors.black),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!hasErrors)
+              Icon(Icons.check_circle, color: Colors.green, size: 18.sp)
+            else
+              Text(
+                '$errorCount issues',
+                style: TextStyle(color: Colors.red, fontSize: 12.sp),
+              ),
+            SizedBox(width: 8.w),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
+        onTap: () => _showSyncStatusDialog(context, ref),
+        shape: RoundedSuperellipseBorder(
+          borderRadius: BorderRadiusGeometry.all(
+            Radius.circular(AppTheme.radiusMedium),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showSyncStatusDialog(BuildContext context, WidgetRef ref) {
+    final errors = ref.read(syncStateProvider);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Sync Status', style: GoogleFonts.bebasNeue(fontSize: 24)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: errors.isEmpty
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green, size: 48.sp),
+                    SizedBox(height: 16.h),
+                    Text(
+                      'Everything is synced!',
+                      style: GoogleFonts.inter(
+                        fontSize: 16.sp,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                )
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: errors.length,
+                  itemBuilder: (context, index) {
+                    final error =
+                        errors[errors.length - 1 - index]; // Newest first
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.error_outline,
+                        color: Colors.red,
+                      ),
+                      title: Text(error.source.toUpperCase()),
+                      subtitle: Text(
+                        error.message,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: Text(
+                        _formatTimeAgo(error.timestamp),
+                        style: TextStyle(fontSize: 10.sp, color: Colors.grey),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          if (errors.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                ref.read(syncStateProvider.notifier).clearAll();
+                Navigator.pop(context);
+              },
+              child: const Text('Clear All'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTimeAgo(DateTime dateTime) {
+    final diff = DateTime.now().difference(dateTime);
+    if (diff.inMinutes < 1) return 'now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
   }
 }

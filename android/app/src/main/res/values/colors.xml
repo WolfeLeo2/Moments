@@ -2,4 +2,5 @@
 <resources>
     <!-- Notification accent color (Moments primary blue) -->
     <color name="notification_color">#3B82F6</color>
+	<color name="ic_launcher_background">#0571d3</color>
 </resources>
