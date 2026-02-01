@@ -3,9 +3,13 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:location/location.dart';
 import 'package:moments/core/router/app_router.dart';
-import '../../../core/services/preload_service.dart';
-import '../../../core/router/app_router.dart';
+import 'package:moments/core/providers/moments_providers.dart';
+import 'package:moments/core/services/map_cache_service.dart';
+import 'package:moments/core/services/app_logger.dart';
+
+final _log = AppLogger('SplashPage');
 
 class SplashPage extends ConsumerStatefulWidget {
   const SplashPage({super.key});
@@ -25,26 +29,11 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     final minSplashDuration = const Duration(milliseconds: 2000);
 
     // Start preloading data in parallel with the animation
-    // We pass 'ref' to access providers
-    final preloadFuture = PreloadService.preloadApp(ref);
-
-    // Check if user is logged in (to decide if we should preload heavy user data)
-    // For now, simpler to just attempt preload. logic inside preload can handle exceptions.
-
-    // Wait for BOTH the minimum animation time AND the preload (optional)
-    // Actually, improved UX: Wait for min animation time.
-    // If preload finishes fast -> good, we wait for animation.
-    // If preload is slow -> we can choose to wait for it (no loading spinner on map)
-    //                      OR go to map immediately and show loading spinner there.
-    // User requested "wont this make the wait longer".
-    // Strategy: Wait for min animation. If preload isn't done, we go anyway,
-    // and the MapPage will just continue waiting for the futures we started.
-    // BUT getting location might trigger a dialog, which we want on the map not splash?
-    // Actually PreloadService only asks for location if permission is granted.
+    final preloadFuture = _preloadApp();
 
     await Future.wait([
       Future.delayed(minSplashDuration),
-      // We await preload but with a timeout so we don't block forever if GPS is stuck
+      // Await preload with timeout so we don't block forever if GPS is slow
       preloadFuture.timeout(
         const Duration(milliseconds: 2500),
         onTimeout: () {},
@@ -53,8 +42,44 @@ class _SplashPageState extends ConsumerState<SplashPage> {
 
     if (!mounted) return;
 
-    // Simple approach: attempting to go to home/map, if protected, Router will send to login.
+    // Navigate to map; router will redirect to login if not authenticated
     context.go(AppRouter.mapRoute);
+  }
+
+  /// Preloads essential app data to minimize wait time on the home screen.
+  Future<void> _preloadApp() async {
+    final futures = <Future>[];
+
+    // 1. Warm up Moments Stream (SQLite load + Supabase connection)
+    try {
+      ref.read(momentsStreamProvider);
+    } catch (e) {
+      _log.w('Error warming up moments stream', error: e);
+    }
+
+    // 2. Initialize Map Caching
+    futures.add(MapCacheService().initialize());
+
+    // 3. Warm up Location Service
+    futures.add(_warmUpLocation());
+
+    await Future.wait(futures);
+  }
+
+  Future<void> _warmUpLocation() async {
+    try {
+      final location = Location();
+      final hasPermission = await location.hasPermission();
+      if (hasPermission == PermissionStatus.granted) {
+        // Try getting location so it's cached in OS/LocationManager
+        await location.getLocation().timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => LocationData.fromMap({}),
+        );
+      }
+    } catch (e) {
+      _log.w('Location warmup failed', error: e);
+    }
   }
 
   @override
@@ -76,9 +101,6 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                 .shimmer(duration: 600.ms),
 
             SizedBox(height: 20.h),
-
-            // Optional: Loading indicator or text
-            // CircularProgressIndicator(strokeWidth: 2).animate().fade(delay: 500.ms),
           ],
         ),
       ),

@@ -1,7 +1,10 @@
+import 'package:moments/core/services/app_logger.dart';
 import 'dart:io';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+final _log = AppLogger('AuthService');
 
 class AuthService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -76,7 +79,7 @@ class AuthService {
 
       return response;
     } catch (e) {
-      print('❌ Error signing in with Google: $e');
+      _log.e('Error signing in with Google', error: e);
       rethrow;
     }
   }
@@ -95,7 +98,7 @@ class AuthService {
 
       return response;
     } catch (e) {
-      print('❌ Error signing in with email: $e');
+      _log.e('Error signing in with email', error: e);
       rethrow;
     }
   }
@@ -119,7 +122,7 @@ class AuthService {
 
       return response;
     } catch (e) {
-      print('❌ Error signing up with email: $e');
+      _log.e('Error signing up with email', error: e);
       rethrow;
     }
   }
@@ -135,7 +138,7 @@ class AuthService {
       // Sign out from Supabase
       await _supabase.auth.signOut();
     } catch (e) {
-      print('❌ Error signing out: $e');
+      _log.e('Error signing out', error: e);
       rethrow;
     }
   }
@@ -170,9 +173,9 @@ class AuthService {
       }
 
       await _supabase.from('profiles').upsert(profileData);
-      print('✅ Profile created/updated for user: ${user.email}');
+      _log.i('Profile created/updated for user: ${user.email}');
     } catch (e) {
-      print('❌ Error creating/updating profile: $e');
+      _log.w('Error creating/updating profile', error: e);
       // Don't rethrow - profile creation failure shouldn't block authentication
     }
   }
@@ -182,7 +185,7 @@ class AuthService {
     try {
       await _supabase.auth.resetPasswordForEmail(email);
     } catch (e) {
-      print('❌ Error resetting password: $e');
+      _log.e('Error resetting password', error: e);
       rethrow;
     }
   }

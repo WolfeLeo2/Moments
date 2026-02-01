@@ -1,3 +1,4 @@
+import 'package:moments/core/services/app_logger.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/painting.dart';
@@ -6,102 +7,23 @@ import 'package:moments/data/models/reaction.dart';
 import 'package:moments/data/sources/supabase_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+final _log = AppLogger('UchatUrepository');
+
 /// Repository for chat operations
 class ChatRepository {
   final SupabaseClient _client = SupabaseConfig.client;
 
   /// Get or create a 1-on-1 conversation with a friend
+  /// Uses optimized RPC that does everything in a single DB call
   Future<String> getOrCreateConversation(String friendId) async {
     try {
-      print(
-        '🔵 [CHAT REPO] getOrCreateConversation started for friend: $friendId',
+      final result = await _client.rpc(
+        'get_or_create_conversation',
+        params: {'p_friend_id': friendId},
       );
-      final userId = _client.auth.currentUser?.id;
-      if (userId == null) {
-        print('❌ [CHAT REPO] User not authenticated');
-        throw Exception('User not authenticated');
-      }
-      print('✅ [CHAT REPO] Current User ID: $userId');
-
-      // Check if conversation already exists between these two users
-      print('🔍 [CHAT REPO] Checking existing conversations...');
-      final existingConversations = await _client
-          .from('conversation_participants')
-          .select('conversation_id')
-          .eq('user_id', userId);
-
-      print(
-        '📊 [CHAT REPO] Found ${existingConversations.length} conversations for current user',
-      );
-
-      if (existingConversations.isNotEmpty) {
-        // Check each conversation to see if it's with this friend
-        for (final row in existingConversations) {
-          final conversationId = row['conversation_id'] as String;
-
-          // Get all participants in this conversation
-          final participants = await _client
-              .from('conversation_participants')
-              .select('user_id')
-              .eq('conversation_id', conversationId);
-
-          // Check if it's a 1-on-1 with this friend
-          if (participants.length == 2) {
-            final userIds = participants
-                .map((p) => p['user_id'] as String)
-                .toList();
-            if (userIds.contains(userId) && userIds.contains(friendId)) {
-              print(
-                '✅ [CHAT REPO] Found existing conversation: $conversationId',
-              );
-              return conversationId;
-            }
-          }
-        }
-      }
-
-      print(
-        '📝 [CHAT REPO] No existing conversation found. Creating new one...',
-      );
-      // Create new conversation
-      final conversation = await _client
-          .from('conversations')
-          .insert({})
-          .select()
-          .single();
-
-      final conversationId = conversation['id'] as String;
-      print('✅ [CHAT REPO] Created conversation record: $conversationId');
-
-      // Add both users as participants
-      print('📝 [CHAT REPO] Adding participants...');
-
-      // Try adding participants one by one to debug RLS better if batch fails
-      try {
-        print('📝 [CHAT REPO] Adding current user ($userId)...');
-        await _client.from('conversation_participants').insert({
-          'conversation_id': conversationId,
-          'user_id': userId,
-        });
-        print('✅ [CHAT REPO] Added current user');
-
-        print('📝 [CHAT REPO] Adding friend ($friendId)...');
-        await _client.from('conversation_participants').insert({
-          'conversation_id': conversationId,
-          'user_id': friendId,
-        });
-        print('✅ [CHAT REPO] Added friend');
-      } catch (e) {
-        print('❌ [CHAT REPO] Failed to add participants: $e');
-        // Clean up the conversation if we failed to add participants
-        // await _client.from('conversations').delete().eq('id', conversationId);
-        rethrow;
-      }
-
-      return conversationId;
-    } catch (e, stack) {
-      print('❌ [CHAT REPO] Error in getOrCreateConversation: $e');
-      print('📚 [CHAT REPO] Stack trace: $stack');
+      return result as String;
+    } catch (e) {
+      _log.e('Error in getOrCreateConversation', error: e);
       rethrow;
     }
   }
@@ -114,7 +36,7 @@ class ChatRepository {
         .from('messages')
         .stream(primaryKey: ['id'])
         .eq('conversation_id', conversationId)
-        .order('created_at', ascending: true)
+        .order('created_at', ascending: false)
         .asyncMap((data) async {
           final messages = (data as List)
               .map((json) => Message.fromJson(json as Map<String, dynamic>))
@@ -209,77 +131,43 @@ class ChatRepository {
   }
 
   /// Get all conversations with their last message for the current user
+  /// Uses optimized RPC - single query instead of 3N queries
   Future<List<Map<String, dynamic>>> getRecentConversations() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return [];
 
-    // 1. Get all conversation IDs for the user
-    final participants = await _client
-        .from('conversation_participants')
-        .select('conversation_id')
-        .eq('user_id', userId);
+    try {
+      final result = await _client.rpc('get_recent_conversations');
 
-    if (participants.isEmpty) return [];
+      if (result == null) return [];
 
-    final conversationIds = participants
-        .map((p) => p['conversation_id'] as String)
-        .toList();
-
-    // 2. Fetch last message for each conversation
-    // We use Future.wait to fetch them in parallel
-    final futures = conversationIds.map((conversationId) async {
-      try {
-        final response = await _client
-            .from('messages')
-            .select()
-            .eq('conversation_id', conversationId)
-            .order('created_at', ascending: false)
-            .limit(1)
-            .maybeSingle();
-
-        if (response != null) {
-          // Fetch other participant
-          final otherParticipantResponse = await _client
-              .from('conversation_participants')
-              .select('user_id')
-              .eq('conversation_id', conversationId)
-              .neq('user_id', userId)
-              .maybeSingle();
-
-          // Fetch unread count
-          final unreadCount = await _client
-              .from('messages')
-              .count(CountOption.exact)
-              .eq('conversation_id', conversationId)
-              .neq('sender_id', userId)
-              .eq('is_read', false);
-
-          if (otherParticipantResponse != null) {
-            return {
-              'conversationId': conversationId,
-              'lastMessage': Message.fromJson(response),
-              'otherUserId': otherParticipantResponse['user_id'] as String,
-              'unreadCount': unreadCount,
-            };
-          }
-        }
-      } catch (e) {
-        print('Error fetching last message for $conversationId: $e');
-      }
-      return null;
-    });
-
-    final results = await Future.wait(futures);
-    final conversations = results.whereType<Map<String, dynamic>>().toList();
-
-    // Sort by last message time (newest first)
-    conversations.sort((a, b) {
-      final msgA = a['lastMessage'] as Message;
-      final msgB = b['lastMessage'] as Message;
-      return msgB.createdAt.compareTo(msgA.createdAt);
-    });
-
-    return conversations;
+      // Transform RPC result to expected format
+      return (result as List).map((row) {
+        final createdAt = DateTime.parse(
+          row['last_message_created_at'] as String,
+        );
+        return {
+          'conversationId': row['conversation_id'] as String,
+          'otherUserId': row['other_user_id'] as String,
+          'lastMessage': Message(
+            id: row['last_message_id'] as String,
+            conversationId: row['conversation_id'] as String,
+            senderId: row['last_message_sender_id'] as String,
+            content: row['last_message_content'] as String,
+            messageType: MessageType.fromString(
+              row['last_message_type'] as String? ?? 'text',
+            ),
+            createdAt: createdAt,
+            updatedAt: createdAt, // Use createdAt as fallback
+            isRead: row['last_message_is_read'] as bool? ?? false,
+          ),
+          'unreadCount': row['unread_count'] as int? ?? 0,
+        };
+      }).toList();
+    } catch (e) {
+      _log.e('Error fetching recent conversations', error: e);
+      return [];
+    }
   }
 
   /// Send a text message (with optional reply)
@@ -497,31 +385,14 @@ class ChatRepository {
   }
 
   /// Get conversation ID for a friend (if exists)
+  /// Uses optimized RPC - single query instead of N+1
   Future<String?> getConversationWithFriend(String friendId) async {
-    final userId = _client.auth.currentUser?.id;
-    if (userId == null) return null;
-
     try {
-      final myConversations = await _client
-          .from('conversation_participants')
-          .select('conversation_id')
-          .eq('user_id', userId);
-
-      for (final row in myConversations) {
-        final conversationId = row['conversation_id'] as String;
-        // Check if friend is in this conversation
-        final friendParticipation = await _client
-            .from('conversation_participants')
-            .select()
-            .eq('conversation_id', conversationId)
-            .eq('user_id', friendId)
-            .maybeSingle();
-
-        if (friendParticipation != null) {
-          return conversationId;
-        }
-      }
-      return null;
+      final result = await _client.rpc(
+        'get_conversation_with_friend',
+        params: {'p_friend_id': friendId},
+      );
+      return result as String?;
     } catch (e) {
       return null;
     }
@@ -734,7 +605,7 @@ class ChatRepository {
         final count = await _client.rpc('get_unread_chat_count');
         if (!controller.isClosed) controller.add(count as int);
       } catch (e) {
-        print('Error fetching unread chat count: $e');
+        _log.e('Error fetching unread chat count: $e');
       }
     }
 

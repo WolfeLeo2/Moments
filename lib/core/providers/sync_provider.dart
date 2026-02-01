@@ -1,9 +1,11 @@
-import 'dart:collection';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:moments/core/services/pending_action_service.dart';
+import 'package:moments/core/providers/database_provider.dart';
 
 part 'sync_provider.g.dart';
+
+/// Recent error cutoff duration - used across sync status checks
+const _recentErrorCutoff = Duration(minutes: 5);
 
 /// Represents a sync error from any source
 class SyncError {
@@ -70,15 +72,6 @@ class SyncState extends _$SyncState {
     }
     return map;
   }
-
-  /// Get overall sync status
-  SyncStatus get status {
-    if (state.isEmpty) return SyncStatus.synced;
-    // Check if any errors are recent (within last 5 minutes)
-    final recentCutoff = DateTime.now().subtract(const Duration(minutes: 5));
-    final hasRecentErrors = state.any((e) => e.timestamp.isAfter(recentCutoff));
-    return hasRecentErrors ? SyncStatus.error : SyncStatus.synced;
-  }
 }
 
 /// Convenience provider for just the status
@@ -86,7 +79,7 @@ class SyncState extends _$SyncState {
 SyncStatus syncStatus(Ref ref) {
   final errors = ref.watch(syncStateProvider);
   if (errors.isEmpty) return SyncStatus.synced;
-  final recentCutoff = DateTime.now().subtract(const Duration(minutes: 5));
+  final recentCutoff = DateTime.now().subtract(_recentErrorCutoff);
   final hasRecentErrors = errors.any((e) => e.timestamp.isAfter(recentCutoff));
   return hasRecentErrors ? SyncStatus.error : SyncStatus.synced;
 }
@@ -98,17 +91,10 @@ int syncErrorCount(Ref ref) {
 }
 
 /// Pending offline actions count provider
-/// Shows how many actions are waiting to be synced
+/// Shows how many actions are waiting to be synced (uses Drift)
 @riverpod
 Future<int> pendingActionsCount(Ref ref) async {
-  // Import and check pending action service
-  // This is a simple async provider that returns the count
-  final service = ref.watch(pendingActionServiceProvider);
-  return service.getPendingCount();
-}
-
-/// Provider for PendingActionService
-@Riverpod(keepAlive: true)
-PendingActionService pendingActionService(Ref ref) {
-  return PendingActionService();
+  final db = ref.watch(appDatabaseProvider);
+  final actions = await db.getPendingActions();
+  return actions.length;
 }

@@ -1,7 +1,10 @@
+import 'package:moments/core/services/app_logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/profile.dart';
 import '../models/friendship.dart';
 import '../sources/supabase_config.dart';
+
+final _log = AppLogger('UsocialUrepository');
 
 /// Repository for managing user profiles and friendships
 class SocialRepository {
@@ -10,7 +13,7 @@ class SocialRepository {
   // ============================================
   // PROFILE MANAGEMENT
   // ============================================
-  
+
   /// Get current user's profile
   Future<Profile?> getCurrentUserProfile() async {
     try {
@@ -136,26 +139,42 @@ class SocialRepository {
       );
 
       if (friendProfile.id == userId) {
-        print('❌ [FRIEND REQUEST] User tried to add themselves');
+        _log.w('User tried to add themselves as friend');
         throw Exception('Cannot add yourself as a friend');
       }
 
-      // Check if friendship already exists
-      print('🔍 [FRIEND REQUEST] Checking for existing friendship...');
-      final existing = await _client
+      // Check if friendship already exists IN EITHER DIRECTION
+      _log.d('Checking for existing friendship...');
+      final existingOutgoing = await _client
           .from('friendships')
           .select()
           .eq('user_id', userId)
           .eq('friend_id', friendProfile.id)
           .maybeSingle();
 
-      if (existing != null) {
-        print(
-          '❌ [FRIEND REQUEST] Friendship already exists: ${existing['status']}',
-        );
+      if (existingOutgoing != null) {
         throw Exception('Friend request already sent');
       }
-      print('✅ [FRIEND REQUEST] No existing friendship found');
+
+      // Check if THEY already sent US a request
+      final existingIncoming = await _client
+          .from('friendships')
+          .select()
+          .eq('user_id', friendProfile.id)
+          .eq('friend_id', userId)
+          .maybeSingle();
+
+      if (existingIncoming != null) {
+        final status = existingIncoming['status'] as String;
+        if (status == 'pending') {
+          throw Exception(
+            'This user has already sent you a friend request. Check your notifications!',
+          );
+        } else if (status == 'accepted') {
+          throw Exception('You are already friends with this user');
+        }
+      }
+      _log.d('No existing friendship found');
 
       // Create friendship request
       print('📝 [FRIEND REQUEST] Inserting friendship record...');
@@ -367,7 +386,7 @@ class SocialRepository {
 
       return mutualCount;
     } catch (e) {
-      print('Error getting mutual friends count: $e');
+      _log.e('Error getting mutual friends count: $e');
       return 0;
     }
   }
@@ -383,7 +402,7 @@ class SocialRepository {
 
       return (response as List).length;
     } catch (e) {
-      print('Error getting user moments count: $e');
+      _log.e('Error getting user moments count: $e');
       return 0;
     }
   }

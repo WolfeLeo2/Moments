@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:moments/core/services/avatar_cache_service.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/data/models/friendship.dart';
 import 'package:moments/data/models/profile.dart';
@@ -151,7 +150,8 @@ class _RequestCardState extends ConsumerState<RequestCard>
                         child: CircleAvatar(
                           radius: 26,
                           backgroundColor: Colors.grey[200],
-                          backgroundImage: AvatarCacheService()
+                          backgroundImage: ref
+                              .watch(avatarCacheServiceProvider)
                               .getAvatarImageProvider(profile.avatarUrl),
                           child: profile.avatarUrl == null
                               ? HugeIcon(

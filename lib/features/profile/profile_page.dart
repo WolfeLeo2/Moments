@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/auth_service.dart';
-import '../../core/services/avatar_cache_service.dart';
 import '../../core/providers/moments_providers.dart';
 import '../../core/providers/providers.dart';
 import '../../core/providers/sync_provider.dart';
@@ -57,9 +56,9 @@ class ProfilePage extends ConsumerWidget {
             CircleAvatar(
               radius: 50,
               backgroundColor: AppTheme.primaryBlue,
-              backgroundImage: AvatarCacheService().getAvatarImageProvider(
-                authService.currentUserPhotoUrl,
-              ),
+              backgroundImage: ref
+                  .watch(avatarCacheServiceProvider)
+                  .getAvatarImageProvider(authService.currentUserPhotoUrl),
               child: authService.currentUserPhotoUrl == null
                   ? Text(
                       (authService.currentUserDisplayName ?? 'U')[0]

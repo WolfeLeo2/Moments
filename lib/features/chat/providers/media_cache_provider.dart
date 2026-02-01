@@ -1,7 +1,10 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:moments/features/chat/services/media_cache_service.dart';
 
-/// Provider for the media cache service (singleton)
-final mediaCacheServiceProvider = Provider<MediaCacheService>((ref) {
+part 'media_cache_provider.g.dart';
+
+/// Provider for the media cache service (singleton with keepAlive)
+@Riverpod(keepAlive: true)
+MediaCacheService mediaCacheService(Ref ref) {
   return MediaCacheService();
-});
+}

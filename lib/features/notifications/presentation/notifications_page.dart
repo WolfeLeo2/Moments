@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/providers/providers.dart';
@@ -14,17 +14,15 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:lottie/lottie.dart';
 import 'package:moments/core/services/firebase_messaging_service.dart';
 import 'package:moments/features/moments/presentation/moment_details_page.dart';
-import 'package:moments/features/notifications/widgets/swipeable_notification.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:moments/features/map/providers/map_control_provider.dart';
-import 'package:moments/data/repositories/moment_repository.dart';
 import 'package:moments/data/models/moment.dart';
 
 enum NotificationType {
   friendRequest,
   collaborationInvite,
   newMoment,
-  momentLike, // Reactions to moments
+  momentLike,
   momentInvite,
   system,
   promo,
@@ -57,6 +55,76 @@ class NotificationItem {
   });
 }
 
+/// Configuration for notification type styling
+class _NotificationTypeConfig {
+  final Color accentColor;
+  final Color backgroundColor;
+  final dynamic icon; // HugeIcons use a special type
+  final String label;
+
+  const _NotificationTypeConfig({
+    required this.accentColor,
+    required this.backgroundColor,
+    required this.icon,
+    required this.label,
+  });
+
+  static _NotificationTypeConfig forType(NotificationType type) {
+    switch (type) {
+      case NotificationType.friendRequest:
+        return _NotificationTypeConfig(
+          accentColor: AppTheme.primaryBlue,
+          backgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.08),
+          icon: HugeIcons.strokeRoundedUserAdd01,
+          label: 'Friend Request',
+        );
+      case NotificationType.collaborationInvite:
+      case NotificationType.momentInvite:
+        return _NotificationTypeConfig(
+          accentColor: AppTheme.electricPurple,
+          backgroundColor: AppTheme.electricPurple.withValues(alpha: 0.08),
+          icon: HugeIcons.strokeRoundedUserGroup,
+          label: 'Collaboration',
+        );
+      case NotificationType.momentLike:
+        return _NotificationTypeConfig(
+          accentColor: const Color(0xFFE91E63),
+          backgroundColor: const Color(0xFFE91E63).withValues(alpha: 0.08),
+          icon: HugeIcons.strokeRoundedFavourite,
+          label: 'Reaction',
+        );
+      case NotificationType.newMoment:
+        return _NotificationTypeConfig(
+          accentColor: const Color(0xFF4CAF50),
+          backgroundColor: const Color(0xFF4CAF50).withValues(alpha: 0.08),
+          icon: HugeIcons.strokeRoundedImage01,
+          label: 'New Moment',
+        );
+      case NotificationType.system:
+        return _NotificationTypeConfig(
+          accentColor: const Color(0xFFFF9800),
+          backgroundColor: const Color(0xFFFF9800).withValues(alpha: 0.08),
+          icon: HugeIcons.strokeRoundedAlert02,
+          label: 'System',
+        );
+      case NotificationType.promo:
+        return _NotificationTypeConfig(
+          accentColor: AppTheme.neonPink,
+          backgroundColor: AppTheme.neonPink.withValues(alpha: 0.08),
+          icon: HugeIcons.strokeRoundedGift,
+          label: 'Promo',
+        );
+      case NotificationType.other:
+        return _NotificationTypeConfig(
+          accentColor: Colors.grey,
+          backgroundColor: Colors.grey.withValues(alpha: 0.08),
+          icon: HugeIcons.strokeRoundedNotification01,
+          label: 'Notification',
+        );
+    }
+  }
+}
+
 class NotificationsPage extends ConsumerStatefulWidget {
   const NotificationsPage({super.key});
 
@@ -66,26 +134,24 @@ class NotificationsPage extends ConsumerStatefulWidget {
 
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   String _selectedFilter = 'All';
-  final List<String> _filters = ['All', 'Requests', 'System'];
+  final List<String> _filters = ['All', 'Requests', 'Activity', 'System'];
+
+  // Track dismissed items for animation
+  final Set<String> _dismissedIds = {};
 
   @override
   void initState() {
     super.initState();
-
-    // Clear all local notifications from the phone panel when opening this page
     FirebaseMessagingService.cancelAllNotifications();
 
-    // Mark all notifications as read on page open (Instagram style)
-    // and refresh the list to ensure we have the latest data (since we use keepAlive)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.refresh(notificationsListProvider);
+      ref.invalidate(notificationsListProvider);
       ref.read(notificationsListProvider.notifier).markAllAsRead();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // 1. Watch all sources
     final friendRequestsAsync = ref.watch(pendingRequestsProvider);
     final collaborationInvitesAsync = ref.watch(
       pendingMomentInvitationsStreamProvider,
@@ -115,50 +181,44 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           ),
         ),
         centerTitle: false,
-        actions: const [SizedBox(width: 8)],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
+          preferredSize: const Size.fromHeight(56),
           child: Container(
-            height: 50,
+            height: 46,
             margin: const EdgeInsets.only(bottom: 10),
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
               itemCount: _filters.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 6),
+              separatorBuilder: (context, index) => const SizedBox(width: 3),
               itemBuilder: (context, index) {
                 final filter = _filters[index];
                 final isSelected = _selectedFilter == filter;
-                return ChoiceChip(
+                return FilterChip(
                   label: Text(
                     filter,
                     style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.grey[600],
+                      color: isSelected ? Colors.white : Colors.grey[700],
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
                     ),
                   ),
                   selected: isSelected,
                   onSelected: (selected) {
                     if (selected) {
+                      HapticFeedback.selectionClick();
                       setState(() => _selectedFilter = filter);
                     }
                   },
                   backgroundColor: Colors.white,
                   selectedColor: AppTheme.primaryBlue,
-                  showCheckmark: false,
-                  shape: RoundedSuperellipseBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-                    side: BorderSide(
-                      color: isSelected
-                          ? Colors.transparent
-                          : Colors.grey[200]!,
-                    ),
+                  showCheckmark: true,
+                  side: BorderSide(
+                    color: isSelected ? Colors.transparent : Colors.grey[500]!,
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 8,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 );
               },
             ),
@@ -171,13 +231,6 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             data: (friendRequests) {
               return collaborationInvitesAsync.when(
                 data: (collabInvites) {
-                  // Combine all notifications
-                  // We need to fetch profiles for friend requests to show names/avatars
-                  // Since we can't do async in build, we should probably have a provider that does this join.
-                  // Or we can use the 'friendProfile' provider for each item in the list.
-                  // But _combineNotifications is synchronous.
-                  // Let's modify _NotificationCard to fetch the profile if it's missing.
-
                   final allNotifications = _combineNotifications(
                     friendRequests,
                     collabInvites,
@@ -188,43 +241,53 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                     return _buildEmptyState();
                   }
 
-                  // Filter notifications based on selection
-                  List<NotificationItem> filteredItems = allNotifications;
-                  if (_selectedFilter == 'Requests') {
-                    filteredItems = allNotifications
-                        .where(
-                          (n) =>
-                              n.type == NotificationType.friendRequest ||
-                              n.type == NotificationType.collaborationInvite,
-                        )
-                        .toList();
-                  } else if (_selectedFilter == 'System') {
-                    filteredItems = allNotifications
-                        .where(
-                          (n) =>
-                              n.type == NotificationType.system ||
-                              n.type == NotificationType.promo ||
-                              n.type == NotificationType.other,
-                        )
-                        .toList();
+                  final filteredItems = _filterNotifications(allNotifications);
+
+                  if (filteredItems.isEmpty) {
+                    return _buildEmptyFilterState();
                   }
 
                   return _buildNotificationList(filteredItems);
                 },
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (_, __) =>
-                    const Center(child: Text('Error loading invites')),
+                error: (_, __) => const Center(child: Text('Error loading invites')),
               );
             },
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) =>
-                const Center(child: Text('Error loading requests')),
+            error: (_, __) => const Center(child: Text('Error loading requests')),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error loading notifications: $e')),
+        error: (e, _) => Center(child: Text('Error: $e')),
       ),
     );
+  }
+
+  List<NotificationItem> _filterNotifications(List<NotificationItem> items) {
+    switch (_selectedFilter) {
+      case 'Requests':
+        return items
+            .where((n) =>
+                n.type == NotificationType.friendRequest ||
+                n.type == NotificationType.collaborationInvite)
+            .toList();
+      case 'Activity':
+        return items
+            .where((n) =>
+                n.type == NotificationType.momentLike ||
+                n.type == NotificationType.newMoment ||
+                n.type == NotificationType.momentInvite)
+            .toList();
+      case 'System':
+        return items
+            .where((n) =>
+                n.type == NotificationType.system ||
+                n.type == NotificationType.promo ||
+                n.type == NotificationType.other)
+            .toList();
+      default:
+        return items;
+    }
   }
 
   List<NotificationItem> _combineNotifications(
@@ -241,23 +304,22 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           id: req.id,
           type: NotificationType.friendRequest,
           title: 'Friend Request',
-          body:
-              'sent you a friend request', // We need the sender name, usually fetched separately or included
+          body: 'sent you a friend request',
           createdAt: req.requestedAt,
-          isRead: false, // Requests are always "unread" until acted upon
+          isRead: false,
           data: req,
         ),
       );
     }
 
-    // Collaboration Invites - use group and inviter info
+    // Collaboration Invites
     for (final invite in collabInvites) {
       items.add(
         NotificationItem(
           id: invite.id,
           type: NotificationType.collaborationInvite,
           title: invite.groupTitle ?? 'Moment Group',
-          body: 'wants you to collaborate',
+          body: 'invited you to collaborate',
           createdAt: invite.invitedAt,
           isRead: false,
           actorName: invite.inviterUsername,
@@ -273,30 +335,23 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       NotificationType type = NotificationType.other;
       final typeStr = notif['type'] as String?;
 
-      // Skip chat messages as they appear in the chat list
+      // Skip chat messages and friend requests (handled separately)
       if (typeStr == 'message' || typeStr == 'chat_message') continue;
-
-      // Skip friend requests as they are handled by the pendingRequestsProvider
-      // This prevents duplication and ensures we have the correct Friendship ID for actions
       if (typeStr == 'friend_request') continue;
 
       if (typeStr == 'system') type = NotificationType.system;
       if (typeStr == 'promo') type = NotificationType.promo;
       if (typeStr == 'moment_invite') type = NotificationType.momentInvite;
       if (typeStr == 'moment_like') type = NotificationType.momentLike;
-      if (typeStr == 'new_moment_group' || typeStr == 'new_moment_post')
+      if (typeStr == 'new_moment_group' || typeStr == 'new_moment_post') {
         type = NotificationType.newMoment;
+      }
 
-      // Extract actor details
       final actor = notif['actor'] as Map<String, dynamic>?;
       final actorName =
           actor?['display_name'] as String? ?? actor?['username'] as String?;
       final actorAvatarUrl = actor?['avatar_url'] as String?;
-
       final isRead = notif['is_read'] as bool? ?? false;
-
-      // Note: We no longer skip read notifications - they are shown but styled differently
-      // This ensures consistency between badge count and displayed notifications
 
       items.add(
         NotificationItem(
@@ -313,21 +368,16 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       );
     }
 
-    // Deduplicate by ID (in case same notification appears from multiple sources)
+    // Deduplicate by ID
     final seenIds = <String>{};
     final deduplicatedItems = <NotificationItem>[];
     for (final item in items) {
-      if (!seenIds.contains(item.id)) {
+      if (!seenIds.contains(item.id) && !_dismissedIds.contains(item.id)) {
         seenIds.add(item.id);
         deduplicatedItems.add(item);
-      } else {
-        debugPrint(
-          'NotificationsPage: Duplicate notification ID ${item.id}, skipping',
-        );
       }
     }
 
-    // Sort by date descending
     deduplicatedItems.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return deduplicatedItems;
   }
@@ -339,24 +389,53 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         children: [
           Lottie.asset(
             'assets/animations/notification.json',
-            width: 200,
-            height: 200,
+            width: 180,
+            height: 180,
             fit: BoxFit.contain,
             repeat: false,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Text(
-            'No notifications yet',
+            'All caught up!',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.grey[800],
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'We\'ll let you know when something happens!',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            'No notifications right now',
+            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyFilterState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          HugeIcon(
+            icon: HugeIcons.strokeRoundedInbox,
+            size: 64,
+            color: Colors.grey[300],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Nothing here',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No notifications in this category',
+            style: TextStyle(fontSize: 14, color: Colors.grey[400]),
           ),
         ],
       ),
@@ -364,48 +443,426 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   }
 
   Widget _buildNotificationList(List<NotificationItem> items) {
-    if (items.isEmpty) {
-      return Center(
-        child: Text(
-          'No notifications in this category',
-          style: TextStyle(color: Colors.grey[500]),
-        ),
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: items.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 16),
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return _NotificationCard(key: ValueKey(item.id), item: item);
+    final notifier = ref.read(notificationsListProvider.notifier);
+    
+    return NotificationListener<ScrollNotification>(
+      onNotification: (scrollInfo) {
+        // Load more when near the bottom
+        if (scrollInfo is ScrollEndNotification) {
+          final maxScroll = scrollInfo.metrics.maxScrollExtent;
+          final currentScroll = scrollInfo.metrics.pixels;
+          // Trigger load more when 200px from bottom
+          if (maxScroll - currentScroll <= 200 && notifier.hasMore && !notifier.isLoadingMore) {
+            notifier.loadMore();
+          }
+        }
+        return false;
       },
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        itemCount: items.length + (notifier.hasMore ? 1 : 0),
+        itemBuilder: (context, index) {
+          // Show loading indicator at the bottom
+          if (index == items.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          }
+          
+          final item = items[index];
+          final config = _NotificationTypeConfig.forType(item.type);
+          final requiresAction = item.type == NotificationType.friendRequest ||
+              item.type == NotificationType.collaborationInvite;
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _NotificationCard(
+              key: ValueKey(item.id),
+              item: item,
+              config: config,
+              requiresAction: requiresAction,
+              onDismiss: requiresAction
+                  ? null
+                  : () {
+                      HapticFeedback.mediumImpact();
+                      setState(() => _dismissedIds.add(item.id));
+                      ref
+                          .read(notificationsListProvider.notifier)
+                          .removeNotification(item.id);
+                    },
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
 class _NotificationCard extends ConsumerWidget {
   final NotificationItem item;
+  final _NotificationTypeConfig config;
+  final bool requiresAction;
+  final VoidCallback? onDismiss;
 
-  const _NotificationCard({super.key, required this.item});
+  const _NotificationCard({
+    super.key,
+    required this.item,
+    required this.config,
+    required this.requiresAction,
+    this.onDismiss,
+  });
 
-  /// Navigate to moment location on map
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Fetch profile for friend requests if needed
+    if (item.type == NotificationType.friendRequest && item.actorName == null) {
+      final request = item.data as Friendship;
+      final profileAsync = ref.watch(friendProfileProvider(request.userId));
+
+      return profileAsync.when(
+        data: (profile) {
+          if (profile == null) return const SizedBox.shrink();
+
+          final enrichedItem = NotificationItem(
+            id: item.id,
+            type: item.type,
+            title: item.title,
+            body: item.body,
+            createdAt: item.createdAt,
+            isRead: item.isRead,
+            actorName: profile.displayName ?? profile.username,
+            actorAvatarUrl: profile.avatarUrl,
+            data: item.data,
+          );
+
+          return _buildCard(context, ref, enrichedItem);
+        },
+        loading: () => _buildLoadingCard(),
+        error: (_, __) => const SizedBox.shrink(),
+      );
+    }
+
+    return _buildCard(context, ref, item);
+  }
+
+  Widget _buildLoadingCard() {
+    return Container(
+      height: 80,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCard(BuildContext context, WidgetRef ref, NotificationItem item) {
+    final cardContent = _buildCardContent(context, ref, item);
+
+    // Wrap with Dismissible for non-action notifications
+    if (!requiresAction && onDismiss != null) {
+      return Dismissible(
+        key: ValueKey('dismiss_${item.id}'),
+        direction: DismissDirection.endToStart,
+        onDismissed: (_) => onDismiss!(),
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 24),
+          decoration: BoxDecoration(
+            color: Colors.red.shade400,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const HugeIcon(
+            icon: HugeIcons.strokeRoundedDelete02,
+            color: Colors.white,
+            size: 24,
+          ),
+        ),
+        child: cardContent,
+      );
+    }
+
+    return cardContent;
+  }
+
+  Widget _buildCardContent(
+    BuildContext context,
+    WidgetRef ref,
+    NotificationItem item,
+  ) {
+    return GestureDetector(
+      onTap: () => _handleTap(context, ref, item),
+      child: Container(
+        decoration: BoxDecoration(
+          color: item.isRead ? Colors.white : config.backgroundColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: item.isRead
+                ? Colors.grey.shade200
+                : config.accentColor.withValues(alpha: 0.3),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Main content
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Avatar or Icon
+                  _buildAvatar(item),
+                  const SizedBox(width: 12),
+                  // Text content
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Type label badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: config.accentColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            config.label,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: config.accentColor,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Main text
+                        RichText(
+                          text: TextSpan(
+                            style: TextStyle(
+                              color: Colors.grey[800],
+                              fontSize: 14,
+                              height: 1.4,
+                            ),
+                            children: [
+                              if (item.actorName != null)
+                                TextSpan(
+                                  text: '${item.actorName} ',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              TextSpan(
+                                text: _getBodyText(item),
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Group title for collab invites
+                        if (item.type == NotificationType.collaborationInvite &&
+                            item.groupTitle != null) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              HugeIcon(
+                                icon: HugeIcons.strokeRoundedFolder01,
+                                size: 14,
+                                color: config.accentColor,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  item.groupTitle!,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: config.accentColor,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 6),
+                        // Time
+                        TimeAgoText(
+                          dateTime: item.createdAt,
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Unread indicator
+                  if (!item.isRead)
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: config.accentColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Action buttons for requests
+            if (requiresAction) _buildActionButtons(context, ref, item),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar(NotificationItem item) {
+    if (item.actorAvatarUrl != null && item.actorAvatarUrl!.isNotEmpty) {
+      return Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: config.accentColor.withValues(alpha: 0.3),
+            width: 2,
+          ),
+        ),
+        child: ClipOval(
+          child: Image.network(
+            item.actorAvatarUrl!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildIconAvatar(),
+          ),
+        ),
+      );
+    }
+    return _buildIconAvatar();
+  }
+
+  Widget _buildIconAvatar() {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: config.accentColor.withValues(alpha: 0.15),
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: HugeIcon(
+          icon: config.icon,
+          color: config.accentColor,
+          size: 24,
+        ),
+      ),
+    );
+  }
+
+  String _getBodyText(NotificationItem item) {
+    if (item.actorName != null && item.body.startsWith(item.actorName!)) {
+      return item.body.substring(item.actorName!.length).trim();
+    }
+    return item.body;
+  }
+
+  Widget _buildActionButtons(
+    BuildContext context,
+    WidgetRef ref,
+    NotificationItem item,
+  ) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: _ActionButton(
+              label: 'Accept',
+              isPrimary: true,
+              color: config.accentColor,
+              onPressed: () => _handleAccept(context, ref, item),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _ActionButton(
+              label: 'Decline',
+              isPrimary: false,
+              color: Colors.grey,
+              onPressed: () => _handleDecline(context, ref, item),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleTap(BuildContext context, WidgetRef ref, NotificationItem item) {
+    // Mark as read
+    if (!item.isRead) {
+      ref.read(notificationsListProvider.notifier).markAsRead(item.id);
+    }
+
+    // Navigate based on type
+    if (item.type == NotificationType.momentLike) {
+      final relatedId = item.data is Map ? item.data['related_id'] : null;
+      if (relatedId != null) {
+        _navigateToMomentDetails(context, ref, relatedId.toString());
+      }
+    } else if (item.type == NotificationType.newMoment) {
+      final relatedId = item.data is Map ? item.data['related_id'] : null;
+      if (relatedId != null) {
+        _navigateToMomentOnMap(context, ref, relatedId.toString());
+      }
+    } else if (item.type == NotificationType.momentInvite) {
+      final relatedId = item.data is Map ? item.data['related_id'] : null;
+      if (relatedId != null) {
+        _navigateToMomentOnMap(context, ref, relatedId.toString());
+      }
+    }
+  }
+
   Future<void> _navigateToMomentOnMap(
     BuildContext context,
     WidgetRef ref,
     String momentId,
   ) async {
     try {
-      // Fetch moment to get coordinates
       final repo = ref.read(momentRepositoryProvider);
       final moment = await repo.getMomentById(momentId);
 
       if (moment != null && context.mounted) {
-        // Pop notifications page
         Navigator.pop(context);
-
-        // Set map camera target to fly to this location
         ref
             .read(mapCameraTargetProvider.notifier)
             .setTarget(LatLng(moment.latitude, moment.longitude));
@@ -417,7 +874,6 @@ class _NotificationCard extends ConsumerWidget {
     }
   }
 
-  /// Navigate to moment details page
   Future<void> _navigateToMomentDetails(
     BuildContext context,
     WidgetRef ref,
@@ -428,13 +884,11 @@ class _NotificationCard extends ConsumerWidget {
       final moment = await repo.getMomentById(momentId);
 
       if (moment != null && context.mounted) {
-        // Get all moments in the same group (if it's part of a group)
         List<Moment> moments;
         int initialPage = 0;
 
         if (moment.momentGroupId != null) {
           moments = await repo.getMomentsByGroup(moment.momentGroupId!);
-          // Find the index of the specific moment
           initialPage = moments.indexWhere((m) => m.id == momentId);
           if (initialPage < 0) initialPage = 0;
         } else {
@@ -461,469 +915,132 @@ class _NotificationCard extends ConsumerWidget {
     }
   }
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // If it's a friend request and we don't have actor details, fetch them
-    if (item.type == NotificationType.friendRequest && item.actorName == null) {
-      final request = item.data as Friendship;
-      final profileAsync = ref.watch(friendProfileProvider(request.userId));
-
-      return profileAsync.when(
-        data: (profile) {
-          if (profile == null) return const SizedBox.shrink();
-
-          // Create a new item with profile details
-          final enrichedItem = NotificationItem(
-            id: item.id,
-            type: item.type,
-            title: item.title,
-            body: item.body,
-            createdAt: item.createdAt,
-            isRead: item.isRead,
-            actorName: profile.displayName ?? profile.username,
-            actorAvatarUrl: profile.avatarUrl,
-            data: item.data,
-          );
-
-          return _buildCardContent(context, ref, enrichedItem);
-        },
-        loading: () => const Center(
-          child: Padding(
-            padding: EdgeInsets.all(8.0),
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-        error: (_, __) => const SizedBox.shrink(),
-      );
-    }
-
-    return _buildCardContent(context, ref, item);
-  }
-
-  Widget _buildCardContent(
+  Future<void> _handleAccept(
     BuildContext context,
     WidgetRef ref,
     NotificationItem item,
-  ) {
-    // Check if this notification requires action buttons (not swipe-dismissible)
-    final requiresAction =
-        item.type == NotificationType.friendRequest ||
-        item.type == NotificationType.collaborationInvite;
+  ) async {
+    HapticFeedback.mediumImpact();
 
-    final cardContent = GestureDetector(
-      onTap: () {
-        // Mark as read on tap (user explicitly interacted)
-        if (!item.isRead) {
-          ref.read(notificationsListProvider.notifier).markAsRead(item.id);
+    if (item.type == NotificationType.friendRequest) {
+      final request = item.data as Friendship;
+      try {
+        await ref.read(friendRequestProvider.notifier).acceptRequest(request.id);
+        if (context.mounted) {
+          context.showSuccessSnackBar('Friend request accepted!');
+          ref.invalidate(friendsListProvider);
+          ref.invalidate(pendingRequestsProvider);
         }
+      } catch (e) {
+        if (context.mounted) {
+          context.showErrorSnackBar('Failed to accept request');
+        }
+      }
+    } else if (item.type == NotificationType.collaborationInvite) {
+      final invite = item.data as MomentContributor;
+      try {
+        await ref.read(momentRepositoryProvider).acceptInvitation(invite.id);
+        if (context.mounted) {
+          context.showSuccessSnackBar('Joined moment group!');
 
-        // Navigate based on notification type
-        if (item.type == NotificationType.momentLike) {
-          // Navigate to moment details for reactions
-          final relatedId = item.data is Map ? item.data['related_id'] : null;
-          if (relatedId != null) {
-            _navigateToMomentDetails(context, ref, relatedId.toString());
-          }
-        } else if (item.type == NotificationType.newMoment) {
-          // Navigate to map for new moments
-          final relatedId = item.data is Map ? item.data['related_id'] : null;
-          if (relatedId != null) {
-            _navigateToMomentOnMap(context, ref, relatedId.toString());
-          }
-        } else if (item.type == NotificationType.momentInvite) {
-          final relatedId = item.data is Map ? item.data['related_id'] : null;
-          if (relatedId != null) {
-            _navigateToMomentOnMap(context, ref, relatedId.toString());
-          }
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: item.isRead
-              ? Colors.white
-              : AppTheme.primaryBlue.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          border: Border.all(
-            color: item.isRead
-                ? Colors.grey[200]!
-                : AppTheme.primaryBlue.withValues(alpha: 0.2),
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildAvatar(item),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  RichText(
-                    text: TextSpan(
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontSize: 14,
-                        height: 1.4,
-                        fontFamily: Theme.of(
-                          context,
-                        ).textTheme.bodyMedium?.fontFamily,
-                      ),
-                      children: [
-                        if (item.actorName != null)
-                          TextSpan(
-                            text: '${item.actorName} ',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        TextSpan(text: _getBodyText(item)),
-                        // Show group name in parentheses for collab invites
-                        if (item.type == NotificationType.collaborationInvite &&
-                            item.groupTitle != null)
-                          TextSpan(
-                            text: ' (${item.groupTitle})',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        const TextSpan(text: '  '),
-                        WidgetSpan(
-                          alignment: PlaceholderAlignment.baseline,
-                          baseline: TextBaseline.alphabetic,
-                          child: TimeAgoText(
-                            dateTime: item.createdAt,
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+          // Navigate to the moment
+          try {
+            final moments = await ref
+                .read(momentRepositoryProvider)
+                .getMomentsByGroup(invite.momentId);
+
+            if (context.mounted && moments.isNotEmpty) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MomentDetailsPage(
+                    locationName: moments.first.location,
+                    moments: moments,
                   ),
-                  if (item.type == NotificationType.friendRequest)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: _buildFriendRequestActions(context, ref, item),
-                    ),
-                  if (item.type == NotificationType.collaborationInvite)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: _buildCollaborationInviteActions(
-                        context,
-                        ref,
-                        item,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (!item.isRead)
-              Container(
-                margin: const EdgeInsets.only(left: 8, top: 4),
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: AppTheme.primaryBlue,
-                  shape: BoxShape.circle,
                 ),
-              ),
-          ],
+              );
+            }
+          } catch (_) {}
+        }
+      } catch (e) {
+        if (context.mounted) {
+          context.showErrorSnackBar('Failed to join group');
+        }
+      }
+    }
+  }
+
+  Future<void> _handleDecline(
+    BuildContext context,
+    WidgetRef ref,
+    NotificationItem item,
+  ) async {
+    HapticFeedback.lightImpact();
+
+    if (item.type == NotificationType.friendRequest) {
+      final request = item.data as Friendship;
+      try {
+        await ref.read(friendRequestProvider.notifier).rejectRequest(request.id);
+        if (context.mounted) {
+          context.showSuccessSnackBar('Request declined');
+          ref.invalidate(pendingRequestsProvider);
+        }
+      } catch (e) {
+        if (context.mounted) {
+          context.showErrorSnackBar('Failed to decline request');
+        }
+      }
+    } else if (item.type == NotificationType.collaborationInvite) {
+      final invite = item.data as MomentContributor;
+      try {
+        await ref.read(momentRepositoryProvider).removeContributor(invite.id);
+        if (context.mounted) {
+          context.showSuccessSnackBar('Invite declined');
+        }
+      } catch (e) {
+        if (context.mounted) {
+          context.showErrorSnackBar('Failed to decline invite');
+        }
+      }
+    }
+  }
+}
+
+/// Styled action button for accept/decline
+class _ActionButton extends StatelessWidget {
+  final String label;
+  final bool isPrimary;
+  final Color color;
+  final VoidCallback onPressed;
+
+  const _ActionButton({
+    required this.label,
+    required this.isPrimary,
+    required this.color,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isPrimary ? color : Colors.grey.shade100,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isPrimary ? Colors.white : Colors.grey[700],
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
         ),
       ),
-    );
-
-    // Use elastic swipe for non-action notifications
-    if (!requiresAction) {
-      return SwipeableNotification(
-        onDismiss: () {
-          ref
-              .read(notificationsListProvider.notifier)
-              .removeNotification(item.id);
-        },
-        child: cardContent,
-      );
-    }
-
-    // Action notifications (friend request, collab invite) - no swipe dismiss
-    return cardContent;
-  }
-
-  String _getBodyText(NotificationItem item) {
-    if (item.actorName != null && item.body.startsWith(item.actorName!)) {
-      return item.body.substring(item.actorName!.length).trim();
-    }
-    return item.body;
-  }
-
-  Widget _buildAvatar(NotificationItem item) {
-    if (item.actorAvatarUrl != null && item.actorAvatarUrl!.isNotEmpty) {
-      return CircleAvatar(
-        radius: 22,
-        backgroundImage: NetworkImage(item.actorAvatarUrl!),
-        backgroundColor: Colors.grey[200],
-      );
-    }
-    return _buildIcon(item.type);
-  }
-
-  Widget _buildIcon(NotificationType type) {
-    dynamic icon;
-    Color color;
-    Color bg;
-
-    switch (type) {
-      case NotificationType.friendRequest:
-        icon = HugeIcons.strokeRoundedUserAdd01;
-        color = AppTheme.primaryBlue;
-        bg = AppTheme.primaryBlue.withValues(alpha: 0.1);
-        break;
-      case NotificationType.collaborationInvite:
-      case NotificationType.momentInvite:
-        icon = HugeIcons.strokeRoundedImageAdd02;
-        color = AppTheme.electricPurple;
-        bg = AppTheme.electricPurple.withValues(alpha: 0.1);
-        break;
-      case NotificationType.momentLike:
-        icon = HugeIcons.strokeRoundedFavourite;
-        color = Colors.red;
-        bg = Colors.red.withValues(alpha: 0.1);
-        break;
-      case NotificationType.newMoment:
-        icon = HugeIcons.strokeRoundedImage01;
-        color = Colors.green;
-        bg = Colors.green.withValues(alpha: 0.1);
-        break;
-      case NotificationType.system:
-        icon = HugeIcons.strokeRoundedNotification01;
-        color = Colors.orange;
-        bg = Colors.orange.withValues(alpha: 0.1);
-        break;
-      case NotificationType.promo:
-        icon = HugeIcons.strokeRoundedGift;
-        color = AppTheme.neonPink;
-        bg = AppTheme.neonPink.withValues(alpha: 0.1);
-        break;
-      default:
-        icon = HugeIcons.strokeRoundedNotification01;
-        color = Colors.grey;
-        bg = Colors.grey.withValues(alpha: 0.1);
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-      child: HugeIcon(icon: icon, color: color, size: 24),
-    );
-  }
-
-  Widget _buildCollaborationInviteActions(
-    BuildContext context,
-    WidgetRef ref,
-    NotificationItem item,
-  ) {
-    // Check if data is MomentContributor (from app state)
-    // or generic Map (from push notification if not synced yet)
-    String? inviteId;
-    String? momentId;
-
-    if (item.data is MomentContributor) {
-      final invite = item.data as MomentContributor;
-      inviteId = invite.id;
-      momentId = invite.momentId;
-    } else if (item.data is Map) {
-      // If it's a generic notification payload, we might need to rely on 'related_id' or similar
-      // But typically 'collaborationInvite' comes from the StreamProvider<List<MomentContributor>>
-      return const SizedBox.shrink(); // Hide actions if we can't parse invite
-    }
-
-    if (inviteId == null || momentId == null) return const SizedBox.shrink();
-
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: () async {
-              try {
-                // Call repository directly or via provider
-                await ref
-                    .read(momentRepositoryProvider)
-                    .acceptInvitation(inviteId!);
-
-                if (context.mounted) {
-                  context.showSuccessSnackBar('Joined moment group!');
-
-                  // Fetch moments for the group before navigating
-                  try {
-                    final moments = await ref
-                        .read(momentRepositoryProvider)
-                        .getMomentsByGroup(momentId!);
-
-                    if (context.mounted && moments.isNotEmpty) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => MomentDetailsPage(
-                            locationName: moments.first.location,
-                            moments: moments,
-                          ),
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    debugPrint('Failed to load moments for navigation: $e');
-                  }
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  context.showErrorSnackBar('Failed to join group: $e');
-                }
-              }
-            },
-            style: OutlinedButton.styleFrom(
-              backgroundColor: AppTheme.primaryBlue,
-              side: BorderSide.none,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 0),
-              minimumSize: const Size(0, 32),
-            ),
-            child: const Text(
-              'Accept',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton(
-            onPressed: () async {
-              try {
-                await ref
-                    .read(momentRepositoryProvider)
-                    .removeContributor(inviteId!);
-
-                if (context.mounted) {
-                  context.showSuccessSnackBar('Invite declined');
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  context.showErrorSnackBar('Failed to decline invite');
-                }
-              }
-            },
-            style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.grey[100],
-              side: BorderSide.none,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 0),
-              minimumSize: const Size(0, 32),
-            ),
-            child: Text(
-              'Decline',
-              style: TextStyle(
-                color: Colors.grey[700],
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFriendRequestActions(
-    BuildContext context,
-    WidgetRef ref,
-    NotificationItem item,
-  ) {
-    final request = item.data as Friendship;
-
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: () async {
-              try {
-                await ref
-                    .read(friendRequestProvider.notifier)
-                    .acceptRequest(request.id);
-                if (context.mounted) {
-                  context.showSuccessSnackBar('Friend request accepted!');
-                  ref.invalidate(friendsListProvider);
-                  ref.invalidate(pendingRequestsProvider);
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  context.showErrorSnackBar('Failed to accept request');
-                }
-              }
-            },
-            style: OutlinedButton.styleFrom(
-              backgroundColor: AppTheme.primaryBlue,
-              side: BorderSide.none,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 0),
-              minimumSize: const Size(0, 32),
-            ),
-            child: const Text(
-              'Accept',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton(
-            onPressed: () async {
-              try {
-                await ref
-                    .read(friendRequestProvider.notifier)
-                    .rejectRequest(request.id);
-                if (context.mounted) {
-                  context.showSuccessSnackBar('Friend request declined');
-                  ref.invalidate(pendingRequestsProvider);
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  context.showErrorSnackBar('Failed to decline request');
-                }
-              }
-            },
-            style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.grey[100],
-              side: BorderSide.none,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 0),
-              minimumSize: const Size(0, 32),
-            ),
-            child: Text(
-              'Decline',
-              style: TextStyle(
-                color: Colors.grey[700],
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

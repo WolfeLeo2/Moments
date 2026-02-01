@@ -26,7 +26,7 @@ final class CurrentChatIdProvider
         argument: null,
         retry: null,
         name: r'currentChatIdProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -47,7 +47,7 @@ final class CurrentChatIdProvider
   }
 }
 
-String _$currentChatIdHash() => r'db87c8beb5c262253a1797ddeda3a9f56175cf25';
+String _$currentChatIdHash() => r'fd9d60cf8ab74ab1b38210e14ed4d7ca8f19ba75';
 
 /// Tracks the currently active chat conversation ID
 /// Used to suppress notifications when the user is already viewing the chat
@@ -71,76 +71,24 @@ abstract class _$CurrentChatId extends $Notifier<String?> {
   }
 }
 
-/// Message storage service provider
-
-@ProviderFor(messageStorage)
-const messageStorageProvider = MessageStorageProvider._();
-
-/// Message storage service provider
-
-final class MessageStorageProvider
-    extends
-        $FunctionalProvider<
-          MessageStorageService,
-          MessageStorageService,
-          MessageStorageService
-        >
-    with $Provider<MessageStorageService> {
-  /// Message storage service provider
-  const MessageStorageProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'messageStorageProvider',
-        isAutoDispose: true,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$messageStorageHash();
-
-  @$internal
-  @override
-  $ProviderElement<MessageStorageService> $createElement(
-    $ProviderPointer pointer,
-  ) => $ProviderElement(pointer);
-
-  @override
-  MessageStorageService create(Ref ref) {
-    return messageStorage(ref);
-  }
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(MessageStorageService value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<MessageStorageService>(value),
-    );
-  }
-}
-
-String _$messageStorageHash() => r'0906386001e73e8be113ec3e352e19214bf02bcd';
-
-/// Chat repository provider (original, simple version)
+/// Chat repository provider - singleton
 
 @ProviderFor(chatRepository)
 const chatRepositoryProvider = ChatRepositoryProvider._();
 
-/// Chat repository provider (original, simple version)
+/// Chat repository provider - singleton
 
 final class ChatRepositoryProvider
     extends $FunctionalProvider<ChatRepository, ChatRepository, ChatRepository>
     with $Provider<ChatRepository> {
-  /// Chat repository provider (original, simple version)
+  /// Chat repository provider - singleton
   const ChatRepositoryProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
         name: r'chatRepositoryProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -167,14 +115,14 @@ final class ChatRepositoryProvider
   }
 }
 
-String _$chatRepositoryHash() => r'ea9e083da4dcdf131e1c2e9541b05be8efba8977';
+String _$chatRepositoryHash() => r'f4671781f2878a3bdee593e145b6af6c24b86608';
 
-/// Stream messages for a specific conversation with persistent storage
+/// Stream messages for a specific conversation with Drift reactive storage
 
 @ProviderFor(messagesStream)
 const messagesStreamProvider = MessagesStreamFamily._();
 
-/// Stream messages for a specific conversation with persistent storage
+/// Stream messages for a specific conversation with Drift reactive storage
 
 final class MessagesStreamProvider
     extends
@@ -184,7 +132,7 @@ final class MessagesStreamProvider
           Stream<List<Message>>
         >
     with $FutureModifier<List<Message>>, $StreamProvider<List<Message>> {
-  /// Stream messages for a specific conversation with persistent storage
+  /// Stream messages for a specific conversation with Drift reactive storage
   const MessagesStreamProvider._({
     required MessagesStreamFamily super.from,
     required String super.argument,
@@ -229,9 +177,9 @@ final class MessagesStreamProvider
   }
 }
 
-String _$messagesStreamHash() => r'62232ec92e8c67479c171793f44eb8e98654e31a';
+String _$messagesStreamHash() => r'40ab7b67e398fa35aeea604b5f654088991d5fea';
 
-/// Stream messages for a specific conversation with persistent storage
+/// Stream messages for a specific conversation with Drift reactive storage
 
 final class MessagesStreamFamily extends $Family
     with $FunctionalFamilyOverride<Stream<List<Message>>, String> {
@@ -244,7 +192,7 @@ final class MessagesStreamFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Stream messages for a specific conversation with persistent storage
+  /// Stream messages for a specific conversation with Drift reactive storage
 
   MessagesStreamProvider call(String conversationId) =>
       MessagesStreamProvider._(argument: conversationId, from: this);
@@ -254,23 +202,20 @@ final class MessagesStreamFamily extends $Family
 }
 
 /// Get last message for a conversation
-/// First checks SQLite for instant display, then validates with Supabase
-/// Uses keepAlive to prevent rebuilds when navigating away
+/// First checks Drift for instant display, then validates with Supabase
 
 @ProviderFor(lastMessage)
 const lastMessageProvider = LastMessageFamily._();
 
 /// Get last message for a conversation
-/// First checks SQLite for instant display, then validates with Supabase
-/// Uses keepAlive to prevent rebuilds when navigating away
+/// First checks Drift for instant display, then validates with Supabase
 
 final class LastMessageProvider
     extends
         $FunctionalProvider<AsyncValue<Message?>, Message?, FutureOr<Message?>>
     with $FutureModifier<Message?>, $FutureProvider<Message?> {
   /// Get last message for a conversation
-  /// First checks SQLite for instant display, then validates with Supabase
-  /// Uses keepAlive to prevent rebuilds when navigating away
+  /// First checks Drift for instant display, then validates with Supabase
   const LastMessageProvider._({
     required LastMessageFamily super.from,
     required String super.argument,
@@ -314,11 +259,10 @@ final class LastMessageProvider
   }
 }
 
-String _$lastMessageHash() => r'e21e432b4db08c37e844b896ca8319ebdd8635bd';
+String _$lastMessageHash() => r'90aed548dae1689f1347b850d2e87672f407f45e';
 
 /// Get last message for a conversation
-/// First checks SQLite for instant display, then validates with Supabase
-/// Uses keepAlive to prevent rebuilds when navigating away
+/// First checks Drift for instant display, then validates with Supabase
 
 final class LastMessageFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<Message?>, String> {
@@ -332,8 +276,7 @@ final class LastMessageFamily extends $Family
       );
 
   /// Get last message for a conversation
-  /// First checks SQLite for instant display, then validates with Supabase
-  /// Uses keepAlive to prevent rebuilds when navigating away
+  /// First checks Drift for instant display, then validates with Supabase
 
   LastMessageProvider call(String conversationId) =>
       LastMessageProvider._(argument: conversationId, from: this);
@@ -342,59 +285,58 @@ final class LastMessageFamily extends $Family
   String toString() => r'lastMessageProvider';
 }
 
-/// Get conversation ID with a friend
-/// Uses SQLite cache for instant display, validates with network in background
-/// Uses keepAlive to prevent rebuilds when navigating away
+/// Get or create a conversation ID with a friend
+/// Always returns a valid conversation ID (creates one if needed)
+/// Use this when you need to ensure a conversation exists
 
-@ProviderFor(conversationWithFriend)
-const conversationWithFriendProvider = ConversationWithFriendFamily._();
+@ProviderFor(conversationId)
+const conversationIdProvider = ConversationIdFamily._();
 
-/// Get conversation ID with a friend
-/// Uses SQLite cache for instant display, validates with network in background
-/// Uses keepAlive to prevent rebuilds when navigating away
+/// Get or create a conversation ID with a friend
+/// Always returns a valid conversation ID (creates one if needed)
+/// Use this when you need to ensure a conversation exists
 
-final class ConversationWithFriendProvider
-    extends $FunctionalProvider<AsyncValue<String?>, String?, FutureOr<String?>>
-    with $FutureModifier<String?>, $FutureProvider<String?> {
-  /// Get conversation ID with a friend
-  /// Uses SQLite cache for instant display, validates with network in background
-  /// Uses keepAlive to prevent rebuilds when navigating away
-  const ConversationWithFriendProvider._({
-    required ConversationWithFriendFamily super.from,
+final class ConversationIdProvider
+    extends $FunctionalProvider<AsyncValue<String>, String, FutureOr<String>>
+    with $FutureModifier<String>, $FutureProvider<String> {
+  /// Get or create a conversation ID with a friend
+  /// Always returns a valid conversation ID (creates one if needed)
+  /// Use this when you need to ensure a conversation exists
+  const ConversationIdProvider._({
+    required ConversationIdFamily super.from,
     required String super.argument,
   }) : super(
          retry: null,
-         name: r'conversationWithFriendProvider',
+         name: r'conversationIdProvider',
          isAutoDispose: false,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
 
   @override
-  String debugGetCreateSourceHash() => _$conversationWithFriendHash();
+  String debugGetCreateSourceHash() => _$conversationIdHash();
 
   @override
   String toString() {
-    return r'conversationWithFriendProvider'
+    return r'conversationIdProvider'
         ''
         '($argument)';
   }
 
   @$internal
   @override
-  $FutureProviderElement<String?> $createElement($ProviderPointer pointer) =>
+  $FutureProviderElement<String> $createElement($ProviderPointer pointer) =>
       $FutureProviderElement(pointer);
 
   @override
-  FutureOr<String?> create(Ref ref) {
+  FutureOr<String> create(Ref ref) {
     final argument = this.argument as String;
-    return conversationWithFriend(ref, argument);
+    return conversationId(ref, argument);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is ConversationWithFriendProvider &&
-        other.argument == argument;
+    return other is ConversationIdProvider && other.argument == argument;
   }
 
   @override
@@ -403,33 +345,32 @@ final class ConversationWithFriendProvider
   }
 }
 
-String _$conversationWithFriendHash() =>
-    r'7ab54a18cd6ab4c0da8c263dc6204e3003fcb205';
+String _$conversationIdHash() => r'1dc1426b99b799382edc5bf52ec423ceab1d5488';
 
-/// Get conversation ID with a friend
-/// Uses SQLite cache for instant display, validates with network in background
-/// Uses keepAlive to prevent rebuilds when navigating away
+/// Get or create a conversation ID with a friend
+/// Always returns a valid conversation ID (creates one if needed)
+/// Use this when you need to ensure a conversation exists
 
-final class ConversationWithFriendFamily extends $Family
-    with $FunctionalFamilyOverride<FutureOr<String?>, String> {
-  const ConversationWithFriendFamily._()
+final class ConversationIdFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<String>, String> {
+  const ConversationIdFamily._()
     : super(
         retry: null,
-        name: r'conversationWithFriendProvider',
+        name: r'conversationIdProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
         isAutoDispose: false,
       );
 
-  /// Get conversation ID with a friend
-  /// Uses SQLite cache for instant display, validates with network in background
-  /// Uses keepAlive to prevent rebuilds when navigating away
+  /// Get or create a conversation ID with a friend
+  /// Always returns a valid conversation ID (creates one if needed)
+  /// Use this when you need to ensure a conversation exists
 
-  ConversationWithFriendProvider call(String friendId) =>
-      ConversationWithFriendProvider._(argument: friendId, from: this);
+  ConversationIdProvider call(String friendId) =>
+      ConversationIdProvider._(argument: friendId, from: this);
 
   @override
-  String toString() => r'conversationWithFriendProvider';
+  String toString() => r'conversationIdProvider';
 }
 
 /// Get all recent messages for all conversations
@@ -479,7 +420,7 @@ final class RecentMessagesProvider
   }
 }
 
-String _$recentMessagesHash() => r'88145bbb2633907ac65f6f6fa81cd92d7363fd61';
+String _$recentMessagesHash() => r'2718cffbeb17ea8f66e40ecbbf1e5d04389a6b45';
 
 /// Show send button state for each conversation
 
@@ -796,94 +737,6 @@ abstract class _$IsRecording extends $Notifier<bool> {
   }
 }
 
-/// Async conversation ID provider
-/// Gets or creates a conversation with a friend
-/// Cached locally to persist across app restarts
-
-@ProviderFor(conversationId)
-const conversationIdProvider = ConversationIdFamily._();
-
-/// Async conversation ID provider
-/// Gets or creates a conversation with a friend
-/// Cached locally to persist across app restarts
-
-final class ConversationIdProvider
-    extends $FunctionalProvider<AsyncValue<String>, String, FutureOr<String>>
-    with $FutureModifier<String>, $FutureProvider<String> {
-  /// Async conversation ID provider
-  /// Gets or creates a conversation with a friend
-  /// Cached locally to persist across app restarts
-  const ConversationIdProvider._({
-    required ConversationIdFamily super.from,
-    required String super.argument,
-  }) : super(
-         retry: null,
-         name: r'conversationIdProvider',
-         isAutoDispose: false,
-         dependencies: null,
-         $allTransitiveDependencies: null,
-       );
-
-  @override
-  String debugGetCreateSourceHash() => _$conversationIdHash();
-
-  @override
-  String toString() {
-    return r'conversationIdProvider'
-        ''
-        '($argument)';
-  }
-
-  @$internal
-  @override
-  $FutureProviderElement<String> $createElement($ProviderPointer pointer) =>
-      $FutureProviderElement(pointer);
-
-  @override
-  FutureOr<String> create(Ref ref) {
-    final argument = this.argument as String;
-    return conversationId(ref, argument);
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return other is ConversationIdProvider && other.argument == argument;
-  }
-
-  @override
-  int get hashCode {
-    return argument.hashCode;
-  }
-}
-
-String _$conversationIdHash() => r'bfbf9c3e9607439d4f1c096c43c919701c2740f2';
-
-/// Async conversation ID provider
-/// Gets or creates a conversation with a friend
-/// Cached locally to persist across app restarts
-
-final class ConversationIdFamily extends $Family
-    with $FunctionalFamilyOverride<FutureOr<String>, String> {
-  const ConversationIdFamily._()
-    : super(
-        retry: null,
-        name: r'conversationIdProvider',
-        dependencies: null,
-        $allTransitiveDependencies: null,
-        isAutoDispose: false,
-      );
-
-  /// Async conversation ID provider
-  /// Gets or creates a conversation with a friend
-  /// Cached locally to persist across app restarts
-
-  ConversationIdProvider call(String friendId) =>
-      ConversationIdProvider._(argument: friendId, from: this);
-
-  @override
-  String toString() => r'conversationIdProvider';
-}
-
 /// Get list of recent conversations with details (Realtime)
 /// Yields cached data immediately for instant UI, then updates with fresh data
 
@@ -931,4 +784,4 @@ final class ChatListProvider
   }
 }
 
-String _$chatListHash() => r'38fc1e0d6fcc5711799ee1d08adc9f06b5c90f91';
+String _$chatListHash() => r'3c7a67169735de3a9b4b97ff3e14271a0d49b2b5';

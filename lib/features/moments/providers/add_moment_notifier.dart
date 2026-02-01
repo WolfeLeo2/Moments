@@ -1,19 +1,22 @@
+import 'package:moments/core/services/app_logger.dart';
 import 'dart:io';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:location/location.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/services/geocoding_service.dart';
+import '../../../core/providers/moments_providers.dart';
 import '../../../data/repositories/moment_repository.dart';
 import 'add_moment_state.dart';
-
 part 'add_moment_notifier.g.dart';
+
+final _log = AppLogger('AddMomentNotifier');
 
 @riverpod
 class AddMoment extends _$AddMoment {
   final ImagePicker _picker = ImagePicker();
 
-  MomentRepository get _momentRepository => MomentRepository();
+  MomentRepository get _momentRepository => ref.read(momentRepositoryProvider);
 
   @override
   AddMomentState build() => const AddMomentState();

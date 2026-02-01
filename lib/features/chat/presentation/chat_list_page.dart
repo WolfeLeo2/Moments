@@ -5,7 +5,6 @@ import 'package:moments/features/chat/providers/chat_providers.dart';
 import 'package:moments/features/chat/presentation/chat_page.dart';
 import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/widgets/time_ago_text.dart';
-import 'package:moments/core/services/avatar_cache_service.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/features/chat/presentation/widgets/new_chat_sheet.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -152,9 +151,9 @@ class ChatListTile extends ConsumerWidget {
             decoration: BoxDecoration(shape: BoxShape.circle),
             child: CircleAvatar(
               radius: 24,
-              backgroundImage: AvatarCacheService().getAvatarImageProvider(
-                profile.avatarUrl,
-              ),
+              backgroundImage: ref
+                  .watch(avatarCacheServiceProvider)
+                  .getAvatarImageProvider(profile.avatarUrl),
               child: profile.avatarUrl == null
                   ? const HugeIcon(
                       icon: HugeIcons.strokeRoundedUser,
@@ -216,24 +215,16 @@ class ChatListTile extends ConsumerWidget {
                 ),
               ),
               if (unreadCount > 0)
-                Container(
-                  margin: const EdgeInsets.only(left: 8),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryBlue,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
+                Badge(
+                  label: Text(
                     unreadCount.toString(),
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  backgroundColor: AppTheme.primaryBlue,
                 ),
             ],
           ),

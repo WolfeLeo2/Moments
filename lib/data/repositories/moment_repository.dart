@@ -1,3 +1,4 @@
+import 'package:moments/core/services/app_logger.dart';
 import 'dart:io';
 import 'dart:async';
 import 'dart:math' as math;
@@ -9,6 +10,8 @@ import '../models/moment_group.dart';
 import '../models/moment_contributor.dart';
 import '../sources/supabase_config.dart';
 import '../../core/services/media_compression_service.dart';
+
+final _log = AppLogger('MomentRepository');
 
 class MomentRepository {
   static const _uuid = Uuid();
@@ -25,6 +28,7 @@ class MomentRepository {
           .map((json) => Moment.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
+      _log.e('Failed to fetch moments: $e');
       throw Exception('Failed to fetch moments: $e');
     }
   }
@@ -41,6 +45,7 @@ class MomentRepository {
 
       return Moment.fromJson(response);
     } catch (e) {
+      _log.e('Failed to fetch moment: $e');
       throw Exception('Failed to fetch moment: $e');
     }
   }
@@ -185,7 +190,7 @@ class MomentRepository {
           .toList();
     } catch (e) {
       // Note: If image upload succeeded but RPC failed, we might have orphaned images.
-      // Ideally we would track uploaded paths and delete them here in catch block.
+      _log.e('Failed to create moments batch: $e');
       throw Exception('Failed to create moments batch: $e');
     }
   }
@@ -201,6 +206,7 @@ class MomentRepository {
 
       return Moment.fromJson(response);
     } catch (e) {
+      _log.e('Failed to update moment: $e');
       throw Exception('Failed to update moment: $e');
     }
   }
@@ -212,12 +218,17 @@ class MomentRepository {
       final moment = await getMomentById(id);
       if (moment == null) return;
 
-      // 2. Delete main image file from storage
+      // 2. Delete main media file from storage
       if (moment.mediaPath != null) {
         await _deleteImage(moment.mediaPath!);
       }
 
-      // 3. Delete the moment from database
+      // 3. Delete thumbnail if it exists (for videos)
+      if (moment.thumbnailPath != null) {
+        await _deleteImage(moment.thumbnailPath!);
+      }
+
+      // 4. Delete the moment from database
       await SupabaseConfig.momentsTable.delete().eq('id', id);
 
       // 5. Check if group is empty and delete it if so
@@ -231,6 +242,7 @@ class MomentRepository {
         }
       }
     } catch (e) {
+      _log.e('Failed to delete moment: $e');
       throw Exception('Failed to delete moment: $e');
     }
   }
@@ -377,7 +389,7 @@ class MomentRepository {
       await SupabaseConfig.momentsBucket.remove([mediaPath]);
     } catch (e) {
       // Don't throw error if image deletion fails
-      print('Failed to delete image: $e');
+      _log.e('Failed to delete image: $e');
     }
   }
 
@@ -429,7 +441,7 @@ class MomentRepository {
           .map((json) => Moment.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      print('Error fetching group moments: $e');
+      _log.e('Error fetching group moments: $e');
       return [];
     }
   }
@@ -446,7 +458,7 @@ class MomentRepository {
               .toList(),
         )
         .handleError((e) {
-          print('Error streaming group moments: $e');
+          _log.e('Error streaming group moments: $e');
           return <Moment>[];
         });
   }
@@ -498,7 +510,7 @@ class MomentRepository {
               .toList();
         })
         .handleError((e) {
-          print('Error streaming shared moments: $e');
+          _log.e('Error streaming shared moments: $e');
           return <Moment>[];
         });
   }
@@ -528,7 +540,7 @@ class MomentRepository {
           .map((json) => MomentGroup.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      print('Error fetching nearby groups (RPC): $e');
+      _log.e('Error fetching nearby groups (RPC): $e');
       // If RPC fails (e.g. not found), fallback to empty list or client-side filtering if you want
       return [];
     }

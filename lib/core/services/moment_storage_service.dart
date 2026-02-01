@@ -189,6 +189,28 @@ class MomentStorageService {
     return _momentFromRow(results.first);
   }
 
+  /// Update privacy for a moment (efficient single-column update)
+  Future<void> updateMomentPrivacy(String momentId, bool isPrivate) async {
+    final db = await database;
+    await db.update(
+      'moments',
+      {'is_private': isPrivate ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [momentId],
+    );
+  }
+
+  /// Update privacy for all moments in a group
+  Future<void> updateGroupPrivacy(String groupId, bool isPrivate) async {
+    final db = await database;
+    await db.update(
+      'moments',
+      {'is_private': isPrivate ? 1 : 0},
+      where: 'moment_group_id = ?',
+      whereArgs: [groupId],
+    );
+  }
+
   /// Save/update moments in persistent storage
   Future<void> saveMoments(List<Moment> moments) async {
     final db = await database;

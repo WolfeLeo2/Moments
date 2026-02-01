@@ -1,17 +1,21 @@
-import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/data/repositories/chat_repository.dart';
-import 'package:moments/core/services/message_storage_service.dart';
-import 'package:moments/core/services/chat_list_cache_service.dart';
+import 'package:moments/core/database/database.dart';
+import 'package:moments/core/providers/database_provider.dart';
+import 'package:moments/core/services/app_logger.dart';
 import 'package:moments/core/providers/sync_provider.dart';
 
 part 'chat_providers.g.dart';
 
+final _log = AppLogger('ChatProviders');
+
 /// Tracks the currently active chat conversation ID
 /// Used to suppress notifications when the user is already viewing the chat
-@riverpod
+@Riverpod(keepAlive: true)
 class CurrentChatId extends _$CurrentChatId {
   @override
   String? build() => null;
@@ -19,58 +23,60 @@ class CurrentChatId extends _$CurrentChatId {
   void set(String? id) => state = id;
 }
 
-/// Message storage service provider
-@riverpod
-MessageStorageService messageStorage(Ref ref) {
-  return MessageStorageService();
-}
-
-/// Chat repository provider (original, simple version)
-@riverpod
+/// Chat repository provider - singleton
+@Riverpod(keepAlive: true)
 ChatRepository chatRepository(Ref ref) {
   return ChatRepository();
 }
 
-/// Stream messages for a specific conversation with persistent storage
+/// Stream messages for a specific conversation with Drift reactive storage
 @riverpod
 Stream<List<Message>> messagesStream(Ref ref, String conversationId) async* {
-  final storage = ref.watch(messageStorageProvider);
+  final db = ref.watch(appDatabaseProvider);
   final chatRepo = ref.watch(chatRepositoryProvider);
 
-  // 1. Load stored messages immediately for instant UI
-  final storedMessages = await storage.getMessages(conversationId);
-  if (storedMessages.isNotEmpty) {
-    yield storedMessages;
+  // 1. Yield cached data from Drift immediately for instant UI
+  final storedEntries = await db.getMessages(conversationId);
+  if (storedEntries.isNotEmpty) {
+    yield storedEntries.map((e) => e.toModel()).toList();
   }
 
-  // 2. Subscribe to Supabase realtime stream and update storage
-  await for (final messages in chatRepo.streamMessages(conversationId)) {
-    // Save to persistent storage
-    storage.saveMessages(conversationId, messages);
+  // 2. Start listening to Drift's reactive stream (updates automatically when DB changes)
+  final driftStream = db
+      .watchMessages(conversationId)
+      .map((entries) => entries.map((e) => e.toModel()).toList());
+
+  // 3. Also subscribe to Supabase realtime and save to Drift
+  // This runs in parallel to keep the DB updated
+  chatRepo.streamMessages(conversationId).listen((messages) {
+    db.saveMessages(messages.map((m) => m.toCompanion()).toList());
+  });
+
+  // 4. Yield from Drift reactive stream (auto-updates when messages saved)
+  await for (final messages in driftStream) {
     yield messages;
   }
 }
 
 /// Get last message for a conversation
-/// First checks SQLite for instant display, then validates with Supabase
-/// Uses keepAlive to prevent rebuilds when navigating away
+/// First checks Drift for instant display, then validates with Supabase
 @Riverpod(keepAlive: true)
 Future<Message?> lastMessage(Ref ref, String conversationId) async {
-  final storage = ref.watch(messageStorageProvider);
+  final db = ref.watch(appDatabaseProvider);
   final chatRepo = ref.watch(chatRepositoryProvider);
 
-  // 1. First try to get from local SQLite storage (instant, offline-capable)
-  final localMessage = await storage.getLastMessage(conversationId);
+  // 1. First try to get from Drift (instant, offline-capable)
+  final localEntry = await db.getLastMessage(conversationId);
+  final localMessage = localEntry?.toModel();
 
   // 2. Also fetch from Supabase in background to ensure we have latest
-  // This will update the cache for next time
   try {
     final networkMessage = await chatRepo.getLastMessage(conversationId);
 
     // If network has a newer message, save it and return it
     if (networkMessage != null) {
-      // Save to local storage
-      await storage.saveMessages(conversationId, [networkMessage]);
+      // Save to Drift
+      await db.saveMessages([networkMessage.toCompanion()]);
 
       // Return whichever is newer
       if (localMessage == null ||
@@ -80,41 +86,34 @@ Future<Message?> lastMessage(Ref ref, String conversationId) async {
     }
   } catch (e) {
     // Network error - that's fine, use local data
-    debugPrint('lastMessage: Network fetch failed, using local: $e');
+    _log.d('Network fetch failed for lastMessage, using local: $e');
   }
 
   // Return local message (may be null if no messages exist)
   return localMessage;
 }
 
-/// Get conversation ID with a friend
-/// Uses SQLite cache for instant display, validates with network in background
-/// Uses keepAlive to prevent rebuilds when navigating away
+/// Get or create a conversation ID with a friend
+/// Always returns a valid conversation ID (creates one if needed)
+/// Use this when you need to ensure a conversation exists
 @Riverpod(keepAlive: true)
-Future<String?> conversationWithFriend(Ref ref, String friendId) async {
-  final storage = ref.watch(messageStorageProvider);
+Future<String> conversationId(Ref ref, String friendId) async {
+  final db = ref.watch(appDatabaseProvider);
   final chatRepo = ref.watch(chatRepositoryProvider);
 
-  // 1. First try to get cached conversation ID (instant, offline-capable)
-  final cachedConversationId = await storage.getCachedConversationId(friendId);
-  if (cachedConversationId != null) {
-    return cachedConversationId;
+  // 1. Try to get cached conversation ID from Drift
+  final cachedId = await db.getCachedConversationId(friendId);
+  if (cachedId != null) {
+    return cachedId;
   }
 
-  // 2. If not cached, fetch from Supabase
-  try {
-    final conversationId = await chatRepo.getConversationWithFriend(friendId);
+  // 2. Get or create from Supabase
+  final conversationId = await chatRepo.getOrCreateConversation(friendId);
 
-    // Cache it for next time
-    if (conversationId != null) {
-      await storage.cacheConversationId(friendId, conversationId);
-    }
+  // 3. Cache it in Drift for next time
+  await db.cacheConversationId(friendId, conversationId);
 
-    return conversationId;
-  } catch (e) {
-    debugPrint('conversationWithFriend: Network fetch failed: $e');
-    return null;
-  }
+  return conversationId;
 }
 
 /// Get all recent messages for all conversations
@@ -122,11 +121,11 @@ Future<String?> conversationWithFriend(Ref ref, String friendId) async {
 @riverpod
 Future<Map<String, Message>> recentMessages(Ref ref) async {
   final chatRepo = ref.watch(chatRepositoryProvider);
-  // This method must be added to ChatRepository
   final conversations = await chatRepo.getRecentConversations();
   return {
     for (final c in conversations)
-      c['conversationId'] as String: c['lastMessage'] as Message,
+      if (c['lastMessage'] != null)
+        c['conversationId'] as String: c['lastMessage'] as Message,
   };
 }
 
@@ -180,47 +179,55 @@ class IsRecording extends _$IsRecording {
   void stop() => state = false;
 }
 
-/// Async conversation ID provider
-/// Gets or creates a conversation with a friend
-/// Cached locally to persist across app restarts
-@Riverpod(keepAlive: true)
-Future<String> conversationId(Ref ref, String friendId) async {
-  final chatRepo = ref.watch(chatRepositoryProvider);
-  final storage = ref.watch(messageStorageProvider);
-
-  // 1. Try to get cached conversation ID first
-  final cachedId = await storage.getCachedConversationId(friendId);
-  if (cachedId != null) {
-    return cachedId;
-  }
-
-  // 2. Fetch from Supabase if not cached
-  final conversationId = await chatRepo.getOrCreateConversation(friendId);
-
-  // 3. Cache it for next time
-  await storage.cacheConversationId(friendId, conversationId);
-
-  return conversationId;
-}
-
 /// Get list of recent conversations with details (Realtime)
 /// Yields cached data immediately for instant UI, then updates with fresh data
 @riverpod
 Stream<List<Map<String, dynamic>>> chatList(Ref ref) async* {
   final chatRepo = ref.watch(chatRepositoryProvider);
-  final cacheService = ChatListCacheService();
+  final db = ref.watch(appDatabaseProvider);
 
-  // 1. Yield cached data immediately for instant UI
-  final cachedData = await cacheService.loadChatList();
-  if (cachedData != null && cachedData.isNotEmpty) {
-    yield cachedData;
+  // 1. Yield cached data immediately from Drift
+  final cachedEntries = await db.loadChatList();
+  if (cachedEntries.isNotEmpty) {
+    final cachedData = cachedEntries
+        .map((entry) {
+          Message? lastMessage;
+          if (entry.lastMessageJson != null) {
+            try {
+              lastMessage = Message.fromJson(
+                jsonDecode(entry.lastMessageJson!),
+              );
+            } catch (_) {}
+          }
+          return {
+            'conversationId': entry.conversationId,
+            'otherUserId': entry.otherUserId,
+            'unreadCount': entry.unreadCount,
+            'lastMessage': lastMessage,
+          };
+        })
+        .where((m) => m['lastMessage'] != null)
+        .toList();
+    if (cachedData.isNotEmpty) {
+      yield cachedData;
+    }
   }
 
-  // 2. Fetch fresh data and update cache
+  // 2. Fetch fresh data and update Drift cache
   try {
     final freshData = await chatRepo.getRecentConversations();
     if (freshData.isNotEmpty) {
-      await cacheService.saveChatList(freshData);
+      final entries = freshData.map((conv) {
+        final message = conv['lastMessage'] as Message;
+        return ChatListCacheCompanion.insert(
+          conversationId: conv['conversationId'] as String,
+          otherUserId: conv['otherUserId'] as String,
+          unreadCount: Value(conv['unreadCount'] as int? ?? 0),
+          lastMessageJson: Value(jsonEncode(message.toJson())),
+          updatedAt: DateTime.now().millisecondsSinceEpoch,
+        );
+      }).toList();
+      await db.saveChatList(entries);
     }
     yield freshData;
   } catch (e) {
@@ -228,20 +235,28 @@ Stream<List<Map<String, dynamic>>> chatList(Ref ref) async* {
     ref
         .read(syncStateProvider.notifier)
         .addError('chat', 'Failed to load chat list', details: e.toString());
-    // If network fails and we have cached data, we already yielded it
-    // If no cached data, rethrow to show error
-    if (cachedData == null || cachedData.isEmpty) {
+    if (cachedEntries.isEmpty) {
       rethrow;
     }
-    debugPrint('chatList: Network failed, using cached data: $e');
+    _log.w('Network failed for chatList, using cached data', error: e);
   }
 
-  // 3. Listen for realtime updates and save to cache
+  // 3. Listen for realtime updates and save to Drift
   await for (final _ in chatRepo.streamConversationsChanged()) {
     try {
       final updatedData = await chatRepo.getRecentConversations();
       if (updatedData.isNotEmpty) {
-        await cacheService.saveChatList(updatedData);
+        final entries = updatedData.map((conv) {
+          final message = conv['lastMessage'] as Message;
+          return ChatListCacheCompanion.insert(
+            conversationId: conv['conversationId'] as String,
+            otherUserId: conv['otherUserId'] as String,
+            unreadCount: Value(conv['unreadCount'] as int? ?? 0),
+            lastMessageJson: Value(jsonEncode(message.toJson())),
+            updatedAt: DateTime.now().millisecondsSinceEpoch,
+          );
+        }).toList();
+        await db.saveChatList(entries);
       }
       yield updatedData;
     } catch (e) {
@@ -252,7 +267,7 @@ Stream<List<Map<String, dynamic>>> chatList(Ref ref) async* {
             'Failed to refresh chat list',
             details: e.toString(),
           );
-      debugPrint('chatList: Error in stream update: $e');
+      _log.w('Error in chatList stream update', error: e);
     }
   }
 }

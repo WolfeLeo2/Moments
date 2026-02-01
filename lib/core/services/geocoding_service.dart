@@ -1,4 +1,7 @@
+import 'package:moments/core/services/app_logger.dart';
 import 'package:geocoding/geocoding.dart';
+
+final _log = AppLogger('UgeocodingUservice');
 
 class GeocodingService {
   /// Get city name from coordinates
@@ -77,7 +80,7 @@ class GeocodingService {
 
       return 'Unknown Location';
     } catch (e) {
-      print('Error getting location name: $e');
+      _log.e('Error getting location name: $e');
       return 'Lat: ${latitude.toStringAsFixed(4)}, Lng: ${longitude.toStringAsFixed(4)}';
     }
   }

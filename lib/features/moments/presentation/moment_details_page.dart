@@ -4,21 +4,21 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:motor/motor.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:cached_network_image/cached_network_image.dart'; // Used for avatar providers
+
 import '../../../data/models/moment.dart';
 import '../../../data/models/moment_contributor.dart';
 import '../../../core/services/signed_url_cache.dart';
-import '../../../core/services/moment_storage_service.dart';
 import '../../../core/services/video_controller_manager.dart';
 import '../../../core/services/haptic_service.dart';
-import '../../../core/services/avatar_cache_service.dart';
+
+import '../../../core/providers/providers.dart';
 import '../../../widgets/offline_image.dart';
 import '../../../widgets/offline_video.dart';
 import '../../../widgets/share_bottom_sheet.dart';
 import '../../../widgets/heart_animation.dart';
 import '../../../widgets/contributors_list.dart';
 import '../../../widgets/invite_contributors_sheet.dart';
-import '../../../data/repositories/moment_repository.dart';
+
 import 'dart:math' as math;
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
@@ -27,6 +27,7 @@ import '../../../core/utils/extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/providers/moments_providers.dart';
+import '../../../core/providers/database_provider.dart';
 import 'dart:io';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -68,13 +69,10 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
   final List<double> _opacities = [];
   final List<SingleMotionController> _opacityControllers = [];
-  final ImagePicker _picker = ImagePicker();
   // Motor spring controllers for each card
   final List<SingleMotionController> _scaleControllers = [];
 
   final List<double> _scales = [];
-  final MomentStorageService _storage = MomentStorageService();
-  final AvatarCacheService _avatarCache = AvatarCacheService();
   final Map<String, String> _userAvatars = {}; // User ID -> avatar URL
   // Video controller manager for hybrid prewarm approach
   late final VideoControllerManager _videoManager;
@@ -155,6 +153,56 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     _loadContributors();
     _setupHeaderAnimations();
     _setupSpringAnimations();
+  }
+
+  /// Handle realtime stream updates for moments in this group
+  void _handleMomentsStreamUpdate(List<Moment> updatedMoments) {
+    // Check if moments actually changed (by comparing IDs AND count)
+    final currentIds = _moments.map((m) => m.id).toSet();
+    final updatedIds = updatedMoments.map((m) => m.id).toSet();
+
+    // Skip update if IDs are identical (same moments, same count)
+    if (currentIds.length == updatedIds.length &&
+        currentIds.containsAll(updatedIds)) {
+      return; // No actual change
+    }
+
+    if (!currentIds.containsAll(updatedIds) ||
+        !updatedIds.containsAll(currentIds)) {
+      if (!mounted) return;
+
+      // Find deleted/added moment IDs
+      final deletedIds = currentIds.difference(updatedIds);
+      final addedIds = updatedIds.difference(currentIds);
+      final countChanged = _moments.length != updatedMoments.length;
+
+      setState(() {
+        // Clean up cached data for deleted moments
+        for (final deletedId in deletedIds) {
+          _imageUrls.remove(deletedId);
+          _localPaths.remove(deletedId);
+          _localVideoPaths.remove(deletedId);
+        }
+
+        _moments = updatedMoments;
+
+        // Adjust current page if needed
+        if (_currentPage >= _moments.length && _moments.isNotEmpty) {
+          _currentPage = _moments.length - 1;
+        }
+      });
+
+      // Only reinitialize animations if count changed (new/deleted moments)
+      if (countChanged) {
+        _initializeAnimationControllers();
+      }
+
+      // Load data for new moments only
+      if (addedIds.isNotEmpty) {
+        _loadAllPhotoHeartStatuses();
+        _loadImageUrls();
+      }
+    }
   }
 
   /// Load contributors for collaborative moment
@@ -456,18 +504,20 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   }
 
   Future<void> _loadImageUrls() async {
+    final db = ref.read(appDatabaseProvider);
+
     // First, load local cached images and videos
     for (var moment in _moments) {
       if (moment.mediaType == 'video') {
         // Load local video path
-        final localVideoPath = await _storage.getLocalMediaPath(moment.id);
+        final localVideoPath = await db.getLocalMediaPath(moment.id);
         if (localVideoPath != null && mounted) {
           setState(() {
             _localVideoPaths[moment.id] = localVideoPath;
           });
         }
         // Also load local thumbnail for preview
-        final localThumbPath = await _storage.getLocalMediaPath(
+        final localThumbPath = await db.getLocalMediaPath(
           moment.id,
           isThumbnail: true,
         );
@@ -478,7 +528,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         }
       } else {
         // Load local image path
-        final localPath = await _storage.getLocalMediaPath(moment.id);
+        final localPath = await db.getLocalMediaPath(moment.id);
         if (localPath != null && mounted) {
           setState(() {
             _localPaths[moment.id] = localPath;
@@ -598,13 +648,15 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   }
 
   Future<void> _cacheMediaInBackground(Map<String, String> urls) async {
+    final db = ref.read(appDatabaseProvider);
+
     for (var moment in _moments) {
       if (moment.mediaType == 'video') {
         // Cache video if not already cached
         if (!_localVideoPaths.containsKey(moment.id)) {
           final videoUrl = _imageUrls[moment.id];
           if (videoUrl != null) {
-            final localPath = await _storage.cacheMedia(moment.id, videoUrl);
+            final localPath = await db.cacheMedia(moment.id, videoUrl);
             if (localPath != null && mounted) {
               setState(() {
                 _localVideoPaths[moment.id] = localPath;
@@ -617,7 +669,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             moment.thumbnailPath != null) {
           final thumbUrl = urls[moment.thumbnailPath];
           if (thumbUrl != null) {
-            final localPath = await _storage.cacheMedia(
+            final localPath = await db.cacheMedia(
               moment.id,
               thumbUrl,
               isThumbnail: true,
@@ -636,7 +688,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         final url = _imageUrls[moment.id];
         if (url == null) continue;
 
-        final localPath = await _storage.cacheMedia(moment.id, url);
+        final localPath = await db.cacheMedia(moment.id, url);
         if (localPath != null && mounted) {
           setState(() {
             _localPaths[moment.id] = localPath;
@@ -679,7 +731,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     }
 
     try {
-      final List<XFile> pickedFiles = await _picker.pickMultiImage(
+      final picker = ImagePicker();
+      final List<XFile> pickedFiles = await picker.pickMultiImage(
         imageQuality: 85,
       );
 
@@ -736,8 +789,10 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
     if (userIds.isEmpty) return;
 
+    final avatarService = ref.read(avatarCacheServiceProvider);
+
     // First, immediately populate from cache (sync)
-    final cachedAvatars = _avatarCache.getAvatarUrlsSync(userIds);
+    final cachedAvatars = avatarService.getAvatarUrlsSync(userIds);
     if (cachedAvatars.isNotEmpty && mounted) {
       setState(() {
         _userAvatars.addAll(cachedAvatars);
@@ -751,7 +806,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     if (missingIds.isEmpty) return;
 
     try {
-      final fetchedAvatars = await _avatarCache.getAvatarUrls(missingIds);
+      final fetchedAvatars = await avatarService.getAvatarUrls(missingIds);
 
       if (mounted && fetchedAvatars.isNotEmpty) {
         setState(() {
@@ -771,7 +826,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     final momentId = _moments[photoIndex].id;
 
     try {
-      final repo = MomentRepository();
+      final repo = ref.read(momentRepositoryProvider);
       final count = await repo.getPhotoHeartCount(momentId, photoIndex);
       final userHearted = await repo.hasUserHeartedPhoto(momentId, photoIndex);
 
@@ -814,7 +869,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     });
 
     try {
-      final repo = MomentRepository();
+      final repo = ref.read(momentRepositoryProvider);
       final wasAdded = await repo.togglePhotoHeart(momentId, photoIndex);
 
       if (mounted) {
@@ -885,88 +940,64 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     return contributorIds.toList();
   }
 
-  /// Get list of avatar ImageProviders to display (max 3)
+  /// Get list of ALL avatar ImageProviders to display (no limit)
   List<ImageProvider> _getAvatarsToDisplay() {
     final contributorIds = _getUniqueContributorIds();
-    final avatars = <CachedNetworkImageProvider>[];
+    final avatars = <ImageProvider>[];
+    final avatarService = ref.read(avatarCacheServiceProvider);
 
-    for (final userId in contributorIds.take(3)) {
+    for (final userId in contributorIds) {
       final avatarUrl = _userAvatars[userId];
       if (avatarUrl != null && avatarUrl.isNotEmpty) {
-        avatars.add(CachedNetworkImageProvider(avatarUrl));
+        // Use getAvatarImageProvider for offline support (FileImage if local exists)
+        final provider = avatarService.getAvatarImageProvider(avatarUrl);
+        if (provider != null) {
+          avatars.add(provider);
+        }
       }
     }
     return avatars;
   }
 
-  /// Get overflow count (contributors beyond the first 3)
-  int _getOverflowCount() {
-    final totalWithAvatars = _getUniqueContributorIds()
-        .where(
-          (id) => _userAvatars.containsKey(id) && _userAvatars[id]!.isNotEmpty,
-        )
-        .length;
-    return totalWithAvatars > 3 ? totalWithAvatars - 3 : 0;
-  }
-
-  /// Calculate avatar stack width based on number of avatars
+  /// Build avatar stack showing all contributors
   Widget _buildAvatarStack() {
     final avatars = _getAvatarsToDisplay();
-    final overflowCount = _getOverflowCount();
+    if (avatars.isEmpty) return const SizedBox.shrink();
 
-    // Combine avatars and overflow into a list of widgets
+    const double size = 38; // Fixed size for consistent look
+    const double overlap = 16; // Amount they overlap
+
+    // Build list of avatar widgets
     final items = <Widget>[];
-    for (final avatar in avatars) {
+    for (int i = 0; i < avatars.length; i++) {
       items.add(
         Container(
-          width: 40.sp,
-          height: 40.sp,
+          width: size,
+          height: size,
+          margin: EdgeInsets.only(left: i == 0 ? 0 : 0),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2),
-            image: DecorationImage(image: avatar, fit: BoxFit.cover),
+            border: Border.all(color: Colors.white, width: 1.5),
+            image: DecorationImage(image: avatars[i], fit: BoxFit.cover),
           ),
         ),
       );
     }
 
-    if (overflowCount > 0) {
-      items.add(
-        Container(
-          width: 40.sp,
-          height: 40.sp,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2),
-            color: Colors.black87,
-          ),
-          child: Center(
-            child: Text(
-              '+$overflowCount',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14.sp,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (items.isEmpty) return const SizedBox.shrink();
-
-    final double size = 40.sp;
-    final double overlap = 15.sp; // Amount they overlap
-    final double shift = size - overlap; // 25.sp
-    final double width = size + (items.length - 1) * shift;
+    // Calculate total width: first avatar full + remaining with overlap
+    final double totalWidth = size + (avatars.length - 1) * (size - overlap);
 
     return SizedBox(
-      width: width,
+      width: totalWidth,
       height: size,
       child: Stack(
+        clipBehavior: Clip.none,
         children: List.generate(items.length, (index) {
-          return Positioned(left: index * shift, top: 0, child: items[index]);
+          return Positioned(
+            left: index * (size - overlap),
+            top: 0,
+            child: items[index],
+          );
         }),
       ),
     );
@@ -1006,6 +1037,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     int totalToSave = 0;
 
     try {
+      final db = ref.read(appDatabaseProvider);
+
       for (var moment in _moments) {
         // Skip if already saved
         if (moment.mediaType == 'video') {
@@ -1023,7 +1056,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
         if (moment.mediaType == 'video') {
           // Save video
-          final videoPath = await _storage.cacheMedia(moment.id, url);
+          final videoPath = await db.cacheMedia(moment.id, url);
           if (videoPath != null && mounted) {
             setState(() => _localVideoPaths[moment.id] = videoPath);
             savedCount++;
@@ -1034,7 +1067,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
               moment.thumbnailPath!,
             );
             if (thumbUrl != null) {
-              final thumbPath = await _storage.cacheMedia(
+              final thumbPath = await db.cacheMedia(
                 moment.id,
                 thumbUrl,
                 isThumbnail: true,
@@ -1046,7 +1079,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
           }
         } else {
           // Save image
-          final localPath = await _storage.cacheMedia(moment.id, url);
+          final localPath = await db.cacheMedia(moment.id, url);
           if (localPath != null && mounted) {
             setState(() => _localPaths[moment.id] = localPath);
             savedCount++;
@@ -1195,55 +1228,14 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
   /// Delete a moment from Supabase storage, local storage, and database
   Future<void> _deleteMomentCompletely(Moment moment) async {
-    final supabase = Supabase.instance.client;
+    // Use repository for complete cleanup (storage, database, group cleanup)
+    await ref.read(momentRepositoryProvider).deleteMoment(moment.id);
 
-    // 1. Delete media from Supabase storage
-    if (moment.mediaPath != null && moment.mediaPath!.isNotEmpty) {
-      try {
-        await supabase.storage.from('moments').remove([moment.mediaPath!]);
-      } catch (e) {
-        debugPrint('Failed to delete media from storage: $e');
-        // Continue even if storage delete fails
-      }
-    }
-
-    // 2. Delete thumbnail from Supabase storage (for videos)
-    if (moment.thumbnailPath != null && moment.thumbnailPath!.isNotEmpty) {
-      try {
-        await supabase.storage.from('moments').remove([moment.thumbnailPath!]);
-      } catch (e) {
-        debugPrint('Failed to delete thumbnail from storage: $e');
-      }
-    }
-
-    // 3. Delete from local SQLite storage and cached media files
+    // Also delete from local SQLite storage and cached media files
     try {
-      await _storage.deleteMoment(moment.id);
+      await ref.read(appDatabaseProvider).deleteMoment(moment.id);
     } catch (e) {
       debugPrint('Failed to delete from local storage: $e');
-    }
-
-    // 4. Delete from Supabase database
-    await supabase.from('moments').delete().eq('id', moment.id);
-
-    // 5. Check if moment group is now empty and delete it
-    if (moment.momentGroupId != null) {
-      final remainingMoments = await supabase
-          .from('moments')
-          .select('id')
-          .eq('moment_group_id', moment.momentGroupId!)
-          .limit(1);
-
-      if ((remainingMoments as List).isEmpty) {
-        try {
-          await supabase
-              .from('moment_groups')
-              .delete()
-              .eq('id', moment.momentGroupId!);
-        } catch (e) {
-          debugPrint('Failed to delete empty moment group: $e');
-        }
-      }
     }
   }
 
@@ -1558,6 +1550,11 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             .update({'is_private': isPrivate})
             .eq('moment_group_id', groupId)
             .eq('user_id', userId!); // Only update my photos
+
+        // Sync to local storage
+        await ref
+            .read(appDatabaseProvider)
+            .updateGroupPrivacy(groupId, isPrivate);
       } else {
         // Fallback for single moment (Legacy)
         await client
@@ -1571,6 +1568,11 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             _moments[index] = moment.copyWith(isPrivate: isPrivate);
           }
         });
+
+        // Also sync to local storage
+        await ref
+            .read(appDatabaseProvider)
+            .updateMomentPrivacy(moment.id, isPrivate);
       }
 
       if (mounted) {
@@ -1670,59 +1672,12 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
   @override
   Widget build(BuildContext context) {
-    // Watch for realtime updates if we have a group ID
+    // Listen for realtime updates (properly handles side effects outside build)
     if (_groupId != null) {
-      final momentsStream = ref.watch(momentsByGroupStreamProvider(_groupId!));
-      momentsStream.whenData((updatedMoments) {
-        // Check if moments actually changed (by comparing IDs AND count)
-        final currentIds = _moments.map((m) => m.id).toSet();
-        final updatedIds = updatedMoments.map((m) => m.id).toSet();
-
-        // Skip update if IDs are identical (same moments, same count)
-        if (currentIds.length == updatedIds.length &&
-            currentIds.containsAll(updatedIds)) {
-          return; // No actual change, skip rebuild
-        }
-
-        if (!currentIds.containsAll(updatedIds) ||
-            !updatedIds.containsAll(currentIds)) {
-          // Moments list changed - update state
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              // Find deleted moment IDs to clean up their cached data
-              final deletedIds = currentIds.difference(updatedIds);
-              final addedIds = updatedIds.difference(currentIds);
-              final countChanged = _moments.length != updatedMoments.length;
-
-              setState(() {
-                // Clean up cached data for deleted moments
-                for (final deletedId in deletedIds) {
-                  _imageUrls.remove(deletedId);
-                  _localPaths.remove(deletedId);
-                  _localVideoPaths.remove(deletedId);
-                }
-
-                _moments = updatedMoments;
-
-                // Adjust current page if needed
-                if (_currentPage >= _moments.length && _moments.isNotEmpty) {
-                  _currentPage = _moments.length - 1;
-                }
-              });
-
-              // Only reinitialize animations if count changed (new/deleted moments)
-              if (countChanged) {
-                _initializeAnimationControllers();
-              }
-
-              // Load data for new moments only
-              if (addedIds.isNotEmpty) {
-                _loadAllPhotoHeartStatuses();
-                _loadImageUrls();
-              }
-            }
-          });
-        }
+      ref.listen(momentsByGroupStreamProvider(_groupId!), (previous, next) {
+        next.whenData((updatedMoments) {
+          _handleMomentsStreamUpdate(updatedMoments);
+        });
       });
     }
 
@@ -2139,21 +2094,20 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                       ),
                                     ),
                                   // Image card with white border - 4:5 aspect ratio
+                                  // Image card - Soft Minimalism
                                   Container(
                                     decoration: BoxDecoration(
                                       color: Colors.white,
-                                      borderRadius: BorderRadius.circular(12.r),
+                                      borderRadius: BorderRadius.circular(18),
                                       border: Border.all(
                                         color: Colors.white,
-                                        width: 6.w,
+                                        width: 4,
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.15,
-                                          ),
-                                          blurRadius: 24.r,
-                                          offset: const Offset(0, 12),
+                                          color: Colors.black.withOpacity(0.15),
+                                          blurRadius: 30,
+                                          offset: const Offset(0, 15),
                                         ),
                                       ],
                                     ),
@@ -2161,108 +2115,97 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                       aspectRatio: 4 / 5,
                                       child: ClipRRect(
                                         borderRadius: BorderRadius.circular(
-                                          8.r,
+                                          14,
                                         ),
-                                        child: Stack(
-                                          fit: StackFit.expand,
-                                          children: [
-                                            _buildMediaContent(
-                                              moment,
-                                              imageUrl,
-                                            ),
-                                            // Heart/Dislike animation overlay (dotLottie)
-                                            if (_showingHeartAtIndex == index)
-                                              Center(
-                                                child: HeartAnimation(
-                                                  size: 120,
-                                                  isLike: _isLikeAnimation,
-                                                ),
+                                      child: Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          _buildMediaContent(moment, imageUrl),
+                                          // Heart/Dislike animation overlay (dotLottie)
+                                          if (_showingHeartAtIndex == index)
+                                            Center(
+                                              child: HeartAnimation(
+                                                size: 120,
+                                                isLike: _isLikeAnimation,
                                               ),
-                                            // Heart count badge (bottom right of image)
-                                            // Only show when count > 1 (not for single heart)
-                                            if ((_photoHeartCounts[index] ??
-                                                    0) >
-                                                1)
-                                              Positioned(
-                                                bottom: 8,
-                                                right: 8,
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.black
-                                                        .withValues(alpha: 0.6),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                  ),
-                                                  child: Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      Icon(
-                                                        _userHeartedPhoto[index] ==
-                                                                true
+                                            ),
+                                          // Heart count badge (bottom right of image)
+                                          // Only show when count > 1 (not for single heart)
+                                          if ((_photoHeartCounts[index] ?? 0) >
+                                              1)
+                                            Positioned(
+                                              bottom: 8,
+                                              right: 8,
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black
+                                                      .withValues(alpha: 0.6),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                          _userHeartedPhoto[index] ==
+                                                              true
                                                             ? Icons.favorite
                                                             : Icons
                                                                   .favorite_border,
-                                                        size: 14,
-                                                        color:
-                                                            _userHeartedPhoto[index] ==
-                                                                true
-                                                            ? Colors.red
-                                                            : Colors.white,
+                                                      size: 14,
+                                                      color:
+                                                          _userHeartedPhoto[index] ==
+                                                              true
+                                                          ? Colors.red
+                                                          : Colors.white,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      '${_photoHeartCounts[index]}',
+                                                      style: GoogleFonts.inter(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: Colors.white,
                                                       ),
-                                                      const SizedBox(width: 4),
-                                                      Text(
-                                                        '${_photoHeartCounts[index]}',
-                                                        style:
-                                                            GoogleFonts.inter(
-                                                              fontSize: 12,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
-                                                      ),
-                                                    ],
-                                                  ),
+                                                    ),
+                                                  ],
                                                 ),
                                               ),
-                                            // Show heart icon only when user hearted but count is 1
-                                            if ((_photoHeartCounts[index] ??
-                                                        0) ==
-                                                    1 &&
-                                                _userHeartedPhoto[index] ==
-                                                    true)
-                                              Positioned(
-                                                bottom: 8,
-                                                right: 8,
-                                                child: Container(
-                                                  padding: const EdgeInsets.all(
-                                                    6,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.black
-                                                        .withValues(alpha: 0.6),
-                                                    shape: BoxShape.circle,
-                                                  ),
+                                            ),
+                                          // Show heart icon only when user hearted but count is 1
+                                          if ((_photoHeartCounts[index] ?? 0) ==
+                                                  1 &&
+                                              _userHeartedPhoto[index] == true)
+                                            Positioned(
+                                              bottom: 8,
+                                              right: 8,
+                                              child: Container(
+                                                padding: const EdgeInsets.all(
+                                                  6,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black
+                                                      .withValues(alpha: 0.6),
+                                                  shape: BoxShape.circle,
+                                                ),
                                                   child: const Icon(
                                                     Icons.favorite,
-                                                    size: 14,
-                                                    color: Colors.red,
-                                                  ),
+                                                  size: 14,
+                                                  color: Colors.red,
                                                 ),
                                               ),
-                                          ],
-                                        ),
+                                            ),
+                                        ],
                                       ),
                                     ),
+                                  ),
                                   ),
 
                                   // Description below image

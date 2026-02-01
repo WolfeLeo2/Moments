@@ -6,8 +6,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/services/avatar_cache_service.dart';
-import '../../../core/services/moment_storage_service.dart';
+import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/moments_providers.dart';
 import '../../../core/providers/providers.dart';
 import '../../../data/models/profile.dart';
@@ -302,9 +301,9 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
       child: ClipOval(
         child: widget.friendAvatarUrl != null
             ? Image(
-                image: AvatarCacheService().getAvatarImageProvider(
-                  widget.friendAvatarUrl,
-                )!,
+                image: ref
+                    .watch(avatarCacheServiceProvider)
+                    .getAvatarImageProvider(widget.friendAvatarUrl)!,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(),
               )
@@ -656,22 +655,27 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(3.r),
-                  child: FutureBuilder<String?>(
-                    future: MomentStorageService().getLocalMediaPath(moment.id),
-                    builder: (context, snapshot) {
-                      return OfflineImage(
-                        localPath: snapshot.data,
-                        networkUrl: moment.imageUrl,
-                        cacheKey: moment.id,
-                        fit: BoxFit.cover,
-                        placeholder: Container(color: Colors.grey[200]),
-                        errorWidget: Center(
-                          child: Icon(
-                            Icons.broken_image,
-                            color: Colors.grey,
-                            size: 24.sp,
-                          ),
-                        ),
+                  child: Consumer(
+                    builder: (context, ref, child) {
+                      final db = ref.read(appDatabaseProvider);
+                      return FutureBuilder<String?>(
+                        future: db.getLocalMediaPath(moment.id),
+                        builder: (context, snapshot) {
+                          return OfflineImage(
+                            localPath: snapshot.data,
+                            networkUrl: moment.imageUrl,
+                            cacheKey: moment.id,
+                            fit: BoxFit.cover,
+                            placeholder: Container(color: Colors.grey[200]),
+                            errorWidget: Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                color: Colors.grey,
+                                size: 24.sp,
+                              ),
+                            ),
+                          );
+                        },
                       );
                     },
                   ),

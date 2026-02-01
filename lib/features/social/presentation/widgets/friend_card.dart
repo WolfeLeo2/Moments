@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:moments/core/services/avatar_cache_service.dart';
+import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/data/models/profile.dart';
 import 'package:moments/features/social/presentation/friend_profile_page.dart';
 
 /// Modern friend card widget with neubrutalism style
-class FriendCard extends StatefulWidget {
+class FriendCard extends ConsumerStatefulWidget {
   final Profile friend;
 
   const FriendCard({required this.friend, required Key key}) : super(key: key);
 
   @override
-  State<FriendCard> createState() => _FriendCardState();
+  ConsumerState<FriendCard> createState() => _FriendCardState();
 }
 
-class _FriendCardState extends State<FriendCard>
+class _FriendCardState extends ConsumerState<FriendCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
@@ -60,53 +61,33 @@ class _FriendCardState extends State<FriendCard>
             scale: 1.0 + (_controller.value * 0.02),
             child: Container(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Colors.white, Colors.grey[50] ?? Colors.white],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.black,
-                  width: AppTheme.borderMedium,
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black,
-                    offset: Offset(4, 4),
-                    blurRadius: 0,
-                  ),
-                ],
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(
+                  24,
+                ), // Softer, rounder corners
+                boxShadow:
+                    AppTheme.brutalShadowSmall, // Now mapped to soft shadow
+                border: Border.all(color: AppTheme.borderGray, width: 1),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
                     // Avatar with multiple rings
-                    Stack(
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.black, width: 2),
-                          ),
-                          padding: const EdgeInsets.all(0.5),
-                          child: CircleAvatar(
-                            radius: 29,
-                            backgroundImage: AvatarCacheService()
-                                .getAvatarImageProvider(
-                                  widget.friend.avatarUrl,
-                                ),
-                            child: widget.friend.avatarUrl == null
-                                ? HugeIcon(
-                                    icon: HugeIcons.strokeRoundedUser,
-                                    size: 32,
-                                    color: Colors.grey[400],
-                                  )
-                                : null,
-                          ),
-                        ),
-                      ],
+                    // Avatar - Clean
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor: Colors.grey[100],
+                      backgroundImage: ref
+                          .watch(avatarCacheServiceProvider)
+                          .getAvatarImageProvider(widget.friend.avatarUrl),
+                      child: widget.friend.avatarUrl == null
+                          ? HugeIcon(
+                              icon: HugeIcons.strokeRoundedUser,
+                              size: 28,
+                              color: Colors.grey[400],
+                            )
+                          : null,
                     ),
                     const SizedBox(width: 16),
                     // Friend info
@@ -141,17 +122,14 @@ class _FriendCardState extends State<FriendCard>
                       ),
                     ),
                     // Action button
+                    // Action button - Minimal
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: AppTheme.primaryBlue.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: AppTheme.primaryBlue.withValues(alpha: 0.3),
-                          width: 1.5,
-                        ),
+                        color: AppTheme.primaryBlue.withOpacity(0.1),
+                        shape: BoxShape.circle,
                       ),
-                      child: HugeIcon(
+                      child: const HugeIcon(
                         icon: HugeIcons.strokeRoundedArrowRight02,
                         size: 20,
                         color: AppTheme.primaryBlue,

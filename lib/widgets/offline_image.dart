@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -131,6 +132,9 @@ class _OfflineImageState extends State<OfflineImage> {
         gaplessPlayback: true, // Prevents flash during image changes
         errorBuilder: (context, error, stack) {
           // Invalidate cache and fallback to network if local file is corrupted
+          debugPrint(
+            '⚠️ OfflineImage: Local file error at ${widget.localPath}: $error',
+          );
           _FileExistenceCache.invalidate(widget.localPath!);
           return _buildNetworkImage();
         },
@@ -148,6 +152,9 @@ class _OfflineImageState extends State<OfflineImage> {
 
   Widget _buildNetworkImage() {
     if (widget.networkUrl == null || widget.networkUrl!.isEmpty) {
+      debugPrint(
+        '❌ OfflineImage: No network URL for cacheKey=${widget.cacheKey}',
+      );
       return widget.errorWidget ?? _defaultError();
     }
 
@@ -164,8 +171,10 @@ class _OfflineImageState extends State<OfflineImage> {
       placeholderFadeInDuration: Duration.zero,
       placeholder: (context, url) =>
           widget.placeholder ?? _defaultPlaceholder(),
-      errorWidget: (context, url, error) =>
-          widget.errorWidget ?? _defaultError(),
+      errorWidget: (context, url, error) {
+        debugPrint('❌ OfflineImage: Network error for $url: $error');
+        return widget.errorWidget ?? _defaultError();
+      },
     );
   }
 

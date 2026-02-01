@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_m3shapes_extended/flutter_m3shapes_extended.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -47,20 +48,8 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
     return Positioned(
       right: 6,
       top: 6,
-      child: Container(
+      child: Badge(
         padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: Colors.red,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.red.withValues(alpha: 0.4),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
         child: Text(
           count > 9 ? '9+' : '$count',
           style: const TextStyle(
@@ -172,15 +161,12 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
                   // Avatar (RIGHT)
                   GestureDetector(
                     onTap: widget.onProfilePressed,
-                    child: Container(
+                    child: M3Container.ghostish(
                       width: 40,
                       height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.black, width: 2),
-                      ),
+                      border: BorderSide(color: Colors.black, width: 1),
                       child: widget.profileImageUrl != null
-                          ? ClipOval(
+                          ? M3Container.bun(
                               child: CachedNetworkImage(
                                 imageUrl: widget.profileImageUrl!,
                                 fit: BoxFit.cover,
@@ -202,8 +188,7 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
                                 ),
                               ),
                             )
-                          : Container(
-                              color: Colors.grey[200],
+                          : M3Container.bun(
                               child: HugeIcon(
                                 icon: HugeIcons.strokeRoundedUser,
                                 size: 24,

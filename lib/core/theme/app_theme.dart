@@ -3,19 +3,21 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class AppTheme {
-  // Neubrutalism Color Palette
-  static const Color primaryBlue = Color(0xFF306BFF);
-  static const Color neonPink = Color(0xFFFF006E);
-  static const Color brightYellow = Color(0xFFFBFF12);
-  static const Color electricPurple = Color(0xFF8338EC);
-  static const Color vibrantGreen = Color(0xFF06FFA5);
-  static const Color backgroundBeige = Color.fromARGB(255, 249, 240, 230);
+  // Soft Minimalism Color Palette
+  static const Color primaryBlue = Color.fromARGB(255, 32, 102, 243); // Softer Royal Blue
+  static const Color backgroundBeige = Color.fromARGB(255, 251, 244, 234); // Clean Off-White
   static const Color cardWhite = Color(0xFFFFFFFF);
-  static const Color emergencyRed = Color(0xFFE53935);
-  static const Color textDark = Color(0xFF000000);
+  static const Color textDark = Color(0xFF1A1A1A); // Softer Black
   static const Color textGray = Color(0xFF718096);
-  static const Color borderBlack = Color(0xFF000000);
-  static Color borderGray = Colors.grey[200]!;
+  static Color borderGray = Colors.grey[200]!; // Subtle border
+
+  // Deprecated vivid neons - mapped to softer accents or removed
+  static const Color neonPink = Color(0xFFFF4081); // Softer Pink
+  static const Color brightYellow = Color(0xFFFFD740); // Softer Yellow
+  static const Color electricPurple = Color(0xFF9C27B0); // Softer Purple
+  static const Color vibrantGreen = Color(0xFF00C853); // Softer Green
+  static const Color emergencyRed = Color(0xFFEF5350); // Softer Red
+  static const Color borderBlack = Colors.transparent; // Removed hard borders
 
   // Spacing Constants (8dp grid system)
   static const double spacing4 = 4.0;
@@ -27,30 +29,46 @@ class AppTheme {
   static const double spacing48 = 48.0;
   static const double spacing64 = 64.0;
 
-  // Border Radius (Neubrutalism style)
-  static double radiusSmall = 8.0.r;
-  static double radiusMedium = 12.0.r;
-  static double radiusLarge = 16.0.r;
+  // Border Radius (Soft style)
+  static double radiusSmall = 12.0.r;
+  static double radiusMedium = 20.0.r; // Increased roundness
+  static double radiusLarge = 28.0.r; // Very round for cards
   static double radiusCircle = 50.0.r;
-  static double radiusMomentCard = 4.0.r;
+  static double radiusMomentCard = 16.0.r; // Rounded corners for photos
 
   // Border widths
-  static double borderThin = 2.0.w;
-  static double borderMedium = 2.5.w;
-  static double borderThick = 3.0.w;
+  // Border widths - Reduced or Removed
+  static double borderThin = 1.0.w;
+  static double borderMedium = 1.0.w;
+  static double borderThick = 2.0.w;
 
-  // Neubrutalism Shadows (hard shadows with no blur)
+  // Soft Shadows (diffuse blur)
   static List<BoxShadow> get brutalShadow => [
-    const BoxShadow(color: borderBlack, offset: Offset(4, 4), blurRadius: 0),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.06),
+      offset: const Offset(0, 4),
+      blurRadius: 16,
+      spreadRadius: 2,
+    ),
   ];
 
   static List<BoxShadow> get brutalShadowSmall => [
-    const BoxShadow(color: borderBlack, offset: Offset(3, 3), blurRadius: 0),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.04),
+      offset: const Offset(0, 2),
+      blurRadius: 8,
+      spreadRadius: 1,
+    ),
   ];
 
   static List<BoxShadow> get cardShadow => brutalShadow;
-
-  static List<BoxShadow> get buttonShadow => brutalShadow;
+  static List<BoxShadow> get buttonShadow => [
+    BoxShadow(
+      color: primaryBlue.withValues(alpha: 0.25),
+      offset: const Offset(0, 4),
+      blurRadius: 12,
+    ),
+  ];
 
   static ThemeData get lightTheme {
     return ThemeData(

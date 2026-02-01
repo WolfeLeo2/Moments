@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:moments/core/services/avatar_cache_service.dart';
+import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/data/models/moment.dart';
 import 'package:moments/features/moments/presentation/moment_details_page.dart';
@@ -250,7 +250,8 @@ class _CollaboratingMomentsPageState
                                     children: [
                                       CircleAvatar(
                                         radius: 8,
-                                        backgroundImage: AvatarCacheService()
+                                        backgroundImage: ref
+                                            .watch(avatarCacheServiceProvider)
                                             .getAvatarImageProvider(
                                               creatorAvatar,
                                             ),

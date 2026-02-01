@@ -1,6 +1,9 @@
+import 'package:moments/core/services/app_logger.dart';
 import 'dart:io';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:video_compress/video_compress.dart';
+
+final _log = AppLogger('UmediaUcompressionUservice');
 
 class MediaCompressionService {
   /// Compress image to JPG with 70% quality
@@ -31,7 +34,7 @@ class MediaCompressionService {
 
       return File(result.path);
     } catch (e) {
-      print('Error compressing image: $e');
+      _log.e('Error compressing image: $e');
       return file;
     }
   }
@@ -43,7 +46,7 @@ class MediaCompressionService {
       final fileSize = await file.length();
       final fileSizeMB = fileSize / (1024 * 1024);
 
-      print('Original video size: ${fileSizeMB.toStringAsFixed(2)} MB');
+      _log.i('Original video size: ${fileSizeMB.toStringAsFixed(2)} MB');
 
       // Compress video
       final info = await VideoCompress.compressVideo(
@@ -54,14 +57,14 @@ class MediaCompressionService {
       );
 
       if (info == null || info.file == null) {
-        print('Video compression returned null');
+        _log.e('Video compression returned null');
         return file;
       }
 
       final compressedSize = await info.file!.length();
       final compressedSizeMB = compressedSize / (1024 * 1024);
 
-      print('Compressed video size: ${compressedSizeMB.toStringAsFixed(2)} MB');
+      _log.i('Compressed video size: ${compressedSizeMB.toStringAsFixed(2)} MB');
 
       // Check if compressed file is under 50MB
       if (compressedSizeMB > 50) {
@@ -72,7 +75,7 @@ class MediaCompressionService {
 
       return info.file;
     } catch (e) {
-      print('Error compressing video: $e');
+      _log.e('Error compressing video: $e');
       rethrow;
     }
   }
@@ -88,7 +91,7 @@ class MediaCompressionService {
 
       return thumbnailFile;
     } catch (e) {
-      print('Error generating video thumbnail: $e');
+      _log.e('Error generating video thumbnail: $e');
       return null;
     }
   }
@@ -102,7 +105,7 @@ class MediaCompressionService {
       }
       return 0;
     } catch (e) {
-      print('Error getting video duration: $e');
+      _log.e('Error getting video duration: $e');
       return 0;
     }
   }

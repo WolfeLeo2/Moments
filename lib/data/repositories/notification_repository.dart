@@ -1,7 +1,10 @@
+import 'package:moments/core/services/app_logger.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../sources/supabase_config.dart';
+
+final _log = AppLogger('UnotificationUrepository');
 
 class NotificationRepository {
   final SupabaseClient _client = SupabaseConfig.client;
@@ -15,7 +18,7 @@ class NotificationRepository {
       final count = await _client.rpc('get_unread_notification_count');
       return count as int;
     } catch (e) {
-      print('Error fetching notification count: $e');
+      _log.e('Error fetching notification count: $e');
       return 0;
     }
   }
@@ -107,23 +110,25 @@ class NotificationRepository {
         .eq('user_id', userId);
   }
 
-  /// Get notifications (last 7 days, max 50)
-  Future<List<Map<String, dynamic>>> getNotifications() async {
+  /// Get notifications with pagination support
+  /// [limit] - Number of notifications to fetch (default 30)
+  /// [offset] - Number of notifications to skip for pagination (default 0)
+  /// Returns notifications ordered by created_at descending
+  Future<List<Map<String, dynamic>>> getNotifications({
+    int limit = 30,
+    int offset = 0,
+  }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return [];
 
-    debugPrint('NotificationRepository: Fetching notifications for $userId');
+    debugPrint('NotificationRepository: Fetching notifications for $userId (limit: $limit, offset: $offset)');
 
     final response = await _client
         .from('notifications')
         .select('*, actor:actor_id(username, display_name, avatar_url)')
         .eq('user_id', userId)
-        .gt(
-          'created_at',
-          DateTime.now().subtract(const Duration(days: 7)).toIso8601String(),
-        )
         .order('created_at', ascending: false)
-        .limit(50);
+        .range(offset, offset + limit - 1);
 
     return List<Map<String, dynamic>>.from(response);
   }

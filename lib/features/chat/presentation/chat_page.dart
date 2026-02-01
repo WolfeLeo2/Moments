@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/utils/extensions.dart';
-import 'package:moments/core/services/avatar_cache_service.dart';
+import 'package:moments/core/providers/providers.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/data/sources/supabase_config.dart';
 import 'package:moments/features/chat/providers/chat_providers.dart';
@@ -20,7 +20,7 @@ import 'package:moments/features/chat/widgets/audio_recorder_widget.dart';
 import 'package:moments/features/chat/widgets/typing_indicator_bubble.dart';
 import 'package:moments/features/chat/widgets/reply_preview.dart';
 import 'package:moments/features/chat/widgets/message_context_menu.dart';
-import 'package:moments/features/chat/widgets/swipeable_message.dart';
+import 'package:swipe_to/swipe_to.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:icon_button_m3e/icon_button_m3e.dart';
@@ -51,7 +51,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
 
   bool _showScrollToBottomButton = false;
   int _unreadCount = 0;
-  bool _isFirstLoad = true;
 
   // Reply/Edit state
   Message? _replyingToMessage;
@@ -98,16 +97,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
   void _onScroll() {
     if (!_scrollController.hasClients) return;
 
-    final maxScroll = _scrollController.position.maxScrollExtent;
+    // With reverse: true, position 0 is at the bottom (newest messages)
+    // So we check if we're scrolled UP away from 0
     final currentScroll = _scrollController.offset;
-    // Show button if we are more than 200 pixels away from bottom
-    final show = (maxScroll - currentScroll) > 200;
+    final show = currentScroll > 200;
 
     if (show != _showScrollToBottomButton) {
       setState(() {
         _showScrollToBottomButton = show;
         if (!show) {
-          _unreadCount = 0; // Reset count when we scroll to bottom manually
+          _unreadCount = 0; // Reset count when we scroll to bottom
         }
       });
     }
@@ -296,18 +295,17 @@ class _ChatPageState extends ConsumerState<ChatPage>
   }
 
   void _scrollToBottom({bool animated = true}) {
-    // Use SchedulerBinding to ensure layout is complete
-    // A small delay helps when images/content are still sizing
+    // With reverse: true, scrolling to 0 takes us to the bottom (newest messages)
     Future.delayed(const Duration(milliseconds: 50), () {
       if (_scrollController.hasClients) {
         if (animated) {
           _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
+            0, // Position 0 is the bottom with reverse: true
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutCubic,
           );
         } else {
-          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+          _scrollController.jumpTo(0);
         }
         if (mounted) {
           setState(() {
@@ -346,9 +344,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundImage: AvatarCacheService().getAvatarImageProvider(
-                widget.friendAvatarUrl,
-              ),
+              backgroundImage: ref
+                  .watch(avatarCacheServiceProvider)
+                  .getAvatarImageProvider(widget.friendAvatarUrl),
               backgroundColor: AppTheme.electricPurple.withValues(alpha: 0.2),
               child: widget.friendAvatarUrl == null
                   ? Text(
@@ -414,7 +412,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
               final oldLen = previous?.value?.length ?? 0;
               final newLen = messages.length;
               if (newLen > oldLen) {
-                final lastMsg = messages.last;
+                // With DESC ordering, newest message is at index 0 (messages.first)
+                final lastMsg = messages.first;
                 final isMe = lastMsg.senderId == currentUserId;
 
                 if (isMe) {
@@ -476,252 +475,272 @@ class _ChatPageState extends ConsumerState<ChatPage>
                           );
                         }
 
-                        // Initial Scroll Logic
-                        if (_isFirstLoad) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (_scrollController.hasClients) {
-                              _scrollToBottom(animated: false);
-                              _isFirstLoad = false;
-                            }
-                          });
-                        }
+                        // No need for initial scroll with reverse: true -
+                        // newest messages are already at the bottom
 
-                        // Find the index of the last message sent by the current user
+                        // With DESC ordering, index 0 is newest.
+                        // Find the newest message sent by the current user (first match = newest)
                         int lastMyMessageIndex = -1;
-                        for (int i = messages.length - 1; i >= 0; i--) {
+                        for (int i = 0; i < messages.length; i++) {
                           if (messages[i].senderId == currentUserId) {
                             lastMyMessageIndex = i;
-                            break;
+                            break; // First match in DESC order = newest sent by me
                           }
                         }
 
-                        // Build list items with Smart Date Headers and Tail logic
-                        final List<Widget> chatItems = [];
-                        for (int i = 0; i < messages.length; i++) {
-                          final message = messages[i];
-                          final isMe = message.senderId == currentUserId;
-                          final isFirst = i == 0;
-
-                          // Smart Date Header Logic
-                          bool showDate = false;
-                          if (isFirst) {
-                            showDate = true;
-                          } else {
-                            final prevDate = messages[i - 1].createdAt;
-                            final currDate = message.createdAt;
-                            final diff = currDate
-                                .difference(prevDate)
-                                .inMinutes;
-                            if (diff > 60 || prevDate.day != currDate.day) {
-                              showDate = true;
-                            }
-                          }
-
-                          if (showDate) {
-                            chatItems.add(
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    _formatDateHeader(message.createdAt),
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-
-                          // Tail Logic
-                          bool tail = false;
-                          if (i == messages.length - 1) {
-                            tail = true;
-                          } else {
-                            final nextMessage = messages[i + 1];
-                            if (nextMessage.senderId != message.senderId) {
-                              tail = true;
-                            }
-                            // Also add tail if next message is > 60 mins away (new block)
-                            final nextDate = nextMessage.createdAt;
-                            final diff = nextDate
-                                .difference(message.createdAt)
-                                .inMinutes;
-                            if (diff > 60) {
-                              tail = true;
-                            }
-                          }
-
-                          // Add Message Bubble
-                          Widget bubble;
-                          if (message.messageType == MessageType.audio) {
-                            bubble = AudioMessageBubble(
-                              message: message,
-                              isMe: isMe,
-                            );
-                          } else if (message.messageType == MessageType.image) {
-                            bubble = ImageMessageBubble(
-                              message: message,
-                              isMe: isMe,
-                            );
-                          } else if (message.messageType == MessageType.video) {
-                            bubble = VideoMessageBubble(
-                              message: message,
-                              isMe: isMe,
-                            );
-                          } else {
-                            // Determine reply sender name
-                            String? replySenderName;
-                            if (message.replyToMessage != null) {
-                              final currentUserId =
-                                  SupabaseConfig.client.auth.currentUser?.id;
-                              replySenderName =
-                                  message.replyToMessage!.senderId ==
-                                      currentUserId
-                                  ? 'You'
-                                  : widget.friendName;
-                            }
-
-                            bubble = MessageBubble(
-                              message: message,
-                              isMe: isMe,
-                              tail: tail,
-                              replySenderName: replySenderName,
-                            );
-                          }
-
-                          // Wrap all bubbles with swipeable and long-press for context menu
-                          final bubbleKey = GlobalKey();
-                          bubble = SwipeableMessage(
-                            key: ValueKey('swipe_${message.id}'),
-                            isMe: isMe,
-                            onSwipe: () => _startReply(message),
-                            child: GestureDetector(
-                              key: bubbleKey,
-                              onLongPress: () {
-                                // Get the position of the bubble
-                                final renderBox =
-                                    bubbleKey.currentContext?.findRenderObject()
-                                        as RenderBox?;
-                                if (renderBox == null) return;
-                                final position = renderBox.localToGlobal(
-                                  Offset.zero,
-                                );
-                                final size = renderBox.size;
-                                final anchorRect = Rect.fromLTWH(
-                                  position.dx,
-                                  position.dy,
-                                  size.width,
-                                  size.height,
-                                );
-
-                                showFloatingMessageMenu(
-                                  context: context,
-                                  message: message,
-                                  isMe: isMe,
-                                  anchorRect: anchorRect,
-                                  onAction: (action) =>
-                                      _handleMessageAction(message, action),
-                                  onReaction: (emoji) async {
-                                    final chatRepo = ref.read(
-                                      chatRepositoryProvider,
-                                    );
-                                    try {
-                                      await chatRepo.addReaction(
-                                        message.id,
-                                        emoji,
-                                      );
-                                    } catch (e) {
-                                      if (mounted) {
-                                        context.showErrorSnackBar(
-                                          'Failed to add reaction: $e',
-                                        );
-                                      }
-                                    }
-                                  },
-                                );
-                              },
-                              child: bubble,
-                            ),
-                          );
-
-                          chatItems.add(
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical:
-                                    2, // Reduced vertical padding for tighter groups
-                                horizontal: 8,
-                              ),
-                              child: Align(
-                                alignment: isMe
-                                    ? Alignment.centerRight
-                                    : Alignment.centerLeft,
-                                child: bubble,
-                              ),
-                            ),
-                          );
-
-                          // Status Label (Delivered/Read) - Only for the last message sent by me
-                          if (i == lastMyMessageIndex) {
-                            final statusText = message.isRead
-                                ? 'Read'
-                                : 'Delivered';
-                            chatItems.add(
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  top: 2,
-                                  bottom: 8,
-                                  right: 12,
-                                ),
-                                child: Align(
-                                  alignment: Alignment.centerRight,
-                                  child: Text(
-                                    statusText,
-                                    style: TextStyle(
-                                      color: Colors.grey[500],
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-                        }
-
-                        // Add typing indicator if someone is typing
+                        // Check if anyone is typing
                         final typingUsers = ref.watch(
                           typingUsersProvider(conversationId),
                         );
-                        if (typingUsers.isNotEmpty) {
-                          chatItems.add(
-                            const Padding(
-                              padding: EdgeInsets.symmetric(
-                                vertical: 2,
-                                horizontal: 8,
-                              ),
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: TypingIndicatorBubble(),
-                              ),
-                            ),
-                          );
-                        }
+                        final hasTypingIndicator = typingUsers.isNotEmpty;
+
+                        // Total items = messages + typing indicator (if any)
+                        final itemCount =
+                            messages.length + (hasTypingIndicator ? 1 : 0);
 
                         return SafeArea(
-                          child: ListView(
+                          child: ListView.builder(
                             controller: _scrollController,
+                            reverse: true, // Newest messages at bottom
+                            physics: const BouncingScrollPhysics(
+                              parent: AlwaysScrollableScrollPhysics(),
+                            ),
+                            shrinkWrap:
+                                false, // Important: false for performance
                             padding: const EdgeInsets.only(
-                              left: 0, // Bubbles handle their own padding
+                              left: 0,
                               right: 0,
                               top: 100, // Space for AppBar
                               bottom: 100, // Space for Input Area
                             ),
-                            children: chatItems,
+                            itemCount: itemCount,
+                            itemBuilder: (context, index) {
+                              // With reverse: true, index 0 is the NEWEST message
+                              // Typing indicator goes at index 0 (appears at bottom)
+                              if (hasTypingIndicator && index == 0) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: 2,
+                                    horizontal: 8,
+                                  ),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: TypingIndicatorBubble(),
+                                  ),
+                                );
+                              }
+
+                              // Adjust index for typing indicator
+                              final messageIndex = hasTypingIndicator
+                                  ? index - 1
+                                  : index;
+                              final message = messages[messageIndex];
+                              final isMe = message.senderId == currentUserId;
+
+                              // For date headers and tail logic, we need to look at
+                              // adjacent messages. In reverse order:
+                              // - "next" visually (above) is messageIndex + 1
+                              // - "prev" visually (below) is messageIndex - 1
+                              final isNewest = messageIndex == 0;
+                              final isOldest =
+                                  messageIndex == messages.length - 1;
+
+                              // Smart Date Header Logic (shows ABOVE message in visual order)
+                              // In reverse list, we show header if THIS message starts a new day/time block
+                              // iMessage shows timestamp after ~2 minute gaps or day changes
+                              bool showDate = false;
+                              if (isOldest) {
+                                showDate =
+                                    true; // Always show for oldest message
+                              } else {
+                                final olderMessage = messages[messageIndex + 1];
+                                final diff = message.createdAt
+                                    .difference(olderMessage.createdAt)
+                                    .inMinutes
+                                    .abs();
+                                // iMessage-style: show timestamp after 2+ minute gaps or day changes
+                                if (diff >= 2 ||
+                                    message.createdAt.day !=
+                                        olderMessage.createdAt.day) {
+                                  showDate = true;
+                                }
+                              }
+
+                              // Tail Logic - show tail if this is the last in a group
+                              // iMessage-style: group messages within ~1 minute from same sender
+                              bool tail = false;
+                              if (isNewest) {
+                                tail = true;
+                              } else {
+                                final newerMessage = messages[messageIndex - 1];
+                                // Different sender = new group, show tail
+                                if (newerMessage.senderId != message.senderId) {
+                                  tail = true;
+                                }
+                                // Same sender but >1 minute gap = show tail (iMessage grouping)
+                                final diff = newerMessage.createdAt
+                                    .difference(message.createdAt)
+                                    .inSeconds
+                                    .abs();
+                                if (diff > 60) {
+                                  tail = true;
+                                }
+                              }
+
+                              // Build Message Bubble
+                              Widget bubble;
+                              if (message.messageType == MessageType.audio) {
+                                bubble = AudioMessageBubble(
+                                  message: message,
+                                  isMe: isMe,
+                                );
+                              } else if (message.messageType ==
+                                  MessageType.image) {
+                                bubble = ImageMessageBubble(
+                                  message: message,
+                                  isMe: isMe,
+                                );
+                              } else if (message.messageType ==
+                                  MessageType.video) {
+                                bubble = VideoMessageBubble(
+                                  message: message,
+                                  isMe: isMe,
+                                );
+                              } else {
+                                String? replySenderName;
+                                if (message.replyToMessage != null) {
+                                  replySenderName =
+                                      message.replyToMessage!.senderId ==
+                                          currentUserId
+                                      ? 'You'
+                                      : widget.friendName;
+                                }
+
+                                bubble = MessageBubble(
+                                  message: message,
+                                  isMe: isMe,
+                                  tail: tail,
+                                  replySenderName: replySenderName,
+                                );
+                              }
+
+                              // Wrap with SwipeTo for swipe-to-reply
+                              final bubbleKey = GlobalKey();
+                              bubble = SwipeTo(
+                                key: ValueKey('swipe_${message.id}'),
+                                iconOnLeftSwipe: Icons.reply,
+                                iconColor: Colors.blue,
+                                onLeftSwipe: (details) {
+                                  HapticFeedback.mediumImpact();
+                                  _startReply(message);
+                                },
+                                child: GestureDetector(
+                                  key: bubbleKey,
+                                  onLongPress: () {
+                                    final renderBox =
+                                        bubbleKey.currentContext
+                                                ?.findRenderObject()
+                                            as RenderBox?;
+                                    if (renderBox == null) return;
+                                    final position = renderBox.localToGlobal(
+                                      Offset.zero,
+                                    );
+                                    final size = renderBox.size;
+                                    final anchorRect = Rect.fromLTWH(
+                                      position.dx,
+                                      position.dy,
+                                      size.width,
+                                      size.height,
+                                    );
+
+                                    showFloatingMessageMenu(
+                                      context: context,
+                                      message: message,
+                                      isMe: isMe,
+                                      anchorRect: anchorRect,
+                                      onAction: (action) =>
+                                          _handleMessageAction(message, action),
+                                      onReaction: (emoji) async {
+                                        final chatRepo = ref.read(
+                                          chatRepositoryProvider,
+                                        );
+                                        try {
+                                          await chatRepo.addReaction(
+                                            message.id,
+                                            emoji,
+                                          );
+                                        } catch (e) {
+                                          if (mounted) {
+                                            context.showErrorSnackBar(
+                                              'Failed to add reaction: $e',
+                                            );
+                                          }
+                                        }
+                                      },
+                                    );
+                                  },
+                                  child: bubble,
+                                ),
+                              );
+
+                              // Build the complete item with optional date header and status
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Date header (appears ABOVE message visually, but we add it first
+                                  // because Column is not reversed)
+                                  if (showDate)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          _formatDateHeader(message.createdAt),
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  // The message bubble
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 2,
+                                      horizontal: 8,
+                                    ),
+                                    child: Align(
+                                      alignment: isMe
+                                          ? Alignment.centerRight
+                                          : Alignment.centerLeft,
+                                      child: bubble,
+                                    ),
+                                  ),
+                                  // Status Label (for the newest message sent by me)
+                                  if (messageIndex == lastMyMessageIndex)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        top: 2,
+                                        bottom: 8,
+                                        right: 12,
+                                      ),
+                                      child: Align(
+                                        alignment: Alignment.centerRight,
+                                        child: Text(
+                                          message.isRead ? 'Read' : 'Delivered',
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
                           ),
                         );
                       },

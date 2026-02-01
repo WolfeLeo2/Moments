@@ -6,11 +6,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'core/services/firebase_messaging_service.dart';
 import 'core/services/notification_navigator.dart';
-import 'core/services/sync_queue_processor.dart';
 import 'core/theme/app_theme.dart';
-import 'core/router/app_router.dart';
 import 'core/services/map_cache_service.dart';
-import 'core/services/avatar_cache_service.dart';
 import 'data/sources/supabase_config.dart';
 import 'core/providers/providers.dart';
 import 'core/providers/database_provider.dart';
@@ -38,14 +35,6 @@ void main() async {
 
   // Initialize map tile caching (async, non-blocking)
   MapCacheService().initialize();
-
-  // Initialize avatar caching (async, non-blocking)
-  // This loads cached avatars from SQLite so they're ready immediately
-  AvatarCacheService().initialize();
-
-  // Initialize offline sync queue processor
-  // Listens for connectivity changes and syncs pending actions
-  SyncQueueProcessor().initialize();
 
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
@@ -75,6 +64,11 @@ class _MomentsRootAppState extends ConsumerState<MomentsRootApp> {
   @override
   void initState() {
     super.initState();
+
+    // Initialize avatar caching (async, non-blocking)
+    // This loads cached avatars from database so they're ready immediately
+    ref.read(avatarCacheServiceProvider).initialize();
+
     // Refresh badges when a notification arrives
     FirebaseMessagingService.onMessageReceived = () {
       if (mounted) {
@@ -95,7 +89,7 @@ class _MomentsRootAppState extends ConsumerState<MomentsRootApp> {
       splitScreenMode: true,
       builder: (context, child) {
         // Watch theme and router HERE, after ScreenUtil is initialized
-        final appTheme = ref.watch(appThemeProvider);
+        final appTheme = ref.watch(lightThemeProvider);
         final appRouter = ref.watch(appRouterProvider);
 
         return MaterialApp.router(

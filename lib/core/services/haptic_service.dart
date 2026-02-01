@@ -1,11 +1,9 @@
 import 'package:flutter/services.dart';
 
 /// Centralized haptic feedback service for consistent tactile responses
+/// All methods are static - no instantiation needed
 class HapticService {
-  // Singleton pattern
-  static final HapticService _instance = HapticService._internal();
-  factory HapticService() => _instance;
-  HapticService._internal();
+  HapticService._(); // Private constructor prevents instantiation
 
   /// Light tap - for subtle interactions like scrolling, selection
   static Future<void> lightTap() async {

@@ -1,5 +1,8 @@
+import 'package:moments/core/services/app_logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_profile.dart';
+
+final _log = AppLogger('UuserUprofileUservice');
 
 class UserProfileService {
   static final SupabaseClient _supabase = Supabase.instance.client;

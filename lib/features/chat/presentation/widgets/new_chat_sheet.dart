@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/providers/providers.dart';
-import 'package:moments/core/services/avatar_cache_service.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/features/chat/presentation/chat_page.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -64,8 +63,14 @@ class NewChatSheet extends ConsumerWidget {
               height: 48,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
@@ -129,13 +134,21 @@ class NewChatSheet extends ConsumerWidget {
                       leading: Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.black, width: 1.5),
+                          color: Colors.white,
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         padding: const EdgeInsets.all(2),
                         child: CircleAvatar(
                           radius: 20,
                           backgroundColor: Colors.grey[200],
-                          backgroundImage: AvatarCacheService()
+                          backgroundImage: ref
+                              .watch(avatarCacheServiceProvider)
                               .getAvatarImageProvider(friend.avatarUrl),
                           child: friend.avatarUrl == null
                               ? const Icon(Icons.person, color: Colors.grey)

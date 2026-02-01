@@ -14,7 +14,6 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-
 class AddMomentPage extends ConsumerStatefulWidget {
   final double? initialLatitude;
   final double? initialLongitude;
@@ -262,8 +261,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                   ),
                                   border: Border.all(
                                     color: isSelected
-                                        ? AppTheme.borderBlack
-                                        : Colors.black12,
+                                        ? AppTheme.primaryBlue
+                                        : Colors.transparent,
                                     width: 1.5,
                                   ),
                                 ),
@@ -351,8 +350,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                 AppTheme.radiusMedium,
                               ),
                               side: BorderSide(
-                                color: AppTheme.borderBlack,
-                                width: 1.5,
+                                color: AppTheme.borderGray,
+                                width: 1,
                               ),
                             ),
                           ),
@@ -423,18 +422,20 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                       ),
                                       side: BorderSide(
                                         color: !state.isGroupPrivate
-                                            ? AppTheme.borderBlack
-                                            : Colors.black12,
-                                        width: 1.5,
+                                            ? AppTheme.primaryBlue
+                                            : AppTheme.borderGray,
+                                        width: 1,
                                       ),
                                     ),
                                     shadows: [
                                       BoxShadow(
                                         color: !state.isGroupPrivate
-                                            ? AppTheme.borderBlack
-                                            : Colors.black12,
-                                        blurRadius: 0,
-                                        offset: const Offset(2, 2),
+                                            ? AppTheme.primaryBlue.withOpacity(
+                                                0.3,
+                                              )
+                                            : Colors.transparent,
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
                                       ),
                                     ],
                                   ),
@@ -488,18 +489,20 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                       ),
                                       side: BorderSide(
                                         color: state.isGroupPrivate
-                                            ? AppTheme.borderBlack
-                                            : Colors.black12,
-                                        width: 1.5,
+                                            ? AppTheme.emergencyRed
+                                            : AppTheme.borderGray,
+                                        width: 1,
                                       ),
                                     ),
                                     shadows: [
                                       BoxShadow(
                                         color: state.isGroupPrivate
-                                            ? AppTheme.borderBlack
-                                            : Colors.black12,
-                                        blurRadius: 0,
-                                        offset: const Offset(2, 2),
+                                            ? AppTheme.emergencyRed.withOpacity(
+                                                0.3,
+                                              )
+                                            : Colors.transparent,
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
                                       ),
                                     ],
                                   ),
@@ -507,7 +510,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       HugeIcon(
-                                        icon: HugeIcons.strokeRoundedSquareLock02,
+                                        icon:
+                                            HugeIcons.strokeRoundedSquareLock02,
                                         size: 18,
                                         color: state.isGroupPrivate
                                             ? Colors.white
@@ -535,7 +539,7 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
-                            state.isGroupPrivate 
+                            state.isGroupPrivate
                                 ? 'Only you can see this moment. All photos are private.'
                                 : 'Friends can see and contribute. Tap photos to make individual ones private.',
                             style: GoogleFonts.inter(
@@ -633,8 +637,9 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
             color: Colors.white,
             shape: RoundedSuperellipseBorder(
               borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-              side: const BorderSide(color: Colors.black, width: 2),
+              side: const BorderSide(color: Colors.transparent, width: 0),
             ),
+            shadows: AppTheme.brutalShadow, // Soft shadow from theme
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(AppTheme.radiusLarge - 2),
@@ -678,11 +683,13 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                   bottom: 12,
                   left: 12,
                   child: GestureDetector(
-                    onTap: state.isGroupPrivate 
+                    onTap: state.isGroupPrivate
                         ? null // Disabled when group is private
                         : () {
                             HapticService.lightTap();
-                            ref.read(addMomentProvider.notifier).togglePhotoPrivacy(index);
+                            ref
+                                .read(addMomentProvider.notifier)
+                                .togglePhotoPrivacy(index);
                           },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
@@ -696,7 +703,7 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                             : Colors.black.withValues(alpha: 0.6),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: state.isPhotoPrivate(index) 
+                          color: state.isPhotoPrivate(index)
                               ? Colors.white.withValues(alpha: 0.3)
                               : Colors.white.withValues(alpha: 0.2),
                           width: 1,
@@ -766,8 +773,7 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border.all(color: Colors.black, width: 2),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
               boxShadow: AppTheme.brutalShadow,
             ),
             child: const Icon(

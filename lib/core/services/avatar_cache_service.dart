@@ -7,49 +7,48 @@ import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'moment_storage_service.dart';
+import '../database/database.dart';
 
 /// Centralized avatar caching service
-/// Provides in-memory cache with SQLite persistence for fast avatar loading
+/// Provides in-memory cache with Drift persistence for fast avatar loading
+///
+/// This service is designed to be used as a Riverpod provider with the
+/// database injected via constructor. Use [avatarCacheServiceProvider] to
+/// access instances.
 class AvatarCacheService {
-  static AvatarCacheService? _instance;
+  /// Database for persistence
+  final AppDatabase _database;
 
   /// In-memory cache: userId -> avatarUrl
-  static final Map<String, String> _memoryCache = {};
+  final Map<String, String> _memoryCache = {};
 
   /// In-memory cache: avatarUrl -> localFilePath (for downloaded images)
-  static final Map<String, String> _localPathCache = {};
+  final Map<String, String> _localPathCache = {};
 
   /// Pending fetch operations to avoid duplicate requests
-  static final Map<String, Completer<String?>> _pendingFetches = {};
+  final Map<String, Completer<String?>> _pendingFetches = {};
 
-  /// Flag to track if initial load from SQLite is complete
-  static bool _initialized = false;
-  static final Completer<void> _initCompleter = Completer<void>();
-
-  /// Storage service for SQLite persistence
-  final MomentStorageService _storage = MomentStorageService();
+  /// Flag to track if initial load is complete
+  bool _initialized = false;
+  final Completer<void> _initCompleter = Completer<void>();
 
   /// Default avatar URL
   static const String defaultAvatarUrl =
       'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
 
-  AvatarCacheService._();
+  /// Creates an AvatarCacheService with the required database dependency.
+  AvatarCacheService(this._database);
 
-  factory AvatarCacheService() {
-    _instance ??= AvatarCacheService._();
-    return _instance!;
-  }
-
-  /// Initialize the cache from SQLite storage
+  /// Initialize the cache from Drift storage
   /// Call this early in app startup
   Future<void> initialize() async {
     if (_initialized) return;
 
     try {
-      // Load all profiles from SQLite and populate memory cache
-      final profiles = await _storage.getProfiles();
-      for (final profile in profiles) {
+      // Load all profiles from Drift and populate memory cache
+      final profileEntries = await _database.getProfiles();
+      for (final entry in profileEntries) {
+        final profile = entry.toModel();
         if (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty) {
           _memoryCache[profile.id] = profile.avatarUrl!;
         }
@@ -91,7 +90,6 @@ class AvatarCacheService {
           if (file is File) {
             // The filename is the URL hash
             final urlHash = basenameWithoutExtension(file.path);
-            // We'll need to match this with URLs when we fetch
             _localPathCache[urlHash] = file.path;
           }
         }
@@ -147,8 +145,10 @@ class AvatarCacheService {
 
       if (avatarUrl != null && avatarUrl.isNotEmpty) {
         _memoryCache[userId] = avatarUrl;
-        // Persist to SQLite via profile update
+        // Persist to database
         await _persistAvatarUrl(userId, avatarUrl);
+        // Download image file for offline use (fire and forget)
+        _downloadAvatarInBackground(avatarUrl);
       }
 
       completer.complete(avatarUrl);
@@ -203,6 +203,11 @@ class AvatarCacheService {
 
       // Persist all new avatars
       await _persistAvatarUrls(result);
+
+      // Download all avatar images for offline use (fire and forget)
+      for (final avatarUrl in result.values) {
+        _downloadAvatarInBackground(avatarUrl);
+      }
     } catch (e) {
       debugPrint('AvatarCacheService: Error fetching avatars: $e');
     }
@@ -226,37 +231,37 @@ class AvatarCacheService {
   void updateCacheBatch(Map<String, String> avatars) {
     _memoryCache.addAll(avatars);
     _persistAvatarUrls(avatars);
+    // Download all avatar images for offline use
+    for (final avatarUrl in avatars.values) {
+      _downloadAvatarInBackground(avatarUrl);
+    }
   }
 
-  /// Persist a single avatar URL to SQLite
+  /// Download avatar in background (fire and forget)
+  void _downloadAvatarInBackground(String url) {
+    // Don't await - let it run in background
+    downloadAvatar(url).then((_) {}).catchError((e) {
+      debugPrint('AvatarCacheService: Background download failed: $e');
+    });
+  }
+
+  /// Persist a single avatar URL to Drift database
   Future<void> _persistAvatarUrl(String userId, String avatarUrl) async {
     try {
-      final db = await _storage.database;
-      await db.rawUpdate('UPDATE profiles SET avatar_url = ? WHERE id = ?', [
-        avatarUrl,
-        userId,
-      ]);
+      await _database.updateProfileAvatarUrl(userId, avatarUrl);
     } catch (e) {
       debugPrint('AvatarCacheService: Error persisting avatar: $e');
     }
   }
 
-  /// Persist multiple avatar URLs to SQLite
+  /// Persist multiple avatar URLs to Drift database
   Future<void> _persistAvatarUrls(Map<String, String> avatars) async {
     if (avatars.isEmpty) return;
 
     try {
-      final db = await _storage.database;
-      final batch = db.batch();
-
       for (final entry in avatars.entries) {
-        batch.rawUpdate('UPDATE profiles SET avatar_url = ? WHERE id = ?', [
-          entry.value,
-          entry.key,
-        ]);
+        await _database.updateProfileAvatarUrl(entry.key, entry.value);
       }
-
-      await batch.commit(noResult: true);
     } catch (e) {
       debugPrint('AvatarCacheService: Error batch persisting avatars: $e');
     }
@@ -293,12 +298,13 @@ class AvatarCacheService {
       String ext = '.jpg';
       final contentType = response.headers['content-type'];
       if (contentType != null) {
-        if (contentType.contains('png'))
+        if (contentType.contains('png')) {
           ext = '.png';
-        else if (contentType.contains('webp'))
+        } else if (contentType.contains('webp')) {
           ext = '.webp';
-        else if (contentType.contains('gif'))
+        } else if (contentType.contains('gif')) {
           ext = '.gif';
+        }
       }
 
       final localPath = join(avatarDir.path, '$urlHash$ext');
@@ -322,7 +328,7 @@ class AvatarCacheService {
   /// Returns FileImage if local file exists, otherwise CachedNetworkImageProvider
   ImageProvider? getAvatarImageProvider(String? avatarUrl) {
     if (avatarUrl == null || avatarUrl.isEmpty) return null;
-    
+
     // Check for local cached file first
     final localPath = getLocalPath(avatarUrl);
     if (localPath != null) {
@@ -331,7 +337,7 @@ class AvatarCacheService {
         return FileImage(file);
       }
     }
-    
+
     // Fall back to network with caching
     return CachedNetworkImageProvider(avatarUrl);
   }

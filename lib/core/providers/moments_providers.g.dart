@@ -8,64 +8,12 @@ part of 'moments_providers.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Moment storage service provider
-
-@ProviderFor(momentStorage)
-const momentStorageProvider = MomentStorageProvider._();
-
-/// Moment storage service provider
-
-final class MomentStorageProvider
-    extends
-        $FunctionalProvider<
-          MomentStorageService,
-          MomentStorageService,
-          MomentStorageService
-        >
-    with $Provider<MomentStorageService> {
-  /// Moment storage service provider
-  const MomentStorageProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'momentStorageProvider',
-        isAutoDispose: true,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$momentStorageHash();
-
-  @$internal
-  @override
-  $ProviderElement<MomentStorageService> $createElement(
-    $ProviderPointer pointer,
-  ) => $ProviderElement(pointer);
-
-  @override
-  MomentStorageService create(Ref ref) {
-    return momentStorage(ref);
-  }
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(MomentStorageService value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<MomentStorageService>(value),
-    );
-  }
-}
-
-String _$momentStorageHash() => r'889ab6d9528dd7af2002c80267ff3c133ed47e2f';
-
-/// Moments repository provider
+/// Moments repository provider - singleton
 
 @ProviderFor(momentRepository)
 const momentRepositoryProvider = MomentRepositoryProvider._();
 
-/// Moments repository provider
+/// Moments repository provider - singleton
 
 final class MomentRepositoryProvider
     extends
@@ -75,14 +23,14 @@ final class MomentRepositoryProvider
           MomentRepository
         >
     with $Provider<MomentRepository> {
-  /// Moments repository provider
+  /// Moments repository provider - singleton
   const MomentRepositoryProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
         name: r'momentRepositoryProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -109,18 +57,20 @@ final class MomentRepositoryProvider
   }
 }
 
-String _$momentRepositoryHash() => r'24f02e1b7c50623b5eb9734aeea54b8d70efe9bd';
+String _$momentRepositoryHash() => r'e3a4e7611614ce44fd3dfadea702a6d9febc256b';
 
-/// Stream of all moments with offline-first approach
-/// 1. Immediately yields cached moments from SQLite
-/// 2. Then syncs with Supabase and yields updated moments
+/// Stream of all moments with offline-first approach using Drift
+/// 1. Immediately yields cached moments from Drift
+/// 2. Watches Drift for reactive updates
+/// 3. Syncs with Supabase in parallel
 
 @ProviderFor(momentsStream)
 const momentsStreamProvider = MomentsStreamProvider._();
 
-/// Stream of all moments with offline-first approach
-/// 1. Immediately yields cached moments from SQLite
-/// 2. Then syncs with Supabase and yields updated moments
+/// Stream of all moments with offline-first approach using Drift
+/// 1. Immediately yields cached moments from Drift
+/// 2. Watches Drift for reactive updates
+/// 3. Syncs with Supabase in parallel
 
 final class MomentsStreamProvider
     extends
@@ -130,9 +80,10 @@ final class MomentsStreamProvider
           Stream<List<Moment>>
         >
     with $FutureModifier<List<Moment>>, $StreamProvider<List<Moment>> {
-  /// Stream of all moments with offline-first approach
-  /// 1. Immediately yields cached moments from SQLite
-  /// 2. Then syncs with Supabase and yields updated moments
+  /// Stream of all moments with offline-first approach using Drift
+  /// 1. Immediately yields cached moments from Drift
+  /// 2. Watches Drift for reactive updates
+  /// 3. Syncs with Supabase in parallel
   const MomentsStreamProvider._()
     : super(
         from: null,
@@ -159,7 +110,7 @@ final class MomentsStreamProvider
   }
 }
 
-String _$momentsStreamHash() => r'33224eeda5222d6b4167662a05a447eb4dd609e6';
+String _$momentsStreamHash() => r'161326aa0dd5175b013d663f4c911b2dd15e373e';
 
 /// Stream of shared moments (realtime - moments user is contributor to)
 
@@ -339,17 +290,17 @@ final class MomentsByGroupStreamFamily extends $Family
   String toString() => r'momentsByGroupStreamProvider';
 }
 
-/// Single moment details
+/// Single moment details - Drift first, then remote
 
 @ProviderFor(momentDetails)
 const momentDetailsProvider = MomentDetailsFamily._();
 
-/// Single moment details
+/// Single moment details - Drift first, then remote
 
 final class MomentDetailsProvider
     extends $FunctionalProvider<AsyncValue<Moment?>, Moment?, FutureOr<Moment?>>
     with $FutureModifier<Moment?>, $FutureProvider<Moment?> {
-  /// Single moment details
+  /// Single moment details - Drift first, then remote
   const MomentDetailsProvider._({
     required MomentDetailsFamily super.from,
     required String super.argument,
@@ -393,9 +344,9 @@ final class MomentDetailsProvider
   }
 }
 
-String _$momentDetailsHash() => r'71d51b61e904bbefa256d97c6a2cecbf4d1a080b';
+String _$momentDetailsHash() => r'b52aa0404657fa1b6c39ba66854c24842daae538';
 
-/// Single moment details
+/// Single moment details - Drift first, then remote
 
 final class MomentDetailsFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<Moment?>, String> {
@@ -408,7 +359,7 @@ final class MomentDetailsFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Single moment details
+  /// Single moment details - Drift first, then remote
 
   MomentDetailsProvider call(String momentId) =>
       MomentDetailsProvider._(argument: momentId, from: this);

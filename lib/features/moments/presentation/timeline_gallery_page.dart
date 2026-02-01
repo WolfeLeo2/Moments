@@ -4,11 +4,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import '../../../data/models/moment.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/services/signed_url_cache.dart';
-import '../../../core/services/moment_storage_service.dart';
+import '../../../core/providers/database_provider.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/providers/moments_providers.dart';
 import '../../../widgets/offline_image.dart';
@@ -31,7 +32,6 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
   final Map<String, String> _imageUrls = {};
   final Map<String, String> _localPaths = {};
   final ScrollController _scrollController = ScrollController();
-  final MomentStorageService _storage = MomentStorageService();
   // View mode: 'grid' or 'timeline'
   String _viewMode = 'timeline';
 
@@ -55,7 +55,7 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
   Future<void> _loadImagesForMoments(List<Moment> moments) async {
     // Load local paths first and track which moments have valid local files
     final momentsNeedingNetworkUrls = <Moment>[];
-    
+
     for (var moment in moments) {
       if (_localPaths.containsKey(moment.id)) {
         // Already have local path, skip network URL fetch
@@ -63,7 +63,8 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
       }
 
       final isThumbnail = moment.mediaType == 'video';
-      final localPath = await _storage.getLocalMediaPath(
+      final db = ref.read(appDatabaseProvider);
+      final localPath = await db.getLocalMediaPath(
         moment.id,
         isThumbnail: isThumbnail,
       );
@@ -179,10 +180,6 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
       'DECEMBER',
     ];
     return '${months[date.month]} ${date.year}';
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}';
   }
 
   /// Get moments that belong to the same group as the tapped moment
@@ -306,169 +303,137 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
     final grouped = _groupByMonth(moments);
     final monthKeys = grouped.keys.toList();
 
+    // Recap Logic: Moments from last 7 days
+    final now = DateTime.now();
+    final lastWeek = now.subtract(const Duration(days: 7));
+    final recaps = moments.where((m) => m.timestamp.isAfter(lastWeek)).toList();
+    final hasRecap = recaps.isNotEmpty;
+
     return ListView.builder(
       controller: _scrollController,
-      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
-      itemCount: monthKeys.length,
-      itemBuilder: (context, monthIndex) {
+      padding: EdgeInsets.zero,
+      itemCount: monthKeys.length + (hasRecap ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (hasRecap && index == 0) {
+          return _buildRecapHeader(recaps);
+        }
+
+        final monthIndex = hasRecap ? index - 1 : index;
         final monthKey = monthKeys[monthIndex];
         final monthMoments = grouped[monthKey]!;
-
-        // Group month moments by date
         final dateGrouped = _groupByDate(monthMoments);
         final dateKeys = dateGrouped.keys.toList();
 
-        return AnimatedBuilder(
-          animation: _entryController,
-          builder: (context, child) {
-            final delay = (monthIndex * 0.1).clamp(0.0, 0.5);
-            final progress = ((_entryController.value - delay) / 0.5).clamp(
-              0.0,
-              1.0,
-            );
-
-            return Opacity(
-              opacity: progress,
-              child: Transform.translate(
-                offset: Offset(0, 20 * (1 - progress)),
-                child: child,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Month Header
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                24.w,
+                monthIndex == 0 && !hasRecap ? 24.h : 32.h,
+                24.w,
+                16.h,
               ),
-            );
-          },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Month header - comic book style speech bubble
-              Padding(
-                padding: EdgeInsets.only(
-                  bottom: 12.h,
-                  top: monthIndex > 0 ? 24.h : 0,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 16.w,
-                        vertical: 8.h,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.brightYellow,
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.radiusSmall,
-                        ),
-                        border: Border.all(
-                          color: AppTheme.borderBlack,
-                          width: AppTheme.borderMedium,
-                        ),
-                        boxShadow: AppTheme.brutalShadowSmall,
-                      ),
-                      child: Text(
-                        monthKey,
-                        style: GoogleFonts.bebasNeue(
-                          fontSize: 18.sp,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textDark,
-                          letterSpacing: 1.2.sp,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 12.w),
-                    Expanded(
-                      child: Container(
-                        height: AppTheme.borderMedium,
-                        color: AppTheme.borderBlack,
-                      ),
-                    ),
-                  ],
+              child: Text(
+                monthKey,
+                style: GoogleFonts.bebasNeue(
+                  fontSize: 32.sp,
+                  color: AppTheme.textDark.withValues(alpha: 0.2),
+                  letterSpacing: 2.0,
                 ),
               ),
+            ),
 
-              // Timeline items grouped by date
-              ...dateKeys.asMap().entries.map((dateEntry) {
-                final dateIndex = dateEntry.key;
-                final dateKey = dateEntry.value;
-                final dateMoments = dateGrouped[dateKey]!;
-                final isLastDateInMonth = dateIndex == dateKeys.length - 1;
-
-                return _buildDateGroup(
-                  dateMoments,
-                  monthMoments,
-                  isLastDateInMonth,
-                );
-              }),
-            ],
-          ),
+            ...dateKeys.map((dateKey) {
+              final dateMoments = dateGrouped[dateKey]!;
+              final date = dateMoments.first.timestamp;
+              return _buildCompactDay(date, dateMoments, moments);
+            }),
+          ],
         );
       },
     );
   }
 
-  /// Build a group of moments for the same date with a single extended pin
-  Widget _buildDateGroup(
-    List<Moment> dateMoments,
-    List<Moment> allMonthMoments,
-    bool isLastInMonth,
-  ) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: isLastInMonth ? 0 : 16.h),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _buildRecapHeader(List<Moment> recaps) {
+    return Card(
+      margin: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 8.h),
+      elevation: 8,
+      shadowColor: Colors.black.withOpacity(0.2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        height: 200.h,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            // Timeline connector - single pin that extends for all cards in this date
-            SizedBox(
-              width: 24.w,
+            // Collage Background (First 3 images)
+            if (recaps.isNotEmpty)
+              Row(
+                children: recaps.take(3).map((m) {
+                  final localPath = _localPaths[m.id];
+                  final imageUrl = _imageUrls[m.id];
+                  return Expanded(
+                    child: OfflineImage(
+                      localPath: localPath,
+                      networkUrl: imageUrl,
+                      cacheKey: m.mediaPath,
+                      fit: BoxFit.cover,
+                    ),
+                  );
+                }).toList(),
+              ),
+
+            // Gradient Overlay
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.2),
+                    Colors.black.withValues(alpha: 0.7),
+                  ],
+                ),
+              ),
+            ),
+
+            // Content
+            Padding(
+              padding: EdgeInsets.all(20.w),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // The pin circle - always visible
-                  Container(
-                    width: 14.w,
-                    height: 14.w,
-                    margin: EdgeInsets.only(left: 5.w),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryBlue,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppTheme.borderBlack,
-                        width: AppTheme.borderMedium,
-                      ),
+                  Text(
+                    'THIS WEEK',
+                    style: GoogleFonts.inter(
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.8),
+                      letterSpacing: 1.5,
                     ),
                   ),
-                  // Extended line covering all cards in this date group + connecting to next
-                  Expanded(
-                    child: Container(
-                      width: AppTheme.borderMedium,
-                      margin: EdgeInsets.only(left: 10.w),
-                      color: isLastInMonth
-                          ? Colors.transparent
-                          : AppTheme.borderBlack,
+                  SizedBox(height: 4.h),
+                  Text(
+                    '${recaps.length} Moments Captured',
+                    style: GoogleFonts.bebasNeue(
+                      fontSize: 28.sp,
+                      color: Colors.white,
+                      letterSpacing: 1.0,
                     ),
                   ),
                 ],
               ),
             ),
 
-            SizedBox(width: 12.w),
-
-            // Cards for this date
-            Expanded(
-              child: Column(
-                children: dateMoments.asMap().entries.map((entry) {
-                  final cardIndex = entry.key;
-                  final moment = entry.value;
-                  final globalIndex = allMonthMoments.indexOf(moment);
-
-                  return Padding(
-                    padding: EdgeInsets.only(
-                      bottom: cardIndex < dateMoments.length - 1 ? 12.h : 0,
-                    ),
-                    child: _buildTimelineCardContent(
-                      moment,
-                      allMonthMoments,
-                      globalIndex,
-                    ),
-                  );
-                }).toList(),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticService.lightTap();
+                },
               ),
             ),
           ],
@@ -477,16 +442,215 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
     );
   }
 
-  Widget _buildTimelineCardContent(
-    Moment moment,
+  Widget _buildCompactDay(
+    DateTime date,
+    List<Moment> dayMoments,
     List<Moment> allMoments,
-    int index,
   ) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 16.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Sticky-style Date Indicator (Left)
+          SizedBox(
+            width: 50.w,
+            child: Column(
+              children: [
+                Text(
+                  '${date.day}',
+                  style: GoogleFonts.inter(
+                    fontSize: 24.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textDark,
+                    height: 1.0,
+                  ),
+                ),
+                Text(
+                  _getDayName(date),
+                  style: GoogleFonts.inter(
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textGray,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Compact List Column (Right)
+          Expanded(
+            child: Column(
+              children: dayMoments.asMap().entries.map((entry) {
+                final moment = entry.value;
+                final globalIndex = allMoments.indexOf(moment);
+
+                return _buildCompactTile(moment, allMoments, globalIndex);
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactTile(Moment moment, List<Moment> allMoments, int index) {
     final localPath = _localPaths[moment.id];
     final imageUrl = _imageUrls[moment.id];
     final isVideo = moment.mediaType == 'video';
 
-    // Card content - neubrutalist style (no timeline connector, handled by parent)
+    // Native ListTile implementation for compactness
+    return ListTile(
+      contentPadding: EdgeInsets.fromLTRB(0, 4.h, 16.w, 4.h),
+      dense: true,
+      onTap: () => _navigateToDetails(
+        allMoments,
+        moment.location.split(',').first.trim(),
+        index,
+      ),
+      leading: Hero(
+        tag: 'compact_${moment.id}',
+        child: Container(
+          width: 56.w,
+          height: 56.w,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.grey[200],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              OfflineImage(
+                localPath: localPath,
+                networkUrl: imageUrl,
+                cacheKey: moment.mediaPath,
+                fit: BoxFit.cover,
+              ),
+              if (isVideo)
+                Center(
+                  child: Icon(
+                    Icons.play_circle_fill,
+                    color: Colors.white.withOpacity(0.8),
+                    size: 20.sp,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      title: Text(
+        moment.title.isNotEmpty ? moment.title : 'Untitled',
+        style: GoogleFonts.inter(
+          fontSize: 14.sp,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.textDark,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Padding(
+        padding: EdgeInsets.only(top: 2.h),
+        child: Row(
+          children: [
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedLocation01,
+              size: 10.sp,
+              color: AppTheme.textGray,
+            ),
+            SizedBox(width: 4.w),
+            Expanded(
+              child: Text(
+                moment.location.split(',').first.trim(),
+                style: GoogleFonts.inter(
+                  fontSize: 11.sp,
+                  color: AppTheme.textGray,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+      trailing: HugeIcon(
+        icon: HugeIcons.strokeRoundedArrowRight01,
+        size: 16.sp,
+        color: AppTheme.textGray.withOpacity(0.5),
+      ),
+    );
+  }
+
+  Widget _buildJournalDay(
+    DateTime date,
+    List<Moment> dayMoments,
+    List<Moment> allMoments,
+  ) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Sticky-style Date Indicator
+          SizedBox(
+            width: 50.w,
+            child: Column(
+              children: [
+                Text(
+                  '${date.day}',
+                  style: GoogleFonts.inter(
+                    fontSize: 24.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textDark,
+                    height: 1.0,
+                  ),
+                ),
+                Text(
+                  _getDayName(date),
+                  style: GoogleFonts.inter(
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textGray,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: 12.w),
+
+          // Moments Column
+          Expanded(
+            child: Column(
+              children: dayMoments.asMap().entries.map((entry) {
+                final moment = entry.value;
+                final globalIndex = allMoments.indexOf(moment);
+
+                return Padding(
+                  padding: EdgeInsets.only(bottom: 16.h),
+                  child: _buildJournalCard(moment, allMoments, globalIndex),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJournalCard(Moment moment, List<Moment> allMoments, int index) {
+    final localPath = _localPaths[moment.id];
+    final imageUrl = _imageUrls[moment.id];
+    final isVideo = moment.mediaType == 'video';
+
     return GestureDetector(
       onTap: () => _navigateToDetails(
         allMoments,
@@ -495,78 +659,79 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: AppTheme.cardWhite,
-          border: Border.all(
-            color: AppTheme.borderBlack,
-            width: AppTheme.borderMedium,
-          ),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
+            ),
+          ],
         ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image with hero animation
-            Hero(
-              tag: 'gallery_${moment.id}',
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    OfflineImage(
+            Stack(
+              children: [
+                Hero(
+                  tag: 'journal_${moment.id}',
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: OfflineImage(
                       localPath: localPath,
                       networkUrl: imageUrl,
                       cacheKey: moment.mediaPath,
                       fit: BoxFit.cover,
                     ),
-                    if (isVideo)
-                      Center(
-                        child: Container(
-                          padding: EdgeInsets.all(12.w),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: Icon(
-                            Icons.play_arrow,
-                            color: Colors.white,
-                            size: 24.sp,
-                          ),
+                  ),
+                ),
+                if (isVideo)
+                  Positioned.fill(
+                    child: Center(
+                      child: Container(
+                        padding: EdgeInsets.all(10.w),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        child: Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 24.sp,
                         ),
                       ),
-                  ],
-                ),
-              ),
+                    ),
+                  ),
+              ],
             ),
 
-            // Details
             Padding(
               padding: EdgeInsets.all(12.w),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title
-                  Text(
-                    moment.title.toUpperCase(),
-                    style: GoogleFonts.bebasNeue(
-                      fontSize: 20.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textDark,
-                      letterSpacing: 1.sp,
+                  if (moment.title.isNotEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: 4.h),
+                      child: Text(
+                        moment.title,
+                        style: GoogleFonts.inter(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textDark,
+                        ),
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
 
-                  SizedBox(height: 4.h),
-
-                  // Location and date row
                   Row(
                     children: [
                       HugeIcon(
-                        icon: HugeIcons.strokeRoundedLocation03,
-                        size: 14.sp,
-                        color: AppTheme.primaryBlue,
+                        icon: HugeIcons.strokeRoundedLocation01,
+                        size: 12.sp,
+                        color: AppTheme.textGray,
                       ),
                       SizedBox(width: 4.w),
                       Expanded(
@@ -580,40 +745,8 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8.w,
-                          vertical: 2.h,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryBlue.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4.r),
-                        ),
-                        child: Text(
-                          _formatDate(moment.timestamp),
-                          style: GoogleFonts.inter(
-                            fontSize: 11.sp,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.primaryBlue,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
-
-                  // Caption if exists
-                  if (moment.caption != null && moment.caption!.isNotEmpty) ...[
-                    SizedBox(height: 8.h),
-                    Text(
-                      moment.caption!,
-                      style: GoogleFonts.inter(
-                        fontSize: 13.sp,
-                        color: AppTheme.textDark.withValues(alpha: 0.8),
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -623,16 +756,18 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
     );
   }
 
+  String _getDayName(DateTime date) {
+    const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+    return days[date.weekday - 1];
+  }
+
   Widget _buildGridView(List<Moment> moments) {
-    return GridView.builder(
+    return MasonryGridView.count(
       controller: _scrollController,
-      padding: EdgeInsets.all(16.w),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12.w,
-        mainAxisSpacing: 12.h,
-        childAspectRatio: 3 / 4,
-      ),
+      padding: EdgeInsets.all(10.w),
+      crossAxisCount: 2,
+      mainAxisSpacing: 10.h,
+      crossAxisSpacing: 10.w,
       itemCount: moments.length,
       itemBuilder: (context, index) {
         final moment = moments[index];
@@ -646,6 +781,7 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
     final imageUrl = _imageUrls[moment.id];
     final isVideo = moment.mediaType == 'video';
 
+    // Soft Minimalism: Rounded corners, soft shadow, no hard borders
     return AnimatedBuilder(
       animation: _entryController,
       builder: (context, child) {
@@ -657,7 +793,10 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
 
         return Opacity(
           opacity: progress,
-          child: Transform.scale(scale: 0.8 + (0.2 * progress), child: child),
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - progress)),
+            child: child,
+          ),
         );
       },
       child: GestureDetector(
@@ -668,88 +807,52 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
         ),
         child: Container(
           decoration: BoxDecoration(
-            color: AppTheme.cardWhite,
-            border: Border.all(
-              color: AppTheme.borderBlack,
-              width: AppTheme.borderMedium,
-            ),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-
+          clipBehavior: Clip.antiAlias,
           child: Stack(
-            fit: StackFit.expand,
             children: [
-              // Image with Hero
+              // Raw aspect ratio (removed AspectRatio wrapper)
               Hero(
                 tag: 'gallery_${moment.id}',
                 child: OfflineImage(
                   localPath: localPath,
                   networkUrl: imageUrl,
                   cacheKey: moment.mediaPath,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.cover, // Will fit width, height adjusts naturally
                 ),
               ),
 
-              // Video play icon
+              // Video indicator
               if (isVideo)
-                Center(
-                  child: Container(
-                    padding: EdgeInsets.all(10.w),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.6),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: Icon(
-                      Icons.play_arrow,
-                      color: Colors.white,
-                      size: 20.sp,
+                Positioned.fill(
+                  child: Center(
+                    child: Container(
+                      padding: EdgeInsets.all(8.w),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.8),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 20.sp,
+                      ),
                     ),
                   ),
                 ),
-
-              // Bottom gradient overlay
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  padding: EdgeInsets.all(10.w),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.8),
-                      ],
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        moment.title.toUpperCase(),
-                        style: GoogleFonts.bebasNeue(
-                          fontSize: 16.sp,
-                          color: Colors.white,
-                          letterSpacing: 0.8.sp,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: 2.h),
-                      Text(
-                        _formatDate(moment.timestamp),
-                        style: GoogleFonts.inter(
-                          fontSize: 10.sp,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
 
               // Private badge
               if (moment.isPrivate)
@@ -764,7 +867,7 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
                     ),
                     child: HugeIcon(
                       icon: HugeIcons.strokeRoundedSquareLock02,
-                      size: 14.sp,
+                      size: 12.sp,
                       color: Colors.white,
                     ),
                   ),
@@ -811,8 +914,7 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
                 fontWeight: FontWeight.w900,
                 letterSpacing: -0.5.sp,
               ),
-            )
-            ,
+            ),
           ],
         ),
         centerTitle: false,

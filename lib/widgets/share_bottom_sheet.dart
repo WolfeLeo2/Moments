@@ -4,6 +4,7 @@ import 'package:moments/widgets/spring_button.dart';
 import '../../data/models/moment.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/share_service.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'moment_share_card.dart';
 
 /// Beautiful share bottom sheet inspired by iOS share sheet and Instagram sharing.
@@ -197,18 +198,24 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                             color: isSelected
                                 ? AppTheme.primaryBlue
                                 : AppTheme.cardWhite,
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusMedium,
-                            ),
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppTheme.primaryBlue
-                                  : AppTheme.borderGray,
-                              width: AppTheme.borderThin,
-                            ),
+                            borderRadius: BorderRadius.circular(16),
                             boxShadow: isSelected
-                                ? AppTheme.brutalShadow
-                                : null,
+                                ? [
+                                    BoxShadow(
+                                      color: AppTheme.primaryBlue.withOpacity(
+                                        0.3,
+                                      ),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ]
+                                : [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                           ),
                           child: Column(
                             children: [
@@ -261,22 +268,20 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     height: 56,
                     decoration: BoxDecoration(
                       color: AppTheme.primaryBlue,
-                      borderRadius: BorderRadius.circular(
-                        AppTheme.radiusMedium,
-                      ),
-                      border: Border.all(
-                        color: AppTheme.borderBlack,
-                        width: AppTheme.borderMedium,
-                      ),
-                      boxShadow: AppTheme.brutalShadow,
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.primaryBlue.withOpacity(0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: _isSharing ? null : _shareImage,
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.radiusMedium,
-                        ),
+                        borderRadius: BorderRadius.circular(28),
                         child: Center(
                           child: _isSharing
                               ? const SizedBox(
@@ -292,20 +297,17 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                                   children: [
                                     const HugeIcon(
                                       icon: HugeIcons.strokeRoundedShare08,
-                                      size: 22,
+                                      size: 20,
                                       color: Colors.white,
                                     ),
                                     SizedBox(width: AppTheme.spacing8),
                                     Text(
-                                      'SHARE IMAGE',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelLarge
-                                          ?.copyWith(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w700,
-                                            letterSpacing: 1.2,
-                                          ),
+                                      'Share Image',
+                                      style: GoogleFonts.inter(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -317,7 +319,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
 
                 SizedBox(height: AppTheme.spacing12),
 
-                // Save button - Vibrant Green with Neubrutalism shadow
+                // Save button - Soft Green
                 SpringButton(
                   scaleFactor: 0.92,
                   child: Container(
@@ -325,14 +327,14 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     height: 56,
                     decoration: BoxDecoration(
                       color: AppTheme.vibrantGreen,
-                      borderRadius: BorderRadius.circular(
-                        AppTheme.radiusMedium,
-                      ),
-                      border: Border.all(
-                        color: AppTheme.borderBlack,
-                        width: AppTheme.borderMedium,
-                      ),
-                      boxShadow: AppTheme.brutalShadow,
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.vibrantGreen.withOpacity(0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Material(
                       color: Colors.transparent,
@@ -341,27 +343,24 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                           Navigator.pop(context);
                           // Could implement save to gallery feature
                         },
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.radiusMedium,
-                        ),
+                        borderRadius: BorderRadius.circular(28),
                         child: Center(
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const HugeIcon(
                                 icon: HugeIcons.strokeRoundedDownload04,
-                                size: 22,
-                                color: AppTheme.borderBlack,
+                                size: 20,
+                                color: Colors.white,
                               ),
                               SizedBox(width: AppTheme.spacing8),
                               Text(
-                                'SAVE IMAGE',
-                                style: Theme.of(context).textTheme.labelLarge
-                                    ?.copyWith(
-                                      color: AppTheme.borderBlack,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 1.2,
-                                    ),
+                                'Save Image',
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
                               ),
                             ],
                           ),
@@ -395,7 +394,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
 class _StyleOption {
   final ShareCardStyle style;
   final String name;
-  final dynamic hugeIcon; 
+  final dynamic hugeIcon;
 
   const _StyleOption({
     required this.style,

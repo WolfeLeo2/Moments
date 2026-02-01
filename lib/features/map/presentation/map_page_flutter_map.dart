@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
+import 'dart:async';
+import 'dart:ui' as ui; // For ImageFilter
 import 'package:image_picker/image_picker.dart' as picker;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart' as lottie;
@@ -26,9 +28,13 @@ import '../../moments/presentation/timeline_gallery_page.dart';
 import '../../profile/profile_page.dart';
 import '../../chat/presentation/chat_list_page.dart';
 import '../widgets/stacked_moment_marker.dart';
+import '../widgets/friend_moments_stack.dart';
+import '../widgets/friends_in_view_sheet.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:moments/data/models/user_profile.dart';
+import 'package:moments/data/services/user_profile_service.dart';
 
 import 'package:moments/core/providers/providers.dart';
 
@@ -49,8 +55,13 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
   final MapCacheService _mapCacheService = MapCacheService();
   final MapController _mapController = MapController();
   final ValueNotifier<double> _zoomNotifier = ValueNotifier(14.0);
+  bool _isMapReady = false; // Flag to track if map is rendered
   double _lastThreshold =
       -1; // Track last threshold to prevent excessive rebuilds
+
+  // Dynamic viewport location
+  LatLng? _mapCenterPosition;
+  Timer? _geocodeDebounce;
 
   @override
   void initState() {
@@ -154,6 +165,7 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _geocodeDebounce?.cancel();
     _zoomNotifier.dispose();
     super.dispose();
   }
@@ -195,6 +207,31 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
         setState(() => _cityName = city);
       }
     }
+  }
+
+  /// Update location name based on current viewport center (debounced)
+  Future<void> _updateLocationFromViewport() async {
+    if (_mapCenterPosition == null) return;
+
+    try {
+      final city = await GeocodingService.getCityFromCoordinates(
+        _mapCenterPosition!.latitude,
+        _mapCenterPosition!.longitude,
+      );
+      if (mounted && city.isNotEmpty) {
+        setState(() => _cityName = city);
+      }
+    } catch (e) {
+      debugPrint('Failed to geocode viewport center: $e');
+    }
+  }
+
+  void _onMapReady() {
+    setState(() {
+      _isMapReady = true;
+    });
+    // Trigger location update now that map is ready
+    _getCurrentLocation();
   }
 
   Future<void> _getCurrentLocation() async {
@@ -243,12 +280,24 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
         }
 
         setState(() => _currentPosition = position);
-        // Auto-center map to user's location
-        _mapController.move(
-          LatLng(position.latitude!, position.longitude!),
-          14.0,
-        );
-        print('📍 Map moved to: ${position.latitude}, ${position.longitude}');
+
+        // Auto-center map to user's location if map is ready
+        if (_isMapReady) {
+          try {
+            _mapController.move(
+              LatLng(position.latitude!, position.longitude!),
+              14.0,
+            );
+            debugPrint(
+              '📍 Map moved to: ${position.latitude}, ${position.longitude}',
+            );
+          } catch (e) {
+            debugPrint('⚠️ Error moving map: $e');
+          }
+        } else {
+          debugPrint('📍 Map not ready yet, skipping auto-center');
+        }
+
         // Ensure city name is updated effectively
         _loadCityName();
       } else {
@@ -356,6 +405,89 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
   // Removed - replaced with AnimatedFAB widget
 
   // Removed - replaced with AnimatedFAB widget
+
+  /// Build the friends-in-view avatar stack widget
+  Widget _buildFriendsInViewStack(List<Moment> visibleMoments) {
+    // Get current map viewport bounds safely
+    if (!_isMapReady) return const SizedBox.shrink();
+
+    LatLngBounds bounds;
+    try {
+      bounds = _mapController.camera.visibleBounds;
+    } catch (e) {
+      debugPrint('⚠️ Error getting map bounds: $e');
+      return const SizedBox.shrink();
+    }
+
+    // Filter moments to only those within the current viewport
+    final momentsInViewport = visibleMoments.where((m) {
+      return m.latitude >= bounds.south &&
+          m.latitude <= bounds.north &&
+          m.longitude >= bounds.west &&
+          m.longitude <= bounds.east;
+    }).toList();
+
+    // Group moments by friend (exclude current user's moments)
+    final currentUserId = _authService.currentUser?.id;
+    final friendMoments = momentsInViewport
+        .where((m) => m.userId != null && m.userId != currentUserId)
+        .toList();
+
+    if (friendMoments.isEmpty) return const SizedBox.shrink();
+
+    // Get unique user IDs
+    final userIds = friendMoments.map((m) => m.userId!).toSet().toList();
+
+    // Use FutureBuilder to fetch profiles
+    return FutureBuilder<List<UserProfile>>(
+      future: UserProfileService.getUserProfiles(userIds),
+      builder: (context, snapshot) {
+        // Build profile map
+        final profileMap = <String, UserProfile>{};
+        if (snapshot.hasData) {
+          for (final profile in snapshot.data!) {
+            profileMap[profile.id] = profile;
+          }
+        }
+
+        // Group moments by friend with profile data
+        final friendGroups = <String, FriendMomentGroup>{};
+        for (final moment in friendMoments) {
+          final odId = moment.userId!;
+          final profile = profileMap[odId];
+
+          if (!friendGroups.containsKey(odId)) {
+            friendGroups[odId] = FriendMomentGroup(
+              odId: odId,
+              displayName: profile?.displayName ?? 'Friend',
+              avatarUrl: profile?.avatarUrl,
+              moments: [],
+            );
+          }
+          // Add moment to existing group
+          final existingGroup = friendGroups[odId]!;
+          friendGroups[odId] = FriendMomentGroup(
+            odId: existingGroup.odId,
+            displayName: existingGroup.displayName,
+            avatarUrl: existingGroup.avatarUrl,
+            moments: [...existingGroup.moments, moment],
+          );
+        }
+
+        final groups = friendGroups.values.toList()
+          ..sort((a, b) => b.moments.length.compareTo(a.moments.length));
+
+        return FriendMomentsStack(
+          friendGroups: groups,
+          onTap: () => showFriendsInViewSheet(
+            context,
+            friendGroups: groups,
+            locationName: _cityName,
+          ),
+        );
+      },
+    );
+  }
 
   /// Ensure location is available, fetching it if necessary
   Future<bool> _ensureLocation() async {
@@ -509,9 +641,20 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
     // Listen for external camera move requests (e.g. from notifications)
     ref.listen<LatLng?>(mapCameraTargetProvider, (previous, next) {
       if (next != null) {
-        _mapController.move(next, 16.0); // Zoom level 16 for close-up
-        // Reset the provider so we don't re-trigger on rebuilds
-        ref.read(mapCameraTargetProvider.notifier).setTarget(null);
+        if (_isMapReady) {
+          try {
+            _mapController.move(next, 16.0); // Zoom level 16 for close-up
+            // Reset the provider so we don't re-trigger on rebuilds
+            ref.read(mapCameraTargetProvider.notifier).setTarget(null);
+          } catch (e) {
+            debugPrint('⚠️ Error moving map to target: $e');
+          }
+        } else {
+          // If map isn't ready, we should probably keep the target in the provider
+          // so it can be handled when the map becomes ready.
+          // For now, just log it.
+          debugPrint('⚠️ Map not ready for camera move request');
+        }
       }
     });
 
@@ -600,6 +743,7 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
               FlutterMap(
                 mapController: _mapController,
                 options: MapOptions(
+                  onMapReady: _onMapReady,
                   initialCenter: _currentPosition != null
                       ? LatLng(
                           _currentPosition!.latitude!,
@@ -610,8 +754,19 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                   minZoom: 5.0,
                   maxZoom: 22.0,
                   onPositionChanged: (position, hasGesture) {
+                    // Update map center for dynamic location tracking
+                    _mapCenterPosition = position.center;
+
+                    // Debounce geocoding to prevent API spam during scroll
+                    _geocodeDebounce?.cancel();
+                    _geocodeDebounce = Timer(
+                      const Duration(milliseconds: 500),
+                      () {
+                        _updateLocationFromViewport();
+                      },
+                    );
+
                     // Update zoom notifier ONLY if the clustering threshold changes
-                    // This prevents rebuilding markers on every frame of zoom animation
                     final newThreshold = MapLogicService.getClusterThreshold(
                       position.zoom,
                     );
@@ -736,53 +891,67 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                 ],
               ),
 
-              // City name sticker
+              // City name sticker - Soft Minimalism & Punchy
               Positioned(
-                top: MediaQuery.of(context).padding.top + kToolbarHeight + 5,
+                top: MediaQuery.of(context).padding.top + kToolbarHeight + 16,
                 left: 0,
                 right: 0,
                 child: Center(
-                  child: Transform.rotate(
-                    angle: -0.01,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.brightYellow,
-                        border: Border.all(color: Colors.black, width: 2),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: AppTheme.brutalShadow,
-                      ),
-                      child: Stack(
-                        children: [
-                          Text(
-                            _cityName.toUpperCase(),
-                            style: GoogleFonts.bangers(
-                              fontSize: 30,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 3,
-                              foreground: Paint()
-                                ..style = PaintingStyle.stroke
-                                ..strokeWidth = 3
-                                ..color = AppTheme.borderBlack,
-                            ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.85),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.6),
+                            width: 1.5,
                           ),
-                          Text(
-                            _cityName.toUpperCase(),
-                            style: GoogleFonts.bangers(
-                              fontSize: 30,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: 3,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            HugeIcon(
+                              icon: HugeIcons.strokeRoundedLocation01,
+                              size: 18,
+                              color: AppTheme.primaryBlue,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _cityName.toUpperCase(),
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.textDark,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
+              ),
+
+              // Friends in view avatar stack (bottom-right)
+              Positioned(
+                bottom: AppTheme.spacing32 + 80, // Above FAB
+                right: 16,
+                child: _buildFriendsInViewStack(visibleMoments),
               ),
 
               // Animated FAB

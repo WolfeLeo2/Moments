@@ -47,7 +47,7 @@ final class SyncStateProvider
   }
 }
 
-String _$syncStateHash() => r'454cbdfc78c181be0a816b54fc435eb2b03ae869';
+String _$syncStateHash() => r'6c243d57c8312afdc14bfd2f2c62a41ba32a118f';
 
 /// Global sync state provider
 /// Tracks sync errors from various sources and provides overall status
@@ -115,7 +115,7 @@ final class SyncStatusProvider
   }
 }
 
-String _$syncStatusHash() => r'f279b4f618b90ccb9413eed356150d950a9adbd7';
+String _$syncStatusHash() => r'6ffb83b486d0395edb3ff476b1fec3efe89ce5ce';
 
 /// Error count provider
 
@@ -163,19 +163,19 @@ final class SyncErrorCountProvider extends $FunctionalProvider<int, int, int>
 String _$syncErrorCountHash() => r'10cc591a30ffaa15b4cfbb65e26fa6e0580e6c74';
 
 /// Pending offline actions count provider
-/// Shows how many actions are waiting to be synced
+/// Shows how many actions are waiting to be synced (uses Drift)
 
 @ProviderFor(pendingActionsCount)
 const pendingActionsCountProvider = PendingActionsCountProvider._();
 
 /// Pending offline actions count provider
-/// Shows how many actions are waiting to be synced
+/// Shows how many actions are waiting to be synced (uses Drift)
 
 final class PendingActionsCountProvider
     extends $FunctionalProvider<AsyncValue<int>, int, FutureOr<int>>
     with $FutureModifier<int>, $FutureProvider<int> {
   /// Pending offline actions count provider
-  /// Shows how many actions are waiting to be synced
+  /// Shows how many actions are waiting to be synced (uses Drift)
   const PendingActionsCountProvider._()
     : super(
         from: null,
@@ -202,57 +202,4 @@ final class PendingActionsCountProvider
 }
 
 String _$pendingActionsCountHash() =>
-    r'6c707d92c250a43cc8cf6434675c9878491199e1';
-
-/// Provider for PendingActionService
-
-@ProviderFor(pendingActionService)
-const pendingActionServiceProvider = PendingActionServiceProvider._();
-
-/// Provider for PendingActionService
-
-final class PendingActionServiceProvider
-    extends
-        $FunctionalProvider<
-          PendingActionService,
-          PendingActionService,
-          PendingActionService
-        >
-    with $Provider<PendingActionService> {
-  /// Provider for PendingActionService
-  const PendingActionServiceProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'pendingActionServiceProvider',
-        isAutoDispose: false,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$pendingActionServiceHash();
-
-  @$internal
-  @override
-  $ProviderElement<PendingActionService> $createElement(
-    $ProviderPointer pointer,
-  ) => $ProviderElement(pointer);
-
-  @override
-  PendingActionService create(Ref ref) {
-    return pendingActionService(ref);
-  }
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(PendingActionService value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<PendingActionService>(value),
-    );
-  }
-}
-
-String _$pendingActionServiceHash() =>
-    r'fe1ee546e2f1774a2c8a1b1768f977d8a6171e7d';
+    r'1e73e9db49d79273bb84305602196f824479b885';

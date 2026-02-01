@@ -1,3 +1,4 @@
+import 'package:moments/core/services/app_logger.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -6,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import '../../data/sources/supabase_config.dart';
+
+final _log = AppLogger('UmapUcacheUservice');
 
 class MapCacheService {
   static const String _tileCacheDir = 'mapbox_tiles';
@@ -55,7 +58,7 @@ class MapCacheService {
       // Clean up old cache entries
       await _cleanupOldCache();
     } catch (e) {
-      print('Error initializing map cache: $e');
+      _log.e('Error initializing map cache: $e');
     }
   }
 
@@ -166,7 +169,7 @@ class MapCacheService {
         return cachedFile.path;
       }
     } catch (e) {
-      print('Error caching image: $e');
+      _log.e('Error caching image: $e');
     }
 
     return null;
@@ -191,7 +194,7 @@ class MapCacheService {
         }
       }
     } catch (e) {
-      print('Error getting cached image: $e');
+      _log.e('Error getting cached image: $e');
     }
 
     return null;
@@ -289,7 +292,7 @@ class MapCacheService {
         ),
       };
     } catch (e) {
-      print('Error getting cache info: $e');
+      _log.e('Error getting cache info: $e');
       return {};
     }
   }
@@ -307,9 +310,9 @@ class MapCacheService {
         await _imageDir.create(recursive: true);
       }
 
-      print('Cache cleared successfully');
+      _log.i('Cache cleared successfully');
     } catch (e) {
-      print('Error clearing cache: $e');
+      _log.e('Error clearing cache: $e');
       throw Exception('Failed to clear cache: $e');
     }
   }
@@ -339,7 +342,7 @@ class MapCacheService {
         await _cleanupLargestFiles();
       }
     } catch (e) {
-      print('Error during cache cleanup: $e');
+      _log.e('Error during cache cleanup: $e');
     }
   }
 
@@ -373,7 +376,7 @@ class MapCacheService {
         currentSize -= fileSize;
       }
     } catch (e) {
-      print('Error during large file cleanup: $e');
+      _log.e('Error during large file cleanup: $e');
     }
   }
 

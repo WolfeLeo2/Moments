@@ -8,24 +8,24 @@ part of 'providers.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Auth service provider - always same instance
+/// Auth service provider - singleton instance
 
 @ProviderFor(authService)
 const authServiceProvider = AuthServiceProvider._();
 
-/// Auth service provider - always same instance
+/// Auth service provider - singleton instance
 
 final class AuthServiceProvider
     extends $FunctionalProvider<AuthService, AuthService, AuthService>
     with $Provider<AuthService> {
-  /// Auth service provider - always same instance
+  /// Auth service provider - singleton instance
   const AuthServiceProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
         name: r'authServiceProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -52,14 +52,14 @@ final class AuthServiceProvider
   }
 }
 
-String _$authServiceHash() => r'ed0872794ec8e4cb3f50cb37b9c0b9467eb51ddb';
+String _$authServiceHash() => r'21d842d4dceafa3d239c0196a0f2b890d37c0b71';
 
-/// Social repository provider - always same instance
+/// Social repository provider - singleton instance
 
 @ProviderFor(socialRepository)
 const socialRepositoryProvider = SocialRepositoryProvider._();
 
-/// Social repository provider - always same instance
+/// Social repository provider - singleton instance
 
 final class SocialRepositoryProvider
     extends
@@ -69,14 +69,14 @@ final class SocialRepositoryProvider
           SocialRepository
         >
     with $Provider<SocialRepository> {
-  /// Social repository provider - always same instance
+  /// Social repository provider - singleton instance
   const SocialRepositoryProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
         name: r'socialRepositoryProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -103,14 +103,14 @@ final class SocialRepositoryProvider
   }
 }
 
-String _$socialRepositoryHash() => r'65582ff92e381f034f4ac9892315123d4eb621e3';
+String _$socialRepositoryHash() => r'b2c2010c6c889d26108ea3bd041109f17162110b';
 
-/// Notification repository provider
+/// Notification repository provider - singleton instance
 
 @ProviderFor(notificationRepository)
 const notificationRepositoryProvider = NotificationRepositoryProvider._();
 
-/// Notification repository provider
+/// Notification repository provider - singleton instance
 
 final class NotificationRepositoryProvider
     extends
@@ -120,14 +120,14 @@ final class NotificationRepositoryProvider
           NotificationRepository
         >
     with $Provider<NotificationRepository> {
-  /// Notification repository provider
+  /// Notification repository provider - singleton instance
   const NotificationRepositoryProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
         name: r'notificationRepositoryProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -156,7 +156,60 @@ final class NotificationRepositoryProvider
 }
 
 String _$notificationRepositoryHash() =>
-    r'71219757436a2e8f634f48d840b62059d3d54f21';
+    r'65ddb4ec00ee2df2d3ef0d4dca56d54588663626';
+
+/// Avatar cache service provider - receives database via constructor injection
+
+@ProviderFor(avatarCacheService)
+const avatarCacheServiceProvider = AvatarCacheServiceProvider._();
+
+/// Avatar cache service provider - receives database via constructor injection
+
+final class AvatarCacheServiceProvider
+    extends
+        $FunctionalProvider<
+          AvatarCacheService,
+          AvatarCacheService,
+          AvatarCacheService
+        >
+    with $Provider<AvatarCacheService> {
+  /// Avatar cache service provider - receives database via constructor injection
+  const AvatarCacheServiceProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'avatarCacheServiceProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$avatarCacheServiceHash();
+
+  @$internal
+  @override
+  $ProviderElement<AvatarCacheService> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  AvatarCacheService create(Ref ref) {
+    return avatarCacheService(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(AvatarCacheService value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<AvatarCacheService>(value),
+    );
+  }
+}
+
+String _$avatarCacheServiceHash() =>
+    r'3034cda50bc866bf5ba9a9d2d573c738c4868aff';
 
 /// Current authenticated user
 
@@ -236,17 +289,17 @@ final class CurrentUserProfileProvider
 String _$currentUserProfileHash() =>
     r'fd95b4c2e4e9c6f2e8c123ebd71e6a7ae0f65ae9';
 
-/// Count of pending friend requests
+/// Count of pending friend requests - properly reactive
 
 @ProviderFor(friendRequestCount)
 const friendRequestCountProvider = FriendRequestCountProvider._();
 
-/// Count of pending friend requests
+/// Count of pending friend requests - properly reactive
 
 final class FriendRequestCountProvider
-    extends $FunctionalProvider<AsyncValue<int>, int, Stream<int>>
-    with $FutureModifier<int>, $StreamProvider<int> {
-  /// Count of pending friend requests
+    extends $FunctionalProvider<int, int, int>
+    with $Provider<int> {
+  /// Count of pending friend requests - properly reactive
   const FriendRequestCountProvider._()
     : super(
         from: null,
@@ -263,17 +316,25 @@ final class FriendRequestCountProvider
 
   @$internal
   @override
-  $StreamProviderElement<int> $createElement($ProviderPointer pointer) =>
-      $StreamProviderElement(pointer);
+  $ProviderElement<int> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
 
   @override
-  Stream<int> create(Ref ref) {
+  int create(Ref ref) {
     return friendRequestCount(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(int value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<int>(value),
+    );
   }
 }
 
 String _$friendRequestCountHash() =>
-    r'5be303f579dd6529f9114fccd75d14a106312995';
+    r'9039a29370145edd2725b808bc55338311d75fa0';
 
 /// Count of unread chats
 
@@ -354,18 +415,18 @@ final class NotificationCountProvider
 
 String _$notificationCountHash() => r'add8309690ec3cea931f5dc403ef75f0a98a09c8';
 
-/// Provider for the list of notifications - simple fetch without realtime
+/// Provider for the list of notifications with pagination support
 /// No auto-mark-as-read, user must interact with notifications to mark them read
 
 @ProviderFor(NotificationsList)
 const notificationsListProvider = NotificationsListProvider._();
 
-/// Provider for the list of notifications - simple fetch without realtime
+/// Provider for the list of notifications with pagination support
 /// No auto-mark-as-read, user must interact with notifications to mark them read
 final class NotificationsListProvider
     extends
         $AsyncNotifierProvider<NotificationsList, List<Map<String, dynamic>>> {
-  /// Provider for the list of notifications - simple fetch without realtime
+  /// Provider for the list of notifications with pagination support
   /// No auto-mark-as-read, user must interact with notifications to mark them read
   const NotificationsListProvider._()
     : super(
@@ -386,9 +447,9 @@ final class NotificationsListProvider
   NotificationsList create() => NotificationsList();
 }
 
-String _$notificationsListHash() => r'37b36fbe4b74c883439b98595abc86b50e84d352';
+String _$notificationsListHash() => r'be19e8986ce7d2ec8922579223fa61991f4a0f4b';
 
-/// Provider for the list of notifications - simple fetch without realtime
+/// Provider for the list of notifications with pagination support
 /// No auto-mark-as-read, user must interact with notifications to mark them read
 
 abstract class _$NotificationsList
@@ -418,6 +479,50 @@ abstract class _$NotificationsList
     element.handleValue(ref, created);
   }
 }
+
+/// List of current user's friends with offline support and realtime updates
+
+@ProviderFor(friendsList)
+const friendsListProvider = FriendsListProvider._();
+
+/// List of current user's friends with offline support and realtime updates
+
+final class FriendsListProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<Profile>>,
+          List<Profile>,
+          Stream<List<Profile>>
+        >
+    with $FutureModifier<List<Profile>>, $StreamProvider<List<Profile>> {
+  /// List of current user's friends with offline support and realtime updates
+  const FriendsListProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'friendsListProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$friendsListHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<List<Profile>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<Profile>> create(Ref ref) {
+    return friendsList(ref);
+  }
+}
+
+String _$friendsListHash() => r'9747e35a1ffaecb03d47792f707d6166b1a40115';
 
 /// Pending friend requests
 

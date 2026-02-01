@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:avatar_stack/avatar_stack.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/services/haptic_service.dart';
-import 'package:moments/core/services/avatar_cache_service.dart';
-import 'package:moments/data/repositories/moment_repository.dart';
+import 'package:moments/core/providers/providers.dart';
+import 'package:moments/core/providers/moments_providers.dart';
+import 'package:moments/core/providers/database_provider.dart';
 import 'package:moments/widgets/heart_animation.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import '../../../data/models/moment.dart';
 import '../../../core/services/signed_url_cache.dart';
-import '../../../core/services/moment_storage_service.dart';
 import '../../../widgets/offline_image.dart';
 
 /// Stacked card marker showing up to 5 moments with unique rotations
-class StackedMomentMarker extends StatefulWidget {
+class StackedMomentMarker extends ConsumerStatefulWidget {
   final List<Moment> moments;
   final VoidCallback onTap;
   final String? heroTag; // Hero tag for the front card only
@@ -27,19 +28,17 @@ class StackedMomentMarker extends StatefulWidget {
   });
 
   @override
-  State<StackedMomentMarker> createState() => _StackedMomentMarkerState();
+  ConsumerState<StackedMomentMarker> createState() =>
+      _StackedMomentMarkerState();
 }
 
-class _StackedMomentMarkerState extends State<StackedMomentMarker>
+class _StackedMomentMarkerState extends ConsumerState<StackedMomentMarker>
     with SingleTickerProviderStateMixin {
   late AnimationController _pressController;
   final Map<String, String> _imageUrls = {};
   final Map<String, String> _localPaths = {}; // Local cached paths
   final Map<String, String> _userAvatars = {}; // User ID -> avatar URL
   bool _isPressed = false;
-  final MomentStorageService _storage = MomentStorageService();
-  final AvatarCacheService _avatarCache = AvatarCacheService();
-  final MomentRepository _momentRepo = MomentRepository();
 
   // Track which moments we've loaded to avoid redundant loads
   Set<String> _loadedMomentIds = {};
@@ -98,6 +97,10 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     if (_isLoading) return;
     _isLoading = true;
 
+    debugPrint(
+      '🔍 [Marker] Loading images for ${widget.moments.take(4).length} moments',
+    );
+
     try {
       // First, check for locally cached images (only for moments not already loaded)
       final newLocalPaths = <String, String>{};
@@ -108,13 +111,21 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
         if (_loadedMomentIds.contains(moment.id)) continue;
 
         final isThumbnail = moment.mediaType == 'video';
-        final localPath = await _storage.getLocalMediaPath(
-          moment.id,
-          isThumbnail: isThumbnail,
+        debugPrint(
+          '🔍 [Marker] Checking local path for moment ${moment.id.substring(0, 8)}... (type: ${moment.mediaType}, mediaPath: ${moment.mediaPath})',
         );
 
+        final localPath = await ref
+            .read(appDatabaseProvider)
+            .getLocalMediaPath(moment.id, isThumbnail: isThumbnail);
+
         if (localPath != null) {
+          debugPrint('✅ [Marker] Found local path: $localPath');
           newLocalPaths[moment.id] = localPath;
+        } else {
+          debugPrint(
+            '⚠️ [Marker] No local path for moment ${moment.id.substring(0, 8)}',
+          );
         }
 
         _loadedMomentIds.add(moment.id);
@@ -122,6 +133,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
       // Batch update all local paths in a single setState
       if (newLocalPaths.isNotEmpty && mounted) {
+        debugPrint('✅ [Marker] Setting ${newLocalPaths.length} local paths');
         setState(() {
           _localPaths.addAll(newLocalPaths);
         });
@@ -138,6 +150,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     // Collect paths to load - use thumbnails for videos, media_path for images
     // Skip moments that already have URLs or local paths
     final pathsToLoad = <String>[];
+    final momentPathMap = <String, String>{}; // moment.id -> path being loaded
 
     for (var moment in widget.moments.take(4)) {
       // Skip if we already have a URL or local path for this moment
@@ -150,19 +163,37 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
       if (moment.mediaType == 'video') {
         if (moment.thumbnailPath != null && moment.thumbnailPath!.isNotEmpty) {
           pathsToLoad.add(moment.thumbnailPath!);
+          momentPathMap[moment.id] = moment.thumbnailPath!;
+        } else {
+          debugPrint(
+            '⚠️ [Marker] Video moment ${moment.id.substring(0, 8)} has no thumbnailPath!',
+          );
         }
       } else {
         // For images, load the media path
         if (moment.mediaPath != null && moment.mediaPath!.isNotEmpty) {
           pathsToLoad.add(moment.mediaPath!);
+          momentPathMap[moment.id] = moment.mediaPath!;
+        } else {
+          debugPrint(
+            '⚠️ [Marker] Image moment ${moment.id.substring(0, 8)} has no mediaPath!',
+          );
         }
       }
     }
 
-    if (pathsToLoad.isEmpty) return;
+    if (pathsToLoad.isEmpty) {
+      debugPrint('🔍 [Marker] No paths to load (all have local/cached URLs)');
+      return;
+    }
+
+    debugPrint(
+      '🔍 [Marker] Requesting ${pathsToLoad.length} signed URLs: ${pathsToLoad.map((p) => p.length > 20 ? '${p.substring(0, 20)}...' : p).toList()}',
+    );
 
     try {
       final urls = await SignedUrlCache.getSignedUrlsBatch(pathsToLoad);
+      debugPrint('✅ [Marker] Received ${urls.length} signed URLs');
 
       if (mounted) {
         setState(() {
@@ -177,6 +208,13 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
                 final thumbUrl = urls[moment.thumbnailPath];
                 if (thumbUrl != null) {
                   _imageUrls[moment.id] = thumbUrl;
+                  debugPrint(
+                    '✅ [Marker] Got video thumbnail URL for ${moment.id.substring(0, 8)}',
+                  );
+                } else {
+                  debugPrint(
+                    '❌ [Marker] No signed URL returned for video thumbnail: ${moment.thumbnailPath}',
+                  );
                 }
               }
             } else {
@@ -185,6 +223,13 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
                 final url = urls[moment.mediaPath];
                 if (url != null) {
                   _imageUrls[moment.id] = url;
+                  debugPrint(
+                    '✅ [Marker] Got image URL for ${moment.id.substring(0, 8)}',
+                  );
+                } else {
+                  debugPrint(
+                    '❌ [Marker] No signed URL returned for image: ${moment.mediaPath}',
+                  );
                 }
               }
             }
@@ -195,7 +240,7 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
         _cacheImagesInBackground(urls);
       }
     } catch (e) {
-      debugPrint('Error loading network URLs: $e');
+      debugPrint('❌ [Marker] Error loading network URLs: $e');
     }
   }
 
@@ -210,11 +255,9 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
       if (url == null) continue;
 
       final isThumbnail = moment.mediaType == 'video';
-      final localPath = await _storage.cacheMedia(
-        moment.id,
-        url,
-        isThumbnail: isThumbnail,
-      );
+      final localPath = await ref
+          .read(appDatabaseProvider)
+          .cacheMedia(moment.id, url, isThumbnail: isThumbnail);
 
       if (localPath != null) {
         newLocalPaths[moment.id] = localPath;
@@ -240,7 +283,9 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     if (userIds.isEmpty) return;
 
     // First, immediately populate from cache (sync - no network, no delay)
-    final cachedAvatars = _avatarCache.getAvatarUrlsSync(userIds);
+    final cachedAvatars = ref
+        .read(avatarCacheServiceProvider)
+        .getAvatarUrlsSync(userIds);
     if (cachedAvatars.isNotEmpty && mounted) {
       setState(() {
         _userAvatars.addAll(cachedAvatars);
@@ -254,7 +299,9 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     if (missingIds.isEmpty) return;
 
     try {
-      final fetchedAvatars = await _avatarCache.getAvatarUrls(missingIds);
+      final fetchedAvatars = await ref
+          .read(avatarCacheServiceProvider)
+          .getAvatarUrls(missingIds);
 
       if (mounted && fetchedAvatars.isNotEmpty) {
         setState(() {
@@ -273,8 +320,9 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     final frontMoment = widget.moments.first;
 
     try {
-      final summaries = await _momentRepo.getReactionSummary(frontMoment.id);
-      final userReaction = await _momentRepo.getUserReaction(frontMoment.id);
+      final momentRepo = ref.read(momentRepositoryProvider);
+      final summaries = await momentRepo.getReactionSummary(frontMoment.id);
+      final userReaction = await momentRepo.getUserReaction(frontMoment.id);
 
       if (mounted) {
         // Calculate total count from all emoji summaries
@@ -316,16 +364,17 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     });
 
     try {
+      final momentRepo = ref.read(momentRepositoryProvider);
       if (isUnliking) {
         // Remove heart
-        await _momentRepo.removeReaction(frontMoment.id);
+        await momentRepo.removeReaction(frontMoment.id);
         setState(() {
           _userReaction = null;
           _reactionCount = (_reactionCount - 1).clamp(0, 999);
         });
       } else {
         // Add heart
-        await _momentRepo.addReaction(frontMoment.id, heartEmoji);
+        await momentRepo.addReaction(frontMoment.id, heartEmoji);
         final wasNewReaction = _userReaction == null;
         setState(() {
           _userReaction = heartEmoji;
@@ -525,24 +574,36 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     bool isVideo = moment.mediaType == 'video';
     bool hasImage = localPath != null || imageUrl != null;
 
+    // Log when image is missing (will show error icon)
+    if (!hasImage) {
+      debugPrint(
+        '⚠️ [Marker] Card ${moment.id.substring(0, 8)} has no image: localPath=$localPath, imageUrl=$imageUrl, mediaPath=${moment.mediaPath}',
+      );
+    }
+
     // Simple card for Hero compatibility - 3:4 aspect ratio
     Widget simpleCard = AspectRatio(
       aspectRatio: 3 / 4,
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white, width: 6),
+          borderRadius: BorderRadius.circular(
+            AppTheme.radiusMedium,
+          ), // Softer radius
+          border: Border.all(
+            color: Colors.white,
+            width: 2,
+          ), // Thinner white border
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 8,
+              color: Colors.black.withOpacity(0.08), // Softer shadow
+              blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppTheme.radiusMomentCard),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium - 2),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -621,8 +682,8 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
 
     // Only display first 3 avatars
     final displayAvatars = allContributorsWithAvatars.take(3).toList();
-    final overflowCount = allContributorsWithAvatars.length > 3
-        ? allContributorsWithAvatars.length - 3
+    final overflowCount = allContributorsWithAvatars.length > 4
+        ? allContributorsWithAvatars.length - 4
         : 0;
 
     // Calculate date range
@@ -648,10 +709,15 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
               width: 80,
               height: 36,
               child: AvatarStack(
-                height: 36,
-                avatars: displayAvatars
-                    .map((id) => CachedNetworkImageProvider(_userAvatars[id]!))
-                    .toList(),
+                height: 30,
+                avatars: displayAvatars.map((id) {
+                  final url = _userAvatars[id]!;
+                  // Use getAvatarImageProvider for offline support
+                  return ref
+                          .read(avatarCacheServiceProvider)
+                          .getAvatarImageProvider(url) ??
+                      CachedNetworkImageProvider(url);
+                }).toList(),
                 borderColor: Colors.white,
                 borderWidth: 2,
                 infoWidgetBuilder: overflowCount > 0
@@ -675,79 +741,64 @@ class _StackedMomentMarkerState extends State<StackedMomentMarker>
     );
   }
 
-  /// Build a calendar-style date sticker (red top with month, white bottom with day)
+  /// Build a clean, minimal date sticker
   Widget _buildCollegeDateSticker(DateTime date) {
     final month = _getMonthAbbr(date.month);
     final day = date.day.toString();
 
-    return Transform.rotate(
-      angle: 0.08, // Slight tilt for that casual sticker look
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Container(
-          width: 40,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: AppTheme.borderBlack, width: 2),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black,
-                offset: Offset(2, 2),
-                blurRadius: 0,
-              ),
-            ],
+    return Container(
+      width: 36,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            offset: const Offset(0, 2),
+            blurRadius: 4,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Top red part with month
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFE53935), // Red
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(4),
-                    topRight: Radius.circular(4),
-                  ),
-                ),
-                child: Text(
-                  month,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.bebasNeue(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    height: 1.0,
-                    letterSpacing: 0.5,
-                  ),
-                ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Month
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            decoration: const BoxDecoration(
+              color: AppTheme.primaryBlue,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(8),
+                topRight: Radius.circular(8),
               ),
-              // Bottom white part with day
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(4),
-                    bottomRight: Radius.circular(4),
-                  ),
-                ),
-                child: Text(
-                  day,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.bangers(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: AppTheme.borderBlack,
-                    height: 1.0,
-                  ),
-                ),
+            ),
+            child: Text(
+              month,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                letterSpacing: 0.5,
               ),
-            ],
+            ),
           ),
-        ),
+          // Day
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Text(
+              day,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textDark,
+                height: 1.0,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

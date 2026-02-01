@@ -4,44 +4,46 @@ import 'package:moments/data/repositories/moment_repository.dart';
 import 'package:moments/data/models/moment.dart';
 import 'package:moments/data/models/moment_contributor.dart';
 import 'package:moments/data/models/moment_reaction.dart';
-import 'package:moments/core/services/moment_storage_service.dart';
+import 'package:moments/core/database/database.dart';
+import 'package:moments/core/providers/database_provider.dart';
+import 'package:moments/core/services/app_logger.dart';
 
 part 'moments_providers.g.dart';
 
-/// Moment storage service provider
-@riverpod
-MomentStorageService momentStorage(Ref ref) {
-  return MomentStorageService();
-}
+final _log = AppLogger('MomentsProviders');
 
-/// Moments repository provider
-@riverpod
+/// Moments repository provider - singleton
+@Riverpod(keepAlive: true)
 MomentRepository momentRepository(Ref ref) => MomentRepository();
 
-/// Stream of all moments with offline-first approach
-/// 1. Immediately yields cached moments from SQLite
-/// 2. Then syncs with Supabase and yields updated moments
+/// Stream of all moments with offline-first approach using Drift
+/// 1. Immediately yields cached moments from Drift
+/// 2. Watches Drift for reactive updates
+/// 3. Syncs with Supabase in parallel
 @riverpod
 Stream<List<Moment>> momentsStream(Ref ref) async* {
-  final storage = ref.watch(momentStorageProvider);
+  final db = ref.watch(appDatabaseProvider);
   final repo = ref.watch(momentRepositoryProvider);
 
   // 1. Load cached moments immediately for instant UI
-  final cachedMoments = await storage.getMoments();
-  if (cachedMoments.isNotEmpty) {
-    yield cachedMoments;
+  final cachedEntries = await db.getMoments();
+  if (cachedEntries.isNotEmpty) {
+    yield cachedEntries.map((e) => e.toModel()).toList();
   }
 
-  // 2. Subscribe to Supabase realtime stream and update storage
+  // 2. Subscribe to Supabase realtime and save to Drift
   try {
     await for (final moments in repo.streamAllMoments()) {
-      // Sync with persistent storage (handles deletions/privacy changes)
-      await storage.syncMoments(moments);
+      // Save to Drift (handles upsert)
+      await db.saveMoments(moments.map((m) => m.toCompanion()).toList());
       yield moments;
     }
-  } catch (e) {
-    // Log error but keep yielding cached data if stream fails
-    print('Error in moments stream: $e');
+  } catch (e, stack) {
+    _log.e('Error in moments stream', error: e, stackTrace: stack);
+    // Fallback: watch Drift for any cached data
+    await for (final entries in db.watchMoments()) {
+      yield entries.map((e) => e.toModel()).toList();
+    }
   }
 }
 
@@ -66,16 +68,16 @@ Stream<List<Moment>> momentsByGroupStream(Ref ref, String groupId) {
   return repo.streamMomentsByGroup(groupId);
 }
 
-/// Single moment details
+/// Single moment details - Drift first, then remote
 @riverpod
 Future<Moment?> momentDetails(Ref ref, String momentId) async {
-  final storage = ref.watch(momentStorageProvider);
+  final db = ref.watch(appDatabaseProvider);
   final repo = ref.watch(momentRepositoryProvider);
 
-  // Try local first
-  final cached = await storage.getMomentById(momentId);
+  // Try local Drift first
+  final cached = await db.getMomentById(momentId);
   if (cached != null) {
-    return cached;
+    return cached.toModel();
   }
 
   // Fallback to remote
