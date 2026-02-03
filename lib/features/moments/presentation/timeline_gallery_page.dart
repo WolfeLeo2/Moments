@@ -231,25 +231,6 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
     );
   }
 
-  Widget _buildViewToggle({
-    required dynamic icon,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-        color: isActive ? AppTheme.primaryBlue : AppTheme.cardWhite,
-        child: HugeIcon(
-          icon: icon,
-          size: 20.sp,
-          color: isActive ? Colors.white : AppTheme.textDark,
-        ),
-      ),
-    );
-  }
-
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -500,6 +481,13 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
     final imageUrl = _imageUrls[moment.id];
     final isVideo = moment.mediaType == 'video';
 
+    // Format time for the badge
+    String formatTime(DateTime dt) {
+      final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+      final period = dt.hour >= 12 ? 'PM' : 'AM';
+      return '$hour:${dt.minute.toString().padLeft(2, '0')} $period';
+    }
+
     // Native ListTile implementation for compactness
     return ListTile(
       contentPadding: EdgeInsets.fromLTRB(0, 4.h, 16.w, 4.h),
@@ -512,8 +500,8 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
       leading: Hero(
         tag: 'compact_${moment.id}',
         child: Container(
-          width: 56.w,
-          height: 56.w,
+          width: 72.w,
+          height: 72.w,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             color: Colors.grey[200],
@@ -543,6 +531,26 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
                     size: 20.sp,
                   ),
                 ),
+              // Time badge
+              Positioned(
+                bottom: 2.h,
+                right: 2.w,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.65),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    formatTime(moment.timestamp),
+                    style: GoogleFonts.inter(
+                      fontSize: 8.sp,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -781,6 +789,16 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
     final imageUrl = _imageUrls[moment.id];
     final isVideo = moment.mediaType == 'video';
 
+    // Generate consistent pseudo-random aspect ratio based on moment ID
+    // This creates the masonry "varying heights" effect
+    final hash = moment.id.hashCode;
+    final aspectRatioIndex = hash.abs() % 3;
+    final aspectRatio = switch (aspectRatioIndex) {
+      0 => 0.75, // 3:4 - tall
+      1 => 1.0,  // 1:1 - square
+      _ => 1.33, // 4:3 - wide
+    };
+
     // Soft Minimalism: Rounded corners, soft shadow, no hard borders
     return AnimatedBuilder(
       animation: _entryController,
@@ -805,74 +823,78 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
           moment.location.split(',').first.trim(),
           index,
         ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              // Raw aspect ratio (removed AspectRatio wrapper)
-              Hero(
-                tag: 'gallery_${moment.id}',
-                child: OfflineImage(
-                  localPath: localPath,
-                  networkUrl: imageUrl,
-                  cacheKey: moment.mediaPath,
-                  fit: BoxFit.cover, // Will fit width, height adjusts naturally
+        child: AspectRatio(
+          aspectRatio: aspectRatio,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
                 ),
-              ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Image
+                Hero(
+                  tag: 'gallery_${moment.id}',
+                  child: OfflineImage(
+                    localPath: localPath,
+                    networkUrl: imageUrl,
+                    cacheKey: moment.mediaPath,
+                    fit: BoxFit.cover,
+                  ),
+                ),
 
-              // Video indicator
-              if (isVideo)
-                Positioned.fill(
-                  child: Center(
-                    child: Container(
-                      padding: EdgeInsets.all(8.w),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.8),
-                          width: 1.5,
+                // Video indicator
+                if (isVideo)
+                  Positioned.fill(
+                    child: Center(
+                      child: Container(
+                        padding: EdgeInsets.all(8.w),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.8),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 20.sp,
                         ),
                       ),
-                      child: Icon(
-                        Icons.play_arrow_rounded,
+                    ),
+                  ),
+
+                // Private badge
+                if (moment.isPrivate)
+                  Positioned(
+                    top: 8.h,
+                    right: 8.w,
+                    child: Container(
+                      padding: EdgeInsets.all(6.w),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: HugeIcon(
+                        icon: HugeIcons.strokeRoundedSquareLock02,
+                        size: 12.sp,
                         color: Colors.white,
-                        size: 20.sp,
                       ),
                     ),
                   ),
-                ),
-
-              // Private badge
-              if (moment.isPrivate)
-                Positioned(
-                  top: 8.h,
-                  right: 8.w,
-                  child: Container(
-                    padding: EdgeInsets.all(6.w),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.6),
-                      shape: BoxShape.circle,
-                    ),
-                    child: HugeIcon(
-                      icon: HugeIcons.strokeRoundedSquareLock02,
-                      size: 12.sp,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -887,9 +909,9 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
       backgroundColor: AppTheme.backgroundBeige,
       appBar: AppBar(
         title: Row(
-          mainAxisSize: MainAxisSize.min, // Essential to keep the Row tight
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // 1. Back button (Moved from leading)
+            // Back button
             GestureDetector(
               onTap: () {
                 HapticService.lightTap();
@@ -901,12 +923,7 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
                 height: 34.h,
               ),
             ),
-
-            // 2. Control the exact gap size
-            SizedBox(
-              width: 8.w,
-            ), // Adjust this value (e.g., 4.w, 8.w) for the desired small gap
-            // 3. Title Text
+            SizedBox(width: 8.w),
             Text(
               'GALLERY',
               style: GoogleFonts.bebasNeue(
@@ -921,40 +938,26 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
         automaticallyImplyLeading: false,
         actions: [
           Padding(
-            padding: EdgeInsets.only(right: 16.w), // Add padding to the right
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppTheme.cardWhite,
-                border: Border.all(
-                  color: AppTheme.borderBlack,
-                  width: AppTheme.borderMedium,
+            padding: EdgeInsets.only(right: 16.w),
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment<String>(
+                  value: 'timeline',
+                  icon: Icon(Icons.view_agenda_outlined),
                 ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildViewToggle(
-                    icon: HugeIcons.strokeRoundedMenu09,
-                    isActive: _viewMode == 'timeline',
-                    onTap: () {
-                      HapticService.selectionClick();
-                      setState(() => _viewMode = 'timeline');
-                    },
-                  ),
-                  Container(
-                    width: AppTheme.borderMedium,
-                    height: 32.h,
-                    color: AppTheme.borderBlack,
-                  ),
-                  _buildViewToggle(
-                    icon: HugeIcons.strokeRoundedGridView,
-                    isActive: _viewMode == 'grid',
-                    onTap: () {
-                      HapticService.selectionClick();
-                      setState(() => _viewMode = 'grid');
-                    },
-                  ),
-                ],
+                ButtonSegment<String>(
+                  value: 'grid',
+                  icon: Icon(Icons.grid_view_rounded),
+                ),
+              ],
+              selected: {_viewMode},
+              onSelectionChanged: (Set<String> newSelection) {
+                HapticService.selectionClick();
+                setState(() => _viewMode = newSelection.first);
+              },
+              showSelectedIcon: false,
+              style: ButtonStyle(
+                visualDensity: VisualDensity.compact,
               ),
             ),
           ),

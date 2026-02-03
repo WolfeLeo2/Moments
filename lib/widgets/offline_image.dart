@@ -4,12 +4,23 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 /// Cache for file existence checks to avoid repeated async calls
+/// Has a max size to prevent unbounded memory growth
 class _FileExistenceCache {
   static final Map<String, bool> _cache = {};
+  static const int _maxCacheSize = 500;
 
   static bool? get(String path) => _cache[path];
 
   static void set(String path, bool exists) {
+    // Cleanup if cache is too large
+    if (_cache.length >= _maxCacheSize) {
+      // Remove oldest 100 entries (FIFO approximation)
+      final keysToRemove = _cache.keys.take(100).toList();
+      for (final key in keysToRemove) {
+        _cache.remove(key);
+      }
+      debugPrint('🧹 OfflineImage cache cleaned: removed ${keysToRemove.length} entries');
+    }
     _cache[path] = exists;
   }
 
@@ -20,6 +31,8 @@ class _FileExistenceCache {
   static void clear() {
     _cache.clear();
   }
+  
+  static int get size => _cache.length;
 }
 
 /// Widget that displays either a local file image or a network image

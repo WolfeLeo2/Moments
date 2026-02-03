@@ -867,8 +867,9 @@ extension MomentToCompanion on app_moment.Moment {
       description: Value(description),
       momentGroupId: Value(momentGroupId),
       isPrivate: Value(isPrivate),
-      localMediaPath: const Value(null),
-      localThumbnailPath: const Value(null),
+      // Use Value.absent() to preserve existing local paths during upsert
+      localMediaPath: const Value.absent(),
+      localThumbnailPath: const Value.absent(),
       syncedAt: DateTime.now().millisecondsSinceEpoch,
     );
   }

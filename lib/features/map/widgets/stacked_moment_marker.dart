@@ -5,14 +5,13 @@ import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/services/haptic_service.dart';
 import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/providers/moments_providers.dart';
-import 'package:moments/core/providers/database_provider.dart';
 import 'package:moments/widgets/heart_animation.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import '../../../data/models/moment.dart';
-import '../../../core/services/signed_url_cache.dart';
 import '../../../widgets/offline_image.dart';
+import '../providers/marker_image_cache_provider.dart';
 
 /// Stacked card marker showing up to 5 moments with unique rotations
 class StackedMomentMarker extends ConsumerStatefulWidget {
@@ -35,14 +34,8 @@ class StackedMomentMarker extends ConsumerStatefulWidget {
 class _StackedMomentMarkerState extends ConsumerState<StackedMomentMarker>
     with SingleTickerProviderStateMixin {
   late AnimationController _pressController;
-  final Map<String, String> _imageUrls = {};
-  final Map<String, String> _localPaths = {}; // Local cached paths
   final Map<String, String> _userAvatars = {}; // User ID -> avatar URL
   bool _isPressed = false;
-
-  // Track which moments we've loaded to avoid redundant loads
-  Set<String> _loadedMomentIds = {};
-  bool _isLoading = false;
 
   // Reactions state (simplified - just total count)
   int _reactionCount = 0;
@@ -57,7 +50,12 @@ class _StackedMomentMarkerState extends ConsumerState<StackedMomentMarker>
       vsync: this,
       duration: const Duration(milliseconds: 150),
     );
-    _loadImages();
+    // Request image loading via shared cache (persists across widget rebuilds)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(markerImageCacheProvider.notifier).loadImagesForMoments(
+        widget.moments.take(4).toList(),
+      );
+    });
     _loadUserAvatars();
     _loadReactions();
   }
@@ -70,19 +68,11 @@ class _StackedMomentMarkerState extends ConsumerState<StackedMomentMarker>
     final newIds = widget.moments.take(4).map((m) => m.id).toSet();
     final oldIds = oldWidget.moments.take(4).map((m) => m.id).toSet();
 
-    // Only reload if the moment IDs have actually changed
-    if (!newIds.difference(oldIds).isEmpty ||
-        !oldIds.difference(newIds).isEmpty) {
-      // Clear data for moments that are no longer displayed
-      final removedIds = oldIds.difference(newIds);
-      for (final id in removedIds) {
-        _imageUrls.remove(id);
-        _localPaths.remove(id);
-        _loadedMomentIds.remove(id);
-      }
-
-      // Load new moments that we haven't loaded yet
-      _loadImages();
+    // Load images for any new moments
+    if (!newIds.difference(oldIds).isEmpty) {
+      ref.read(markerImageCacheProvider.notifier).loadImagesForMoments(
+        widget.moments.take(4).toList(),
+      );
     }
   }
 
@@ -90,186 +80,6 @@ class _StackedMomentMarkerState extends ConsumerState<StackedMomentMarker>
   void dispose() {
     _pressController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadImages() async {
-    // Prevent concurrent loads
-    if (_isLoading) return;
-    _isLoading = true;
-
-    debugPrint(
-      '🔍 [Marker] Loading images for ${widget.moments.take(4).length} moments',
-    );
-
-    try {
-      // First, check for locally cached images (only for moments not already loaded)
-      final newLocalPaths = <String, String>{};
-
-      for (var moment in widget.moments.take(4)) {
-        // Skip if we already have this moment's local path
-        if (_localPaths.containsKey(moment.id)) continue;
-        if (_loadedMomentIds.contains(moment.id)) continue;
-
-        final isThumbnail = moment.mediaType == 'video';
-        debugPrint(
-          '🔍 [Marker] Checking local path for moment ${moment.id.substring(0, 8)}... (type: ${moment.mediaType}, mediaPath: ${moment.mediaPath})',
-        );
-
-        final localPath = await ref
-            .read(appDatabaseProvider)
-            .getLocalMediaPath(moment.id, isThumbnail: isThumbnail);
-
-        if (localPath != null) {
-          debugPrint('✅ [Marker] Found local path: $localPath');
-          newLocalPaths[moment.id] = localPath;
-        } else {
-          debugPrint(
-            '⚠️ [Marker] No local path for moment ${moment.id.substring(0, 8)}',
-          );
-        }
-
-        _loadedMomentIds.add(moment.id);
-      }
-
-      // Batch update all local paths in a single setState
-      if (newLocalPaths.isNotEmpty && mounted) {
-        debugPrint('✅ [Marker] Setting ${newLocalPaths.length} local paths');
-        setState(() {
-          _localPaths.addAll(newLocalPaths);
-        });
-      }
-
-      // Then load network URLs (for fallback and caching)
-      await _loadNetworkUrls();
-    } finally {
-      _isLoading = false;
-    }
-  }
-
-  Future<void> _loadNetworkUrls() async {
-    // Collect paths to load - use thumbnails for videos, media_path for images
-    // Skip moments that already have URLs or local paths
-    final pathsToLoad = <String>[];
-    final momentPathMap = <String, String>{}; // moment.id -> path being loaded
-
-    for (var moment in widget.moments.take(4)) {
-      // Skip if we already have a URL or local path for this moment
-      if (_imageUrls.containsKey(moment.id) ||
-          _localPaths.containsKey(moment.id)) {
-        continue;
-      }
-
-      // For videos, only load thumbnail
-      if (moment.mediaType == 'video') {
-        if (moment.thumbnailPath != null && moment.thumbnailPath!.isNotEmpty) {
-          pathsToLoad.add(moment.thumbnailPath!);
-          momentPathMap[moment.id] = moment.thumbnailPath!;
-        } else {
-          debugPrint(
-            '⚠️ [Marker] Video moment ${moment.id.substring(0, 8)} has no thumbnailPath!',
-          );
-        }
-      } else {
-        // For images, load the media path
-        if (moment.mediaPath != null && moment.mediaPath!.isNotEmpty) {
-          pathsToLoad.add(moment.mediaPath!);
-          momentPathMap[moment.id] = moment.mediaPath!;
-        } else {
-          debugPrint(
-            '⚠️ [Marker] Image moment ${moment.id.substring(0, 8)} has no mediaPath!',
-          );
-        }
-      }
-    }
-
-    if (pathsToLoad.isEmpty) {
-      debugPrint('🔍 [Marker] No paths to load (all have local/cached URLs)');
-      return;
-    }
-
-    debugPrint(
-      '🔍 [Marker] Requesting ${pathsToLoad.length} signed URLs: ${pathsToLoad.map((p) => p.length > 20 ? '${p.substring(0, 20)}...' : p).toList()}',
-    );
-
-    try {
-      final urls = await SignedUrlCache.getSignedUrlsBatch(pathsToLoad);
-      debugPrint('✅ [Marker] Received ${urls.length} signed URLs');
-
-      if (mounted) {
-        setState(() {
-          for (var moment in widget.moments.take(4)) {
-            // Skip if we have local path (prefer offline) or already have URL
-            if (_localPaths.containsKey(moment.id)) continue;
-            if (_imageUrls.containsKey(moment.id)) continue;
-
-            if (moment.mediaType == 'video') {
-              // For videos, use thumbnail URL
-              if (moment.thumbnailPath != null) {
-                final thumbUrl = urls[moment.thumbnailPath];
-                if (thumbUrl != null) {
-                  _imageUrls[moment.id] = thumbUrl;
-                  debugPrint(
-                    '✅ [Marker] Got video thumbnail URL for ${moment.id.substring(0, 8)}',
-                  );
-                } else {
-                  debugPrint(
-                    '❌ [Marker] No signed URL returned for video thumbnail: ${moment.thumbnailPath}',
-                  );
-                }
-              }
-            } else {
-              // For images, use media URL
-              if (moment.mediaPath != null) {
-                final url = urls[moment.mediaPath];
-                if (url != null) {
-                  _imageUrls[moment.id] = url;
-                  debugPrint(
-                    '✅ [Marker] Got image URL for ${moment.id.substring(0, 8)}',
-                  );
-                } else {
-                  debugPrint(
-                    '❌ [Marker] No signed URL returned for image: ${moment.mediaPath}',
-                  );
-                }
-              }
-            }
-          }
-        });
-
-        // Cache images to local storage in background
-        _cacheImagesInBackground(urls);
-      }
-    } catch (e) {
-      debugPrint('❌ [Marker] Error loading network URLs: $e');
-    }
-  }
-
-  Future<void> _cacheImagesInBackground(Map<String, String> urls) async {
-    final newLocalPaths = <String, String>{};
-
-    for (var moment in widget.moments.take(4)) {
-      // Skip if already cached locally
-      if (_localPaths.containsKey(moment.id)) continue;
-
-      final url = _imageUrls[moment.id];
-      if (url == null) continue;
-
-      final isThumbnail = moment.mediaType == 'video';
-      final localPath = await ref
-          .read(appDatabaseProvider)
-          .cacheMedia(moment.id, url, isThumbnail: isThumbnail);
-
-      if (localPath != null) {
-        newLocalPaths[moment.id] = localPath;
-      }
-    }
-
-    // Batch update all local paths in a single setState
-    if (newLocalPaths.isNotEmpty && mounted) {
-      setState(() {
-        _localPaths.addAll(newLocalPaths);
-      });
-    }
   }
 
   Future<void> _loadUserAvatars() async {
@@ -562,9 +372,11 @@ class _StackedMomentMarkerState extends ConsumerState<StackedMomentMarker>
     int stackIndex, {
     bool isFrontCard = false,
   }) {
-    // Get local path first, fallback to network URL
-    final localPath = _localPaths[moment.id];
-    final imageUrl = _imageUrls[moment.id];
+    // Get image data from shared cache (persists across zoom changes)
+    final imageCache = ref.watch(markerImageCacheProvider);
+    final imageData = imageCache[moment.id];
+    final localPath = imageData?.localPath;
+    final imageUrl = imageData?.networkUrl;
     final rotation = _getRotation(stackIndex, moment.id);
     final offset = _getOffset(stackIndex, moment.id);
 

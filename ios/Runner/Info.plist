@@ -122,6 +122,9 @@
 		<string>This app needs photo library access to select photos for your moments.</string>
 		<key>NSMicrophoneUsageDescription</key>
 		<string>This app needs microphone access to record audio for voice chat.</string>
+		<!-- Mapbox Access Token -->
+		<key>MBXAccessToken</key>
+		<string>pk.eyJ1Ijoid29sZmVsZW8iLCJhIjoiY21oYXRxMW82MW5nNjJqcGc4aDA0YndoeSJ9.gvLhQFM-46KlcUdAKFGMYg</string>
 		<key>UIStatusBarHidden</key>
 		<false/>
 	</dict>

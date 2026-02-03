@@ -47,6 +47,7 @@ dependencies:
   # Maps & Location
   location: ^5.0.3
   geocoding: ^3.0.0
+  mapbox_maps_flutter: ^2.18.0
 
   # UI Components
   carousel_slider: ^5.0.0
@@ -98,7 +99,6 @@ dependencies:
   path: ^1.9.1
   video_player: ^2.10.1
   wechat_assets_picker: ^10.0.0
-  sqflite: ^2.4.2
   drift: ^2.26.0
   sqlite3_flutter_libs: ^0.5.31
   connectivity_plus: ^7.0.0
@@ -147,7 +147,6 @@ flutter:
     - .env
     - assets/svg/
     - assets/icons/
-    - assets/fonts/
     - assets/animations/
 
   # An image asset can refer to one or more resolution-specific "variants", see

@@ -6,7 +6,7 @@ import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/features/moments/presentation/moment_details_page.dart';
 import 'package:moments/widgets/offline_image.dart';
-import 'package:moments/core/services/signed_url_cache.dart';
+import '../providers/marker_image_cache_provider.dart';
 import 'friend_moments_stack.dart';
 
 /// Bottom sheet showing friends' moments within the visible map area.
@@ -26,50 +26,25 @@ class FriendsInViewSheet extends ConsumerStatefulWidget {
 }
 
 class _FriendsInViewSheetState extends ConsumerState<FriendsInViewSheet> {
-  final Map<String, String?> _thumbnailUrls = {};
-
   @override
   void initState() {
     super.initState();
-    _loadThumbnails();
+    // Request images to be loaded via shared cache
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadThumbnails();
+    });
   }
 
-  Future<void> _loadThumbnails() async {
-    // Load first moment thumbnail for each friend group
-    final paths = <String>[];
-    for (final group in widget.friendGroups) {
-      if (group.moments.isNotEmpty) {
-        final moment = group.moments.first;
-        final path = moment.mediaType == 'video'
-            ? moment.thumbnailPath
-            : moment.mediaPath;
-        if (path != null && path.isNotEmpty) {
-          paths.add(path);
-        }
-      }
-    }
+  void _loadThumbnails() {
+    // Collect all first moments from each friend group
+    final moments = widget.friendGroups
+        .where((g) => g.moments.isNotEmpty)
+        .map((g) => g.moments.first)
+        .toList();
 
-    if (paths.isEmpty) return;
-
-    try {
-      final urls = await SignedUrlCache.getSignedUrlsBatch(paths);
-      if (mounted) {
-        setState(() {
-          for (final group in widget.friendGroups) {
-            if (group.moments.isNotEmpty) {
-              final moment = group.moments.first;
-              final path = moment.mediaType == 'video'
-                  ? moment.thumbnailPath
-                  : moment.mediaPath;
-              if (path != null) {
-                _thumbnailUrls[group.odId] = urls[path];
-              }
-            }
-          }
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading thumbnails: $e');
+    if (moments.isNotEmpty) {
+      // Use shared cache - this persists and prevents duplicate fetches
+      ref.read(markerImageCacheProvider.notifier).loadImagesForMoments(moments);
     }
   }
 
@@ -180,7 +155,12 @@ class _FriendsInViewSheetState extends ConsumerState<FriendsInViewSheet> {
     FriendMomentGroup group,
     dynamic avatarCacheService,
   ) {
-    final thumbnailUrl = _thumbnailUrls[group.odId];
+    // Get thumbnail from shared cache
+    final imageCache = ref.watch(markerImageCacheProvider);
+    final firstMoment = group.moments.isNotEmpty ? group.moments.first : null;
+    final imageData = firstMoment != null ? imageCache[firstMoment.id] : null;
+    final localPath = imageData?.localPath;
+    final thumbnailUrl = imageData?.networkUrl;
     final momentCount = group.moments.length;
 
     return InkWell(
@@ -286,7 +266,7 @@ class _FriendsInViewSheetState extends ConsumerState<FriendsInViewSheet> {
             const SizedBox(width: 12),
 
             // Thumbnail preview (if available)
-            if (thumbnailUrl != null)
+            if (localPath != null || thumbnailUrl != null)
               Container(
                 width: 50,
                 height: 50,
@@ -304,7 +284,9 @@ class _FriendsInViewSheetState extends ConsumerState<FriendsInViewSheet> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: OfflineImage(
+                    localPath: localPath,
                     networkUrl: thumbnailUrl,
+                    cacheKey: firstMoment?.mediaPath,
                     fit: BoxFit.cover,
                   ),
                 ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../features/map/presentation/map_page_flutter_map.dart';
+import '../../features/navigation/presentation/main_scaffold.dart';
 import '../../features/moments/presentation/add_moment_page.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../services/auth_service.dart';
@@ -57,7 +57,7 @@ class AppRouter {
         path: mapRoute,
         name: 'map',
         pageBuilder: (context, state) =>
-            MaterialPage(key: state.pageKey, child: const MapPage()),
+            MaterialPage(key: state.pageKey, child: const MainScaffold()),
       ),
       GoRoute(
         path: addMomentRoute,

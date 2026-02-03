@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:moments/core/services/auth_service.dart';
 import 'package:moments/core/services/avatar_cache_service.dart';
 import 'package:moments/core/services/app_logger.dart';
+import 'package:moments/core/services/moment_storage_service.dart';
 import 'package:moments/data/repositories/social_repository.dart';
 import 'package:moments/data/repositories/notification_repository.dart';
 import 'package:moments/data/models/profile.dart';
@@ -415,4 +416,15 @@ void invalidateFriendsCache(WidgetRef ref) {
 /// Invalidate profile cache
 void invalidateProfileCache(WidgetRef ref) {
   ref.invalidate(currentUserProfileProvider);
+}
+
+// ============================================
+// STORAGE SERVICES
+// ============================================
+
+/// Moment storage service provider - singleton for local media caching
+@Riverpod(keepAlive: true)
+MomentStorageService momentStorageService(Ref ref) {
+  final db = ref.watch(appDatabaseProvider);
+  return MomentStorageService(db);
 }

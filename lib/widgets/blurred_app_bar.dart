@@ -7,18 +7,16 @@ import '../../../core/theme/app_theme.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// Modern glassmorphic app bar with avatar popup menu and notification bell
+/// Simplified version: Friends, Title, Notifications, Profile
 class BlurredAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String title;
   final VoidCallback? onMenuPressed;
   final VoidCallback? onSearchPressed;
   final VoidCallback? onProfilePressed;
   final VoidCallback? onFriendsPressed;
-  final VoidCallback? onChatPressed;
   final VoidCallback? onNotificationsPressed;
-  final VoidCallback? onGalleryPressed;
   final String? profileImageUrl;
   final int notificationCount;
-  final int unreadChatCount;
 
   const BlurredAppBar({
     super.key,
@@ -27,12 +25,9 @@ class BlurredAppBar extends StatefulWidget implements PreferredSizeWidget {
     this.onSearchPressed,
     this.onProfilePressed,
     this.onFriendsPressed,
-    this.onChatPressed,
     this.onNotificationsPressed,
-    this.onGalleryPressed,
     this.profileImageUrl,
     this.notificationCount = 0,
-    this.unreadChatCount = 0,
   });
 
   @override
@@ -90,13 +85,13 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  //Add Friends Button
+                  // Add Friends Button
                   IconButton(
                     onPressed: widget.onFriendsPressed,
                     icon: const HugeIcon(
                       icon: HugeIcons.strokeRoundedAddTeam,
                       color: Colors.black,
-                      size: 30,
+                      size: 28,
                     ),
                     tooltip: 'Add Friends',
                   ),
@@ -116,35 +111,7 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
                     ),
                   ),
 
-                  // Gallery Button
-                  if (widget.onGalleryPressed != null)
-                    IconButton(
-                      onPressed: widget.onGalleryPressed,
-                      icon: const HugeIcon(
-                        icon: HugeIcons.strokeRoundedDashboardSquare02,
-                        color: Colors.black87,
-                        size: 26,
-                      ),
-                      tooltip: 'Gallery',
-                    ),
-
-                  // Chat Button
-                  if (widget.onChatPressed != null)
-                    Stack(
-                      children: [
-                        IconButton(
-                          onPressed: widget.onChatPressed,
-                          icon: const HugeIcon(
-                            icon: HugeIcons.strokeRoundedMessage01,
-                            color: Colors.black87,
-                            size: 26,
-                          ),
-                          tooltip: 'Chat',
-                        ),
-                        _buildBadge(widget.unreadChatCount),
-                      ],
-                    ),
-
+                  // Notifications Button
                   Stack(
                     children: [
                       IconButton(
@@ -158,15 +125,16 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
                       _buildBadge(widget.notificationCount),
                     ],
                   ),
+
                   // Avatar (RIGHT)
                   GestureDetector(
                     onTap: widget.onProfilePressed,
-                    child: M3Container.ghostish(
+                    child: M3Container.l8LeafClover(
                       width: 40,
                       height: 40,
                       border: BorderSide(color: Colors.black, width: 1),
                       child: widget.profileImageUrl != null
-                          ? M3Container.bun(
+                          ? M3Container.l8LeafClover(
                               child: CachedNetworkImage(
                                 imageUrl: widget.profileImageUrl!,
                                 fit: BoxFit.cover,
@@ -188,7 +156,7 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
                                 ),
                               ),
                             )
-                          : M3Container.bun(
+                          : M3Container.l8LeafClover(
                               child: HugeIcon(
                                 icon: HugeIcons.strokeRoundedUser,
                                 size: 24,

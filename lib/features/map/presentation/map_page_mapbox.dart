@@ -1,71 +1,81 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:location/location.dart';
 import 'dart:async';
-import 'package:image_picker/image_picker.dart' as picker;
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:location/location.dart';
 import 'package:lottie/lottie.dart' as lottie;
-import 'package:wechat_assets_picker/wechat_assets_picker.dart' hide LatLng;
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:image_picker/image_picker.dart' as picker;
+import 'package:wechat_assets_picker/wechat_assets_picker.dart' hide LatLng, RequestType;
+import 'package:photo_manager/photo_manager.dart' as pm;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:latlong2/latlong.dart' as latlong2;
+
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/services/geocoding_service.dart';
 import '../../../core/services/auth_service.dart';
-import '../../../core/services/map_cache_service.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/services/quick_actions_service.dart';
 import '../../../core/providers/moments_providers.dart';
+import '../../../core/providers/providers.dart';
 import '../../../data/models/moment.dart';
+import '../../../data/models/user_profile.dart';
+import '../../../data/services/user_profile_service.dart';
 import '../../../widgets/blurred_app_bar.dart';
 import '../../../widgets/spring_button.dart';
 import '../../moments/presentation/add_moment_page.dart';
-import '../../notifications/presentation/notifications_page.dart';
 import '../../moments/presentation/moment_details_page.dart';
+import '../../notifications/presentation/notifications_page.dart';
 import '../../social/presentation/friends_page.dart';
-import '../../moments/presentation/timeline_gallery_page.dart';
 import '../../profile/profile_page.dart';
-import '../widgets/stacked_moment_marker.dart';
 import '../widgets/friend_moments_stack.dart';
 import '../widgets/friends_in_view_sheet.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:hugeicons/hugeicons.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:moments/data/models/user_profile.dart';
-import 'package:moments/data/services/user_profile_service.dart';
+import '../utils/map_logic_service.dart';
+import '../providers/map_control_provider.dart';
 
-import 'package:moments/core/providers/providers.dart';
+/// Mapbox access token - hardcoded for now
+const String _mapboxAccessToken =
+    'pk.eyJ1Ijoid29sZmVsZW8iLCJhIjoiY21oYXRxMW82MW5nNjJqcGc4aDA0YndoeSJ9.gvLhQFM-46KlcUdAKFGMYg';
 
-import 'package:moments/features/map/utils/map_logic_service.dart';
-import 'package:moments/features/map/providers/map_control_provider.dart';
-
-class MapPage extends ConsumerStatefulWidget {
-  const MapPage({super.key});
+class MapPageMapbox extends ConsumerStatefulWidget {
+  const MapPageMapbox({super.key});
 
   @override
-  ConsumerState<MapPage> createState() => _MapPageState();
+  ConsumerState<MapPageMapbox> createState() => _MapPageMapboxState();
 }
 
-class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
+class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
+    with WidgetsBindingObserver {
   final AuthService _authService = AuthService();
   String _cityName = 'Loading...';
   LocationData? _currentPosition;
-  final MapCacheService _mapCacheService = MapCacheService();
-  final MapController _mapController = MapController();
-  final ValueNotifier<double> _zoomNotifier = ValueNotifier(14.0);
-  bool _isMapReady = false; // Flag to track if map is rendered
-  double _lastThreshold =
-      -1; // Track last threshold to prevent excessive rebuilds
+  MapboxMap? _mapboxMap;
+  PointAnnotationManager? _annotationManager;
+  bool _isMapReady = false;
+
+  // Track annotations for tap handling
+  final Map<String, List<Moment>> _annotationMoments = {};
 
   // Dynamic viewport location
-  LatLng? _mapCenterPosition;
+  Position? _mapCenterPosition;
   Timer? _geocodeDebounce;
+  double _currentZoom = 14.0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initializeMap();
+    // Set Mapbox access token
+    MapboxOptions.setAccessToken(_mapboxAccessToken);
+    _initializeLocation();
     _initializeQuickActions();
 
     // Check for Year in Review (December only)
@@ -74,11 +84,9 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
     });
   }
 
-  /// Initialize home screen quick actions (long-press shortcuts)
   void _initializeQuickActions() {
     QuickActionsService().initialize(
       onShortcutSelected: (String shortcutType) {
-        // Handle the shortcut after the app is ready
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           _handleQuickAction(shortcutType);
@@ -87,15 +95,12 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
     );
   }
 
-  /// Handle quick action shortcut selection
   void _handleQuickAction(String shortcutType) {
     switch (shortcutType) {
       case QuickActionType.camera:
-        // Pass 'photo' to skip the dialog and go straight to camera
         _pickFromCamera(mediaType: 'photo');
         break;
       case QuickActionType.video:
-        // Pass 'video' to skip the dialog and go straight to video recorder
         _pickFromCamera(mediaType: 'video');
         break;
       case QuickActionType.gallery:
@@ -106,13 +111,11 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
 
   void _checkYearInReview() async {
     final now = DateTime.now();
-    // Only show in December (Month 12)
     if (now.month != 12) return;
 
-    // Check if already dismissed for this year
     final prefs = await SharedPreferences.getInstance();
     final dismissedYear = prefs.getInt('year_in_review_dismissed_year');
-    if (dismissedYear == now.year) return; // Already dismissed for this year
+    if (dismissedYear == now.year) return;
 
     if (!mounted) return;
 
@@ -128,7 +131,6 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
           TextButton(
             onPressed: () async {
               ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-              // Mark as dismissed for this year
               await prefs.setInt('year_in_review_dismissed_year', now.year);
               Navigator.push(
                 context,
@@ -147,7 +149,6 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
           TextButton(
             onPressed: () async {
               ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-              // Mark as dismissed for this year
               await prefs.setInt('year_in_review_dismissed_year', now.year);
             },
             child: Text(
@@ -164,35 +165,24 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _geocodeDebounce?.cancel();
-    _zoomNotifier.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // When app resumes, check location permissions/status again
-    // But skip if we just navigated from a notification (to preserve target location)
     if (state == AppLifecycleState.resumed) {
       final notifier = ref.read(mapCameraTargetProvider.notifier);
       if (notifier.skipNextLocationUpdate) {
         notifier.clearSkipFlag();
-        return; // Skip location update to preserve notification navigation target
+        return;
       }
       _getCurrentLocation();
     }
   }
 
-  Future<void> _initializeMap() async {
-    try {
-      // Initialize map caching first
-      await _mapCacheService.initialize();
-      await _getCurrentLocation();
-      await _loadCityName();
-    } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar('Failed to load map: $e');
-      }
-    }
+  Future<void> _initializeLocation() async {
+    await _getCurrentLocation();
+    await _loadCityName();
   }
 
   Future<void> _loadCityName() async {
@@ -207,14 +197,13 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
     }
   }
 
-  /// Update location name based on current viewport center (debounced)
   Future<void> _updateLocationFromViewport() async {
     if (_mapCenterPosition == null) return;
 
     try {
       final city = await GeocodingService.getCityFromCoordinates(
-        _mapCenterPosition!.latitude,
-        _mapCenterPosition!.longitude,
+        _mapCenterPosition!.lat.toDouble(),
+        _mapCenterPosition!.lng.toDouble(),
       );
       if (mounted && city.isNotEmpty) {
         setState(() => _cityName = city);
@@ -224,223 +213,251 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
     }
   }
 
-  void _onMapReady() {
-    setState(() {
-      _isMapReady = true;
-    });
-    // Trigger location update now that map is ready
-    _getCurrentLocation();
-  }
-
   Future<void> _getCurrentLocation() async {
     try {
       final location = Location();
 
-      // Check if location services are enabled
       bool serviceEnabled = await location.serviceEnabled();
-      print('📍 Location service enabled: $serviceEnabled');
       if (!serviceEnabled) {
         serviceEnabled = await location.requestService();
-        if (!serviceEnabled) {
-          print('📍 User declined to enable location service');
-          return;
-        }
+        if (!serviceEnabled) return;
       }
 
-      // Check permission status
       PermissionStatus permission = await location.hasPermission();
-      print('📍 Location permission: $permission');
-
       if (permission == PermissionStatus.denied) {
         permission = await location.requestPermission();
-        if (permission == PermissionStatus.denied) {
-          print('📍 User denied location permission');
-          return;
-        }
+        if (permission == PermissionStatus.denied) return;
       }
 
-      if (permission == PermissionStatus.deniedForever) {
-        print('📍 Location permission denied forever');
-        return;
-      }
+      if (permission == PermissionStatus.deniedForever) return;
 
-      // Get the current position
-      print('📍 Getting location...');
       final position = await location.getLocation();
-      print(
-        '📍 Got location: lat=${position.latitude}, lng=${position.longitude}',
-      );
 
       if (mounted && position.latitude != null && position.longitude != null) {
-        // Check if coordinates are valid (not 0,0 which is ocean)
-        if (position.latitude == 0.0 && position.longitude == 0.0) {
-          print('📍 WARNING: Location is (0,0) - likely invalid!');
-        }
-
         setState(() => _currentPosition = position);
 
-        // Auto-center map to user's location if map is ready
-        if (_isMapReady) {
-          try {
-            _mapController.move(
-              LatLng(position.latitude!, position.longitude!),
-              14.0,
-            );
-            debugPrint(
-              '📍 Map moved to: ${position.latitude}, ${position.longitude}',
-            );
-          } catch (e) {
-            debugPrint('⚠️ Error moving map: $e');
-          }
-        } else {
-          debugPrint('📍 Map not ready yet, skipping auto-center');
+        if (_isMapReady && _mapboxMap != null) {
+          await _mapboxMap!.flyTo(
+            CameraOptions(
+              center: Point(
+                coordinates: Position(
+                  position.longitude!,
+                  position.latitude!,
+                ),
+              ),
+              zoom: 14.0,
+            ),
+            MapAnimationOptions(duration: 1000),
+          );
         }
 
-        // Ensure city name is updated effectively
         _loadCityName();
-      } else {
-        print('📍 Location has null coordinates or widget not mounted');
       }
     } catch (e) {
-      print('📍 Error getting location: $e');
+      debugPrint('Error getting location: $e');
     }
   }
 
-  // Removed: _groupMomentsByPlace, _applyZoomClustering, _calculateClusterThreshold, _applyProximityOffsets
-  // Logic moved to MapLogicService
+  void _onMapCreated(MapboxMap mapboxMap) async {
+    _mapboxMap = mapboxMap;
 
-  /// Build cluster badge showing number of locations and moments
-  Widget _buildClusterBadge(int locationCount, int momentCount) {
-    return Transform.rotate(
-      angle: 0.05, // Slight tilt for neubrutalism style
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppTheme.primaryBlue,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppTheme.borderBlack, width: 2),
-          boxShadow: const [
-            BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
-          ],
+    // Create annotation manager
+    _annotationManager =
+        await mapboxMap.annotations.createPointAnnotationManager();
+
+    // Set up tap listener
+    _annotationManager!.tapEvents(onTap: (annotation) {
+      final moments = _annotationMoments[annotation.id];
+      if (moments != null && moments.isNotEmpty) {
+        _onMomentMarkerTapped(moments);
+      }
+    });
+
+    setState(() {
+      _isMapReady = true;
+    });
+
+    // Move to current location if available
+    if (_currentPosition != null) {
+      await _mapboxMap!.setCamera(
+        CameraOptions(
+          center: Point(
+            coordinates: Position(
+              _currentPosition!.longitude!,
+              _currentPosition!.latitude!,
+            ),
+          ),
+          zoom: 14.0,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.location_on, color: Colors.white, size: 12),
-            const SizedBox(width: 2),
-            Text(
-              '$locationCount',
-              style: GoogleFonts.bangers(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            Container(
-              width: 1,
-              height: 10,
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              color: Colors.white.withValues(alpha: 0.5),
-            ),
-            const Icon(Icons.photo_library, color: Colors.white, size: 12),
-            const SizedBox(width: 2),
-            Text(
-              '$momentCount',
-              style: GoogleFonts.bangers(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
+      );
+    }
+  }
+
+  void _onCameraChanged(CameraChangedEventData data) async {
+    // Get current camera position
+    final cameraState = await _mapboxMap?.getCameraState();
+    if (cameraState == null) return;
+
+    final center = cameraState.center;
+    _mapCenterPosition = center.coordinates;
+    _currentZoom = cameraState.zoom;
+
+    // Debounce geocoding
+    _geocodeDebounce?.cancel();
+    _geocodeDebounce = Timer(
+      const Duration(milliseconds: 500),
+      () {
+        _updateLocationFromViewport();
+      },
     );
   }
 
-  void _onPlaceMarkerTapped(
-    List<Moment> moments,
-    String placeName,
-    int markerIndex,
-  ) {
-    // Haptic feedback on tap
+  /// Build moment annotations from visible moments
+  Future<void> _updateAnnotations(List<Moment> moments) async {
+    if (_annotationManager == null) return;
+
+    // Clear existing annotations
+    await _annotationManager!.deleteAll();
+    _annotationMoments.clear();
+
+    // Group moments by place
+    final placeGroups = MapLogicService.groupMomentsByPlace(
+      moments,
+      _currentZoom,
+    );
+
+    // Create annotations for each group
+    for (final placeGroup in placeGroups) {
+      final groupMoments = placeGroup['moments'] as List<Moment>;
+      final lat = placeGroup['lat'] as double;
+      final lng = placeGroup['lng'] as double;
+      final frontMoment = groupMoments.first;
+
+      // Try to load the moment image directly from URL
+      Uint8List? imageBytes;
+      final imageUrl = frontMoment.imageUrl;
+      
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        try {
+          final response = await HttpClient()
+              .getUrl(Uri.parse(imageUrl))
+              .then((req) => req.close());
+          final bytes = await consolidateHttpClientResponseBytes(response);
+          imageBytes = await _createCircularMarkerFromImage(bytes);
+        } catch (e) {
+          debugPrint('Failed to load marker image: $e');
+        }
+      }
+
+      final annotation = await _annotationManager!.create(
+        PointAnnotationOptions(
+          geometry: Point(coordinates: Position(lng, lat)),
+          image: imageBytes,
+          // Use default marker if no image
+          iconImage: imageBytes == null ? 'marker-15' : null,
+          iconSize: imageBytes != null ? 0.5 : 1.5,
+          iconAnchor: IconAnchor.BOTTOM,
+        ),
+      );
+
+      // Track moments for this annotation
+      _annotationMoments[annotation.id] = groupMoments;
+    }
+  }
+
+  /// Create a circular marker image from raw image bytes
+  Future<Uint8List?> _createCircularMarkerFromImage(Uint8List imageBytes) async {
+    try {
+      // Decode the image
+      final codec = await ui.instantiateImageCodec(
+        imageBytes,
+        targetWidth: 100,
+        targetHeight: 100,
+      );
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+
+      // Create a circular clipped version with border
+      final size = 100.0;
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+
+      // Draw white circle background (border)
+      final borderPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(size / 2, size / 2), size / 2, borderPaint);
+
+      // Clip to inner circle and draw image
+      final clipPath = Path()
+        ..addOval(Rect.fromCircle(center: Offset(size / 2, size / 2), radius: size / 2 - 4));
+      canvas.clipPath(clipPath);
+
+      // Draw the image centered
+      final srcRect = Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
+      final dstRect = Rect.fromLTWH(4, 4, size - 8, size - 8);
+      canvas.drawImageRect(image, srcRect, dstRect, Paint());
+
+      // Convert to image bytes
+      final picture = recorder.endRecording();
+      final outputImage = await picture.toImage(size.toInt(), size.toInt());
+      final byteData = await outputImage.toByteData(format: ui.ImageByteFormat.png);
+
+      return byteData?.buffer.asUint8List();
+    } catch (e) {
+      debugPrint('Error creating circular marker: $e');
+      return null;
+    }
+  }
+
+  void _onMomentMarkerTapped(List<Moment> moments) {
     HapticService.mediumTap();
 
-    // Use moments in chronological order (newest first, as they come from database)
+    final placeName = moments.first.location.split(',').first.trim();
+
     Navigator.of(context)
         .push(
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 MomentDetailsPage(
-                  locationName: placeName,
-                  moments:
-                      moments, // Use original order - topmost card is first
-                  heroTag: null, // No Hero, just spring animations
-                  initialPage: 0, // Start with topmost card (newest moment)
-                ),
-            transitionDuration: const Duration(
-              milliseconds: 200,
-            ), // Reduced from 300ms
+              locationName: placeName,
+              moments: moments,
+              heroTag: null,
+              initialPage: 0,
+            ),
+            transitionDuration: const Duration(milliseconds: 200),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {
-                  // Simple fade in transition with spring curve
-                  return FadeTransition(
-                    opacity: CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeInOut, // Smoother curve
-                    ),
-                    child: child,
-                  );
-                },
+              return FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeInOut,
+                ),
+                child: child,
+              );
+            },
           ),
         )
         .whenComplete(() {
-          // Invalidate cache to refresh moments after navigation
-          ref.invalidate(momentsStreamProvider);
-        });
+      ref.invalidate(momentsStreamProvider);
+    });
   }
 
-  // Removed - replaced with AnimatedFAB widget
-
-  // Removed - replaced with AnimatedFAB widget
-
-  /// Build the friends-in-view avatar stack widget
   Widget _buildFriendsInViewStack(List<Moment> visibleMoments) {
-    // Get current map viewport bounds safely
-    if (!_isMapReady) return const SizedBox.shrink();
+    if (!_isMapReady || _mapboxMap == null) return const SizedBox.shrink();
 
-    LatLngBounds bounds;
-    try {
-      bounds = _mapController.camera.visibleBounds;
-    } catch (e) {
-      debugPrint('⚠️ Error getting map bounds: $e');
-      return const SizedBox.shrink();
-    }
-
-    // Filter moments to only those within the current viewport
-    final momentsInViewport = visibleMoments.where((m) {
-      return m.latitude >= bounds.south &&
-          m.latitude <= bounds.north &&
-          m.longitude >= bounds.west &&
-          m.longitude <= bounds.east;
-    }).toList();
-
-    // Group moments by friend (exclude current user's moments)
     final currentUserId = _authService.currentUser?.id;
-    final friendMoments = momentsInViewport
+    final friendMoments = visibleMoments
         .where((m) => m.userId != null && m.userId != currentUserId)
         .toList();
 
     if (friendMoments.isEmpty) return const SizedBox.shrink();
 
-    // Get unique user IDs
     final userIds = friendMoments.map((m) => m.userId!).toSet().toList();
 
-    // Use FutureBuilder to fetch profiles
     return FutureBuilder<List<UserProfile>>(
       future: UserProfileService.getUserProfiles(userIds),
       builder: (context, snapshot) {
-        // Build profile map
         final profileMap = <String, UserProfile>{};
         if (snapshot.hasData) {
           for (final profile in snapshot.data!) {
@@ -448,7 +465,6 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
           }
         }
 
-        // Group moments by friend with profile data
         final friendGroups = <String, FriendMomentGroup>{};
         for (final moment in friendMoments) {
           final odId = moment.userId!;
@@ -462,7 +478,6 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
               moments: [],
             );
           }
-          // Add moment to existing group
           final existingGroup = friendGroups[odId]!;
           friendGroups[odId] = FriendMomentGroup(
             odId: existingGroup.odId,
@@ -487,7 +502,6 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
     );
   }
 
-  /// Ensure location is available, fetching it if necessary
   Future<bool> _ensureLocation() async {
     if (_currentPosition != null) return true;
 
@@ -512,7 +526,6 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
   Future<void> _pickFromCamera({String? mediaType}) async {
     if (!await _ensureLocation()) return;
 
-    // If mediaType is not provided, show dialog
     String? selectedMediaType = mediaType;
     if (selectedMediaType == null) {
       selectedMediaType = await showDialog<String>(
@@ -551,7 +564,6 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
 
       if (file == null || !mounted) return;
 
-      // Re-check location as it might be lost if app was killed/restarted
       if (!await _ensureLocation()) return;
 
       final result = await Navigator.of(context).push(
@@ -565,7 +577,6 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
         ),
       );
 
-      // Invalidate moments cache to refresh if moment was created successfully
       if (result == true && mounted) {
         ref.invalidate(momentsStreamProvider);
       }
@@ -580,19 +591,17 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
     if (!await _ensureLocation()) return;
 
     try {
-      // Use wechat_assets_picker to pick images and videos
       final List<AssetEntity>? assets = await AssetPicker.pickAssets(
         context,
         pickerConfig: AssetPickerConfig(
-          maxAssets: 10, // Allow up to 10 media files
-          requestType: RequestType.common, // Support both images and videos
+          maxAssets: 10,
+          requestType: pm.RequestType.common,
           specialPickerType: SpecialPickerType.noPreview,
         ),
       );
 
       if (assets == null || assets.isEmpty || !mounted) return;
 
-      // Convert assets to file paths and check types
       final List<String> mediaPaths = [];
       bool hasVideo = false;
       int? videoDuration;
@@ -610,7 +619,6 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
 
       if (mediaPaths.isEmpty || !mounted) return;
 
-      // Navigate to AddMomentPage
       final result = await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => AddMomentPage(
@@ -623,7 +631,6 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
         ),
       );
 
-      // Invalidate moments cache to refresh if moment was created successfully
       if (result == true && mounted) {
         ref.invalidate(momentsStreamProvider);
       }
@@ -636,29 +643,23 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // Listen for external camera move requests (e.g. from notifications)
-    ref.listen<LatLng?>(mapCameraTargetProvider, (previous, next) {
-      if (next != null) {
-        if (_isMapReady) {
-          try {
-            _mapController.move(next, 16.0); // Zoom level 16 for close-up
-            // Reset the provider so we don't re-trigger on rebuilds
-            ref.read(mapCameraTargetProvider.notifier).setTarget(null);
-          } catch (e) {
-            debugPrint('⚠️ Error moving map to target: $e');
-          }
-        } else {
-          // If map isn't ready, we should probably keep the target in the provider
-          // so it can be handled when the map becomes ready.
-          // For now, just log it.
-          debugPrint('⚠️ Map not ready for camera move request');
-        }
+    // Listen for external camera move requests
+    ref.listen<latlong2.LatLng?>(mapCameraTargetProvider, (previous, next) {
+      if (next != null && _isMapReady && _mapboxMap != null) {
+        _mapboxMap!.flyTo(
+          CameraOptions(
+            center: Point(
+              coordinates: Position(next.longitude, next.latitude),
+            ),
+            zoom: 16.0,
+          ),
+          MapAnimationOptions(duration: 1000),
+        );
+        ref.read(mapCameraTargetProvider.notifier).setTarget(null);
       }
     });
 
-    // Watch the moments stream from Riverpod
     final momentsAsync = ref.watch(momentsStreamProvider);
-    // Notification count now includes friend requests + collab invites + system notifications
     final notificationCount = ref.watch(notificationCountProvider).value ?? 0;
 
     return momentsAsync.when(
@@ -679,16 +680,18 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
         );
       },
       data: (moments) {
-        // Filter out friends' private moments - only show:
-        // 1. User's own moments (always visible to self)
-        // 2. Friends' public moments (isPrivate == false)
         final currentUserId = _authService.currentUser?.id;
         final visibleMoments = moments.where((m) {
           return m.userId == currentUserId || !m.isPrivate;
         }).toList();
 
-        // Group moments by place
-        // Removed: final placeGroups = _groupMomentsByPlace(moments);
+        // Update annotations when moments change
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_isMapReady) {
+            _updateAnnotations(visibleMoments);
+          }
+        });
+
         return Scaffold(
           backgroundColor: AppTheme.backgroundBeige,
           extendBodyBehindAppBar: true,
@@ -696,7 +699,7 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
             title: 'MOMENTS',
             profileImageUrl: _authService.currentUserPhotoUrl,
             notificationCount: notificationCount,
-            onMenuPressed: () {}, // Menu functionality to be implemented
+            onMenuPressed: () {},
             onProfilePressed: () {
               Navigator.push(
                 context,
@@ -720,166 +723,43 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
           ),
           body: Stack(
             children: [
-              // Flutter Map with Mapbox tiles
-              FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  onMapReady: _onMapReady,
-                  initialCenter: _currentPosition != null
-                      ? LatLng(
-                          _currentPosition!.latitude!,
-                          _currentPosition!.longitude!,
-                        )
-                      : const LatLng(0, 0),
-                  initialZoom: 18.0,
-                  minZoom: 5.0,
-                  maxZoom: 22.0,
-                  onPositionChanged: (position, hasGesture) {
-                    // Update map center for dynamic location tracking
-                    _mapCenterPosition = position.center;
-
-                    // Debounce geocoding to prevent API spam during scroll
-                    _geocodeDebounce?.cancel();
-                    _geocodeDebounce = Timer(
-                      const Duration(milliseconds: 500),
-                      () {
-                        _updateLocationFromViewport();
-                      },
-                    );
-
-                    // Update zoom notifier ONLY if the clustering threshold changes
-                    final newThreshold = MapLogicService.getClusterThreshold(
-                      position.zoom,
-                    );
-                    if (newThreshold != _lastThreshold) {
-                      _lastThreshold = newThreshold;
-                      _zoomNotifier.value = position.zoom;
-                    }
-                  },
-                ),
-                children: [
-                  // Mapbox Streets v11 - 512px tiles (@2x) shown at 256px size for Retina quality
-                  TileLayer(
-                    urlTemplate:
-                        'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/512/{z}/{x}/{y}@2x?access_token=pk.eyJ1Ijoid29sZmVsZW8iLCJhIjoiY21oYXRxMW82MW5nNjJqcGc4aDA0YndoeSJ9.gvLhQFM-46KlcUdAKFGMYg',
-                    userAgentPackageName: 'com.moments.app',
-                    // Use FMTC tile provider if available, otherwise fallback to network provider
-                    tileProvider:
-                        _mapCacheService.tileProvider ?? NetworkTileProvider(),
-                    tileSize:
-                        512, // Critical: Draw 512px image into 256px space for HiDPI/Retina crispness
-                    zoomOffset:
-                        -1, // Mapbox 512 tiles are 1 zoom level offset from standard 256 grid
-                    panBuffer:
-                        2, // Load more tiles around the screen for smoother panning
-                  ),
-
-                  // User location marker (BEFORE moment markers so it appears below)
-                  if (_currentPosition != null)
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: LatLng(
-                            _currentPosition!.latitude!,
+              // Mapbox Map
+              MapWidget(
+                key: const ValueKey('mapbox_map'),
+                onMapCreated: _onMapCreated,
+                cameraOptions: _currentPosition != null
+                    ? CameraOptions(
+                        center: Point(
+                          coordinates: Position(
                             _currentPosition!.longitude!,
-                          ),
-                          width: 40,
-                          height: 40,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: AppTheme.primaryBlue.withValues(
-                                alpha: 0.3,
-                              ),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 3),
-                            ),
-                            child: Container(
-                              margin: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(
-                                color: AppTheme.primaryBlue,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
+                            _currentPosition!.latitude!,
                           ),
                         ),
-                      ],
-                    ),
-
-                  // Moment markers layer (AFTER location so they appear on top)
-                  // Use ValueListenableBuilder to rebuild ONLY markers when zoom changes
-                  ValueListenableBuilder<double>(
-                    valueListenable: _zoomNotifier,
-                    builder: (context, zoom, child) {
-                      // Group moments by place using the extracted service
-                      final placeGroups = MapLogicService.groupMomentsByPlace(
-                        visibleMoments,
-                        zoom,
-                      );
-
-                      return MarkerLayer(
-                        markers: placeGroups.asMap().entries.map((entry) {
-                          final placeGroup = entry.value;
-                          final moments = placeGroup['moments'] as List<Moment>;
-                          final lat = placeGroup['lat'] as double;
-                          final lng = placeGroup['lng'] as double;
-                          final placeName = placeGroup['placeName'] as String;
-                          final isCluster =
-                              placeGroup['isCluster'] as bool? ?? false;
-                          final clusterCount =
-                              placeGroup['clusterCount'] as int? ?? 1;
-
-                          // Create a stable key based on moment IDs to prevent unnecessary rebuilds
-                          final markerKey = moments.map((m) => m.id).join('_');
-
-                          return Marker(
-                            point: LatLng(lat, lng),
-                            width: 160, // Slightly wider for cluster badge
-                            height: 200, // Taller for cluster badge
-                            key: ValueKey(markerKey),
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                StackedMomentMarker(
-                                  key: ValueKey('marker_$markerKey'),
-                                  moments: moments,
-                                  onTap: () => _onPlaceMarkerTapped(
-                                    moments,
-                                    placeName,
-                                    0,
-                                  ),
-                                  heroTag: null,
-                                ),
-                                // Cluster count badge (only show if multiple groups clustered)
-                                if (isCluster && clusterCount > 1)
-                                  Positioned(
-                                    bottom: -5,
-                                    left: 0,
-                                    right: 0,
-                                    child: Center(
-                                      child: _buildClusterBadge(
-                                        clusterCount,
-                                        moments.length,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
-                ],
+                        zoom: 14.0,
+                      )
+                    : CameraOptions(
+                        center: Point(coordinates: Position(0, 0)),
+                        zoom: 2.0,
+                      ),
+                styleUri: MapboxStyles.MAPBOX_STREETS,
+                onCameraChangeListener: _onCameraChanged,
               ),
 
-              // City name sticker - Neubrutalism Style with Playful Tilt
+              // User location indicator overlay
+              if (_currentPosition != null && _isMapReady)
+                _UserLocationIndicator(
+                  mapboxMap: _mapboxMap,
+                  position: _currentPosition!,
+                ),
+
+              // City name sticker
               Positioned(
                 top: MediaQuery.of(context).padding.top + kToolbarHeight + 16,
                 left: 0,
                 right: 0,
                 child: Center(
                   child: Transform.rotate(
-                    angle: -0.01, // Slight playful tilt
+                    angle: -0.01,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
@@ -892,12 +772,12 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                           side: BorderSide(
                             color: AppTheme.textDark,
                             width: 2,
+                          ),
                         ),
-                      ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
-                        children:[
+                        children: [
                           Text(
                             _cityName,
                             style: GoogleFonts.bangers(
@@ -914,9 +794,9 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                 ),
               ),
 
-              // Friends in view avatar stack (bottom-right)
+              // Friends in view avatar stack
               Positioned(
-                bottom: AppTheme.spacing32 + 80, // Above FAB
+                bottom: AppTheme.spacing32 + 80,
                 right: 16,
                 child: _buildFriendsInViewStack(visibleMoments),
               ),
@@ -934,7 +814,7 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                 ),
               ),
 
-              // Mapbox attribution (required)
+              // Mapbox attribution
               Positioned(
                 bottom: 8,
                 right: 8,
@@ -969,7 +849,54 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
   }
 }
 
-// Animated FAB Widget with Motor animations
+/// User location indicator using Mapbox's location puck
+class _UserLocationIndicator extends StatefulWidget {
+  final MapboxMap? mapboxMap;
+  final LocationData position;
+
+  const _UserLocationIndicator({
+    required this.mapboxMap,
+    required this.position,
+  });
+
+  @override
+  State<_UserLocationIndicator> createState() => _UserLocationIndicatorState();
+}
+
+class _UserLocationIndicatorState extends State<_UserLocationIndicator> {
+  @override
+  void initState() {
+    super.initState();
+    _setupLocationPuck();
+  }
+
+  void _setupLocationPuck() async {
+    if (widget.mapboxMap == null) return;
+
+    // Enable the default 2D location puck
+    await widget.mapboxMap!.location.updateSettings(
+      LocationComponentSettings(
+        enabled: true,
+        pulsingEnabled: true,
+        pulsingColor: AppTheme.primaryBlue.value,
+        showAccuracyRing: true,
+        accuracyRingColor: AppTheme.primaryBlue.withValues(alpha: 0.2).value,
+        accuracyRingBorderColor: AppTheme.primaryBlue.value,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // The location puck is rendered by Mapbox natively
+    return const SizedBox.shrink();
+  }
+}
+
+// ============================================================================
+// Animated FAB Widget (copied from flutter_map version for consistency)
+// ============================================================================
+
 class _AnimatedFAB extends StatefulWidget {
   const _AnimatedFAB({required this.onCameraTap, required this.onGalleryTap});
 
@@ -982,12 +909,9 @@ class _AnimatedFAB extends StatefulWidget {
 
 class _AnimatedFABState extends State<_AnimatedFAB>
     with SingleTickerProviderStateMixin {
-  // FAB dimensions - grow both width and height
   static const double _collapsedHeight = 60.0;
-
-  static const double _collapsedWidth = 198.0; // Stable width for resting FAB
-  static const double _expandedHeight =
-      80.0; // Proportional height for 2 buttons
+  static const double _collapsedWidth = 198.0;
+  static const double _expandedHeight = 80.0;
 
   late final AnimationController _controller;
   late final Animation<double> _heightAnimation;
@@ -1009,28 +933,24 @@ class _AnimatedFABState extends State<_AnimatedFAB>
       vsync: this,
     );
 
-    // Height animation
     _heightAnimation =
         Tween<double>(begin: _collapsedHeight, end: _expandedHeight).animate(
-          CurvedAnimation(
-            parent: _controller,
-            curve: Curves.easeInOutCubicEmphasized,
-          ),
-        );
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeInOutCubicEmphasized,
+      ),
+    );
 
-    // Width animation (grow from stable collapsed width to expanded width)
-    _widthAnimation =
-        Tween<double>(
-          begin: _collapsedWidth,
-          end: 320.0, // Wide enough for camera + gallery + close
-        ).animate(
-          CurvedAnimation(
-            parent: _controller,
-            curve: Curves.easeInOutCubicEmphasized,
-          ),
-        );
+    _widthAnimation = Tween<double>(
+      begin: _collapsedWidth,
+      end: 320.0,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeInOutCubicEmphasized,
+      ),
+    );
 
-    // Opacity animation for text fade
     _opacityAnimation = Tween<double>(
       begin: 1.0,
       end: 0.0,
@@ -1110,7 +1030,6 @@ class _AnimatedFABState extends State<_AnimatedFAB>
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Camera Button
           SpringButton(
             onTap: _handleCameraTap,
             scaleFactor: 0.95,
@@ -1150,10 +1069,7 @@ class _AnimatedFABState extends State<_AnimatedFAB>
               ),
             ),
           ),
-
           const SizedBox(width: 8),
-
-          // Gallery Button
           SpringButton(
             onTap: _handleGalleryTap,
             scaleFactor: 0.95,
@@ -1193,10 +1109,7 @@ class _AnimatedFABState extends State<_AnimatedFAB>
               ),
             ),
           ),
-
           const SizedBox(width: 5),
-
-          // Close button (X) - static, no animation
           SpringButton(
             onTap: _toggleExpansion,
             scaleFactor: 0.9,
@@ -1220,7 +1133,6 @@ class _AnimatedFABState extends State<_AnimatedFAB>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        // Switch content only after width has grown past a threshold to avoid cramped layout
         final showExpanded =
             _isExpanded && _widthAnimation.value >= (_collapsedWidth + 40);
 
@@ -1253,9 +1165,8 @@ class _AnimatedFABState extends State<_AnimatedFAB>
                   duration: const Duration(milliseconds: 150),
                   switchInCurve: Curves.easeOut,
                   switchOutCurve: Curves.easeIn,
-                  child: showExpanded
-                      ? _buildExpandedContent()
-                      : _buildCollapsedContent(),
+                  child:
+                      showExpanded ? _buildExpandedContent() : _buildCollapsedContent(),
                 ),
               ),
             ),

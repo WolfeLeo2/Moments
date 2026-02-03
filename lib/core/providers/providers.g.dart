@@ -915,3 +915,56 @@ abstract class _$FriendRequest extends $Notifier<AsyncValue<void>> {
     element.handleValue(ref, created);
   }
 }
+
+/// Moment storage service provider - singleton for local media caching
+
+@ProviderFor(momentStorageService)
+const momentStorageServiceProvider = MomentStorageServiceProvider._();
+
+/// Moment storage service provider - singleton for local media caching
+
+final class MomentStorageServiceProvider
+    extends
+        $FunctionalProvider<
+          MomentStorageService,
+          MomentStorageService,
+          MomentStorageService
+        >
+    with $Provider<MomentStorageService> {
+  /// Moment storage service provider - singleton for local media caching
+  const MomentStorageServiceProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'momentStorageServiceProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$momentStorageServiceHash();
+
+  @$internal
+  @override
+  $ProviderElement<MomentStorageService> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  MomentStorageService create(Ref ref) {
+    return momentStorageService(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(MomentStorageService value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<MomentStorageService>(value),
+    );
+  }
+}
+
+String _$momentStorageServiceHash() =>
+    r'd1d57948a08e6caa59e4ce88cfdd25e948ea24cc';

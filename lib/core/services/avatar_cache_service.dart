@@ -348,6 +348,39 @@ class AvatarCacheService {
     return getAvatarImageProvider(url);
   }
 
+  /// Clean up old avatar files that haven't been accessed recently
+  /// Call this periodically (e.g., weekly) to prevent cache bloat
+  Future<void> cleanupOldAvatars({int daysOld = 30}) async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final avatarDir = Directory(join(appDir.path, 'avatars'));
+
+      if (!await avatarDir.exists()) return;
+
+      final cutoffDate = DateTime.now().subtract(Duration(days: daysOld));
+      int deletedCount = 0;
+
+      await for (final file in avatarDir.list()) {
+        if (file is File) {
+          final stat = await file.stat();
+          // Use last modified time as proxy for last access
+          if (stat.modified.isBefore(cutoffDate)) {
+            final urlHash = basenameWithoutExtension(file.path);
+            await file.delete();
+            _localPathCache.remove(urlHash);
+            deletedCount++;
+          }
+        }
+      }
+
+      if (deletedCount > 0) {
+        debugPrint('🧹 AvatarCacheService: Cleaned up $deletedCount old avatars');
+      }
+    } catch (e) {
+      debugPrint('AvatarCacheService: Error cleaning up old avatars: $e');
+    }
+  }
+
   /// Clear all caches
   Future<void> clearCache() async {
     _memoryCache.clear();
