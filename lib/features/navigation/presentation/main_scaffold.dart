@@ -51,7 +51,6 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
 
     return Scaffold(
       body: BottomBar(
-      
         borderRadius: BorderRadius.circular(500),
         duration: const Duration(milliseconds: 200),
         width: MediaQuery.of(context).size.width * 0.55,
@@ -65,15 +64,27 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
         reverse: false,
         hideOnScroll: true,
         scrollOpposite: true,
-        
+
         body: (context, controller) => TabBarView(
           controller: _tabController,
           physics: const NeverScrollableScrollPhysics(),
           children: [
             // Only pass scroll controller to active tab to avoid "attached to multiple scroll views" error
-            _KeepAlivePage(child: MapPage(scrollController: _currentIndex == 0 ? controller : null)),
-            _KeepAlivePage(child: MemoryLanePage(scrollController: _currentIndex == 1 ? controller : null)),
-            _KeepAlivePage(child: ChatListPage(scrollController: _currentIndex == 2 ? controller : null)),
+            _KeepAlivePage(
+              child: MapPage(
+                scrollController: _currentIndex == 0 ? controller : null,
+              ),
+            ),
+            _KeepAlivePage(
+              child: MemoryLanePage(
+                scrollController: _currentIndex == 1 ? controller : null,
+              ),
+            ),
+            _KeepAlivePage(
+              child: ChatListPage(
+                scrollController: _currentIndex == 2 ? controller : null,
+              ),
+            ),
           ],
         ),
         child: Padding(
@@ -82,10 +93,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
             controller: _tabController,
             indicator: UnderlineTabIndicator(
               borderRadius: BorderRadius.circular(4),
-              borderSide: BorderSide(
-                color: AppTheme.primaryBlue,
-                width: 3,
-              ),
+              borderSide: BorderSide(color: AppTheme.primaryBlue, width: 3),
               insets: const EdgeInsets.symmetric(horizontal: 16),
             ),
             indicatorSize: TabBarIndicatorSize.label,
@@ -163,9 +171,9 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
 /// Wrapper to keep pages alive when switching tabs
 class _KeepAlivePage extends StatefulWidget {
   final Widget child;
-  
+
   const _KeepAlivePage({required this.child});
-  
+
   @override
   State<_KeepAlivePage> createState() => _KeepAlivePageState();
 }
@@ -174,7 +182,7 @@ class _KeepAlivePageState extends State<_KeepAlivePage>
     with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
-  
+
   @override
   Widget build(BuildContext context) {
     super.build(context);

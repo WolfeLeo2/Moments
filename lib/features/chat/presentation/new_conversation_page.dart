@@ -77,10 +77,7 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
               decoration: BoxDecoration(
                 color: AppTheme.cardWhite,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: AppTheme.textDark,
-                  width: 2,
-                ),
+                border: Border.all(color: AppTheme.textDark, width: 2),
                 boxShadow: const [
                   BoxShadow(
                     color: AppTheme.textDark,
@@ -184,7 +181,9 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                                color: AppTheme.primaryBlue.withValues(
+                                  alpha: 0.1,
+                                ),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: FaIcon(
@@ -195,9 +194,7 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
                             ),
                             const SizedBox(width: 10),
                             Text(
-                              _searchQuery.isEmpty
-                                  ? 'All Friends'
-                                  : 'Results',
+                              _searchQuery.isEmpty ? 'All Friends' : 'Results',
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
@@ -230,29 +227,22 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
 
                     // Friends List
                     SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final friend = filteredFriends[index];
-                          return _FriendListTile(
-                            friend: friend,
-                            onTap: () => _startConversation(friend),
-                          );
-                        },
-                        childCount: filteredFriends.length,
-                      ),
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final friend = filteredFriends[index];
+                        return _FriendListTile(
+                          friend: friend,
+                          onTap: () => _startConversation(friend),
+                        );
+                      }, childCount: filteredFriends.length),
                     ),
 
                     // Bottom padding for dock
-                    const SliverToBoxAdapter(
-                      child: SizedBox(height: 100),
-                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 100)),
                   ],
                 );
               },
               loading: () => const Center(
-                child: CircularProgressIndicator(
-                  color: AppTheme.primaryBlue,
-                ),
+                child: CircularProgressIndicator(color: AppTheme.primaryBlue),
               ),
               error: (error, stack) => Center(
                 child: Column(
@@ -302,11 +292,7 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
                     color: AppTheme.brightYellow.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: FaIcon(
-                    icon,
-                    size: 14,
-                    color: AppTheme.textDark,
-                  ),
+                  child: FaIcon(icon, size: 14, color: AppTheme.textDark),
                 ),
                 const SizedBox(width: 10),
                 Text(
@@ -375,10 +361,7 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
             const SizedBox(height: 8),
             Text(
               'Add some friends to start messaging',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
           ],
@@ -418,10 +401,7 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
             const SizedBox(height: 8),
             Text(
               'Try a different search term',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -449,10 +429,7 @@ class _RecentFriendChip extends ConsumerWidget {
   final Profile friend;
   final VoidCallback onTap;
 
-  const _RecentFriendChip({
-    required this.friend,
-    required this.onTap,
-  });
+  const _RecentFriendChip({required this.friend, required this.onTap});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -468,10 +445,7 @@ class _RecentFriendChip extends ConsumerWidget {
               Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppTheme.textDark,
-                    width: 2,
-                  ),
+                  border: Border.all(color: AppTheme.textDark, width: 2),
                 ),
                 child: CircleAvatar(
                   radius: 28,
@@ -509,10 +483,7 @@ class _FriendListTile extends ConsumerWidget {
   final Profile friend;
   final VoidCallback onTap;
 
-  const _FriendListTile({
-    required this.friend,
-    required this.onTap,
-  });
+  const _FriendListTile({required this.friend, required this.onTap});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -538,10 +509,7 @@ class _FriendListTile extends ConsumerWidget {
                 Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppTheme.textDark,
-                      width: 2,
-                    ),
+                    border: Border.all(color: AppTheme.textDark, width: 2),
                   ),
                   child: CircleAvatar(
                     radius: 24,

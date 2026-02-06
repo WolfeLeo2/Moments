@@ -121,7 +121,9 @@ class NotificationRepository {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return [];
 
-    debugPrint('NotificationRepository: Fetching notifications for $userId (limit: $limit, offset: $offset)');
+    debugPrint(
+      'NotificationRepository: Fetching notifications for $userId (limit: $limit, offset: $offset)',
+    );
 
     final response = await _client
         .from('notifications')

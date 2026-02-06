@@ -34,13 +34,13 @@ class AppTheme {
   // ============================================
   // EMOTIONAL / MEMORY LANE COLORS (Playful & Bright)
   // ============================================
-  static const Color warmCream = Color(0xFFFFF8E7);      // Bright warm paper
-  static const Color softIvory = Color(0xFFFFFDF5);      // Warm card background
-  static const Color coralPink = Color(0xFFFF6B6B);      // Lively nostalgic pink
-  static const Color mintGreen = Color(0xFF51D88A);      // Fresh nature green
-  static const Color skyBlue = Color(0xFF54B7F5);        // Bright reflective blue
-  static const Color sunsetOrange = Color(0xFFFFAA5C);   // Warm sunset glow
-  static const Color lavenderPop = Color(0xFFA78BFA);    // Playful purple
+  static const Color warmCream = Color(0xFFFFF8E7); // Bright warm paper
+  static const Color softIvory = Color(0xFFFFFDF5); // Warm card background
+  static const Color coralPink = Color(0xFFFF6B6B); // Lively nostalgic pink
+  static const Color mintGreen = Color(0xFF51D88A); // Fresh nature green
+  static const Color skyBlue = Color(0xFF54B7F5); // Bright reflective blue
+  static const Color sunsetOrange = Color(0xFFFFAA5C); // Warm sunset glow
+  static const Color lavenderPop = Color(0xFFA78BFA); // Playful purple
   // Legacy aliases for emotional references
   static const Color dustyRose = coralPink;
   static const Color sageGreen = mintGreen;
@@ -305,7 +305,7 @@ class AppTheme {
     if (diff.inDays < 30) return '${(diff.inDays / 7).floor()} weeks ago';
     if (diff.inDays < 60) return 'Last month';
     if (diff.inDays < 365) return '${(diff.inDays / 30).floor()} months ago';
-    
+
     final years = (diff.inDays / 365).floor();
     if (years == 1) return 'A year ago';
     if (years == 2) return 'Two years ago';
@@ -315,8 +315,8 @@ class AppTheme {
   /// Check if moment is from same day in a previous year
   static bool isAnniversary(DateTime timestamp) {
     final now = DateTime.now();
-    return timestamp.month == now.month && 
-           timestamp.day == now.day && 
-           timestamp.year < now.year;
+    return timestamp.month == now.month &&
+        timestamp.day == now.day &&
+        timestamp.year < now.year;
   }
 }

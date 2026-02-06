@@ -217,7 +217,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
   Future<void> _retryFailedMessage(String messageId) async {
     final offlineService = ref.read(chatOfflineServiceProvider);
     final success = await offlineService.retryMessage(messageId);
-    
+
     if (!success && mounted) {
       context.showErrorSnackBar('Failed to retry message');
     }
@@ -279,9 +279,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
 
       case MessageAction.deleteForEveryone:
         final offlineService = ref.read(chatOfflineServiceProvider);
-        await offlineService.deleteForEveryoneOptimistic(
-          messageId: message.id,
-        );
+        await offlineService.deleteForEveryoneOptimistic(messageId: message.id);
         break;
     }
   }
@@ -350,7 +348,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
         elevation: 0,
         leadingWidth: 24,
         leading: IconButton(
-          icon: Icon(_isSearchMode ? Icons.close : Icons.arrow_back, color: Colors.black),
+          icon: Icon(
+            _isSearchMode ? Icons.close : Icons.arrow_back,
+            color: Colors.black,
+          ),
           onPressed: () {
             if (_isSearchMode) {
               setState(() {
@@ -384,10 +385,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
                     backgroundImage: ref
                         .watch(avatarCacheServiceProvider)
                         .getAvatarImageProvider(widget.friendAvatarUrl),
-                    backgroundColor: AppTheme.electricPurple.withValues(alpha: 0.2),
+                    backgroundColor: AppTheme.electricPurple.withValues(
+                      alpha: 0.2,
+                    ),
                     child: widget.friendAvatarUrl == null
                         ? Text(
-                            widget.friendName.isNotEmpty ? widget.friendName[0] : '?',
+                            widget.friendName.isNotEmpty
+                                ? widget.friendName[0]
+                                : '?',
                             style: const TextStyle(
                               color: AppTheme.electricPurple,
                               fontWeight: FontWeight.bold,
@@ -495,9 +500,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
                         // Filter messages if search is active
                         final filteredMessages = _searchQuery.isEmpty
                             ? messages
-                            : messages.where((m) => 
-                                m.content.toLowerCase().contains(_searchQuery)
-                              ).toList();
+                            : messages
+                                  .where(
+                                    (m) => m.content.toLowerCase().contains(
+                                      _searchQuery,
+                                    ),
+                                  )
+                                  .toList();
 
                         if (messages.isEmpty) {
                           return Center(
@@ -531,7 +540,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
                         }
 
                         // Show "no results" if search has no matches
-                        if (_searchQuery.isNotEmpty && filteredMessages.isEmpty) {
+                        if (_searchQuery.isNotEmpty &&
+                            filteredMessages.isEmpty) {
                           return Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -583,7 +593,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
 
                         // Total items = messages + typing indicator (if any)
                         final itemCount =
-                            filteredMessages.length + (hasTypingIndicator ? 1 : 0);
+                            filteredMessages.length +
+                            (hasTypingIndicator ? 1 : 0);
 
                         return SafeArea(
                           child: ListView.builder(
@@ -640,7 +651,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                 showDate =
                                     true; // Always show for oldest message
                               } else {
-                                final olderMessage = filteredMessages[messageIndex + 1];
+                                final olderMessage =
+                                    filteredMessages[messageIndex + 1];
                                 final diff = message.createdAt
                                     .difference(olderMessage.createdAt)
                                     .inMinutes
@@ -659,7 +671,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
                               if (isNewest) {
                                 tail = true;
                               } else {
-                                final newerMessage = filteredMessages[messageIndex - 1];
+                                final newerMessage =
+                                    filteredMessages[messageIndex - 1];
                                 // Different sender = new group, show tail
                                 if (newerMessage.senderId != message.senderId) {
                                   tail = true;
@@ -708,7 +721,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                   isMe: isMe,
                                   tail: tail,
                                   replySenderName: replySenderName,
-                                  onRetry: message.sendStatus == MessageSendStatus.failed
+                                  onRetry:
+                                      message.sendStatus ==
+                                          MessageSendStatus.failed
                                       ? () => _retryFailedMessage(message.id)
                                       : null,
                                 );
@@ -752,18 +767,22 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                           _handleMessageAction(message, action),
                                       onReaction: (emoji) async {
                                         final currentUserId = SupabaseConfig
-                                            .client.auth.currentUser?.id;
+                                            .client
+                                            .auth
+                                            .currentUser
+                                            ?.id;
                                         if (currentUserId == null) return;
 
                                         // Use offline-first service for optimistic reactions
                                         final offlineService = ref.read(
                                           chatOfflineServiceProvider,
                                         );
-                                        await offlineService.addReactionOptimistic(
-                                          messageId: message.id,
-                                          emoji: emoji,
-                                          userId: currentUserId,
-                                        );
+                                        await offlineService
+                                            .addReactionOptimistic(
+                                              messageId: message.id,
+                                              emoji: emoji,
+                                              userId: currentUserId,
+                                            );
                                       },
                                     );
                                   },

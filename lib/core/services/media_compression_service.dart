@@ -64,7 +64,9 @@ class MediaCompressionService {
       final compressedSize = await info.file!.length();
       final compressedSizeMB = compressedSize / (1024 * 1024);
 
-      _log.i('Compressed video size: ${compressedSizeMB.toStringAsFixed(2)} MB');
+      _log.i(
+        'Compressed video size: ${compressedSizeMB.toStringAsFixed(2)} MB',
+      );
 
       // Check if compressed file is under 50MB
       if (compressedSizeMB > 50) {

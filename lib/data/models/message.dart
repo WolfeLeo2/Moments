@@ -22,19 +22,19 @@ enum MessageType {
 enum MessageSendStatus {
   /// Message created locally, not yet sent
   pending,
-  
+
   /// Message is being sent to server
   sending,
-  
+
   /// Message sent to server successfully
   sent,
-  
+
   /// Message delivered to recipient's device
   delivered,
-  
+
   /// Message read by recipient
   read,
-  
+
   /// Message failed to send
   failed;
 
@@ -67,7 +67,7 @@ class Message extends Equatable {
   final bool isEdited;
   final String? deletedFor; // null, 'self', or 'everyone'
   final List<Reaction> reactions; // Message reactions
-  
+
   // Offline-first fields
   final MessageSendStatus sendStatus; // Current send status
   final bool localOnly; // True if message hasn't synced to server yet

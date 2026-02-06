@@ -104,7 +104,9 @@ class MessageBubble extends StatelessWidget {
                       // Message content
                       Text(
                         message.content,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyMedium?.copyWith(color: textColor),
                       ),
 
                       // Status row: edited label + send status (for sender only)
@@ -120,11 +122,16 @@ class MessageBubble extends StatelessWidget {
                                   padding: const EdgeInsets.only(right: 4),
                                   child: Text(
                                     'Edited',
-                                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                      color: textColor.withValues(alpha: 0.5),
-                                      fontStyle: FontStyle.italic,
-                                      fontSize: 10,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          color: textColor.withValues(
+                                            alpha: 0.5,
+                                          ),
+                                          fontStyle: FontStyle.italic,
+                                          fontSize: 10,
+                                        ),
                                   ),
                                 ),
                               if (isMe) _buildStatusIcon(textColor),
@@ -216,7 +223,9 @@ class MessageBubble extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             preview,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: contentColor, fontSize: 13),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: contentColor, fontSize: 13),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -260,7 +269,7 @@ class MessageBubble extends StatelessWidget {
   Widget _buildStatusIcon(Color textColor) {
     final statusColor = textColor.withValues(alpha: 0.6);
     const iconSize = 14.0;
-    
+
     switch (message.sendStatus) {
       case MessageSendStatus.pending:
         return SizedBox(
@@ -271,7 +280,7 @@ class MessageBubble extends StatelessWidget {
             color: statusColor,
           ),
         );
-      
+
       case MessageSendStatus.sending:
         return SizedBox(
           width: iconSize,
@@ -281,7 +290,7 @@ class MessageBubble extends StatelessWidget {
             color: statusColor,
           ),
         );
-      
+
       case MessageSendStatus.failed:
         return GestureDetector(
           onTap: onRetry,
@@ -305,14 +314,14 @@ class MessageBubble extends StatelessWidget {
             ],
           ),
         );
-      
+
       case MessageSendStatus.sent:
         return HugeIcon(
           icon: HugeIcons.strokeRoundedTick01,
           color: statusColor,
           size: iconSize,
         );
-      
+
       case MessageSendStatus.delivered:
         return Row(
           mainAxisSize: MainAxisSize.min,
@@ -332,7 +341,7 @@ class MessageBubble extends StatelessWidget {
             ),
           ],
         );
-      
+
       case MessageSendStatus.read:
         // Blue double tick for read
         return Row(

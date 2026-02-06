@@ -218,7 +218,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   side: BorderSide(
                     color: isSelected ? Colors.transparent : Colors.grey[500]!,
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                 );
               },
             ),
@@ -250,11 +253,13 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   return _buildNotificationList(filteredItems);
                 },
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (_, __) => const Center(child: Text('Error loading invites')),
+                error: (_, __) =>
+                    const Center(child: Text('Error loading invites')),
               );
             },
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) => const Center(child: Text('Error loading requests')),
+            error: (_, __) =>
+                const Center(child: Text('Error loading requests')),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -267,23 +272,29 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     switch (_selectedFilter) {
       case 'Requests':
         return items
-            .where((n) =>
-                n.type == NotificationType.friendRequest ||
-                n.type == NotificationType.collaborationInvite)
+            .where(
+              (n) =>
+                  n.type == NotificationType.friendRequest ||
+                  n.type == NotificationType.collaborationInvite,
+            )
             .toList();
       case 'Activity':
         return items
-            .where((n) =>
-                n.type == NotificationType.momentLike ||
-                n.type == NotificationType.newMoment ||
-                n.type == NotificationType.momentInvite)
+            .where(
+              (n) =>
+                  n.type == NotificationType.momentLike ||
+                  n.type == NotificationType.newMoment ||
+                  n.type == NotificationType.momentInvite,
+            )
             .toList();
       case 'System':
         return items
-            .where((n) =>
-                n.type == NotificationType.system ||
-                n.type == NotificationType.promo ||
-                n.type == NotificationType.other)
+            .where(
+              (n) =>
+                  n.type == NotificationType.system ||
+                  n.type == NotificationType.promo ||
+                  n.type == NotificationType.other,
+            )
             .toList();
       default:
         return items;
@@ -444,7 +455,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   Widget _buildNotificationList(List<NotificationItem> items) {
     final notifier = ref.read(notificationsListProvider.notifier);
-    
+
     return NotificationListener<ScrollNotification>(
       onNotification: (scrollInfo) {
         // Load more when near the bottom
@@ -452,7 +463,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           final maxScroll = scrollInfo.metrics.maxScrollExtent;
           final currentScroll = scrollInfo.metrics.pixels;
           // Trigger load more when 200px from bottom
-          if (maxScroll - currentScroll <= 200 && notifier.hasMore && !notifier.isLoadingMore) {
+          if (maxScroll - currentScroll <= 200 &&
+              notifier.hasMore &&
+              !notifier.isLoadingMore) {
             notifier.loadMore();
           }
         }
@@ -475,10 +488,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               ),
             );
           }
-          
+
           final item = items[index];
           final config = _NotificationTypeConfig.forType(item.type);
-          final requiresAction = item.type == NotificationType.friendRequest ||
+          final requiresAction =
+              item.type == NotificationType.friendRequest ||
               item.type == NotificationType.collaborationInvite;
 
           return Padding(
@@ -569,7 +583,11 @@ class _NotificationCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildCard(BuildContext context, WidgetRef ref, NotificationItem item) {
+  Widget _buildCard(
+    BuildContext context,
+    WidgetRef ref,
+    NotificationItem item,
+  ) {
     final cardContent = _buildCardContent(context, ref, item);
 
     // Wrap with Dismissible for non-action notifications
@@ -679,9 +697,7 @@ class _NotificationCard extends ConsumerWidget {
                                 ),
                               TextSpan(
                                 text: _getBodyText(item),
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                ),
+                                style: TextStyle(color: Colors.grey[600]),
                               ),
                             ],
                           ),
@@ -780,11 +796,7 @@ class _NotificationCard extends ConsumerWidget {
         shape: BoxShape.circle,
       ),
       child: Center(
-        child: FaIcon(
-          config.icon,
-          color: config.accentColor,
-          size: 24,
-        ),
+        child: FaIcon(config.icon, color: config.accentColor, size: 24),
       ),
     );
   }
@@ -925,7 +937,9 @@ class _NotificationCard extends ConsumerWidget {
     if (item.type == NotificationType.friendRequest) {
       final request = item.data as Friendship;
       try {
-        await ref.read(friendRequestProvider.notifier).acceptRequest(request.id);
+        await ref
+            .read(friendRequestProvider.notifier)
+            .acceptRequest(request.id);
         if (context.mounted) {
           context.showSuccessSnackBar('Friend request accepted!');
           ref.invalidate(friendsListProvider);
@@ -980,7 +994,9 @@ class _NotificationCard extends ConsumerWidget {
     if (item.type == NotificationType.friendRequest) {
       final request = item.data as Friendship;
       try {
-        await ref.read(friendRequestProvider.notifier).rejectRequest(request.id);
+        await ref
+            .read(friendRequestProvider.notifier)
+            .rejectRequest(request.id);
         if (context.mounted) {
           context.showSuccessSnackBar('Request declined');
           ref.invalidate(pendingRequestsProvider);

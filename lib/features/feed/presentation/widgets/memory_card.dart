@@ -9,11 +9,7 @@ import 'package:moments/data/models/moment.dart';
 /// Displays a photo with location, caption, and relative time
 /// Supports multiple photos in a cluster (carousel dots shown)
 class MemoryCard extends StatefulWidget {
-  const MemoryCard({
-    super.key,
-    required this.moments,
-    required this.onTap,
-  });
+  const MemoryCard({super.key, required this.moments, required this.onTap});
 
   final List<Moment> moments;
   final VoidCallback onTap;
@@ -80,9 +76,8 @@ class _MemoryCardState extends State<MemoryCard> {
                       Expanded(
                         child: Text(
                           moment.location,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                color: AppTheme.textDark,
-                              ),
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(color: AppTheme.textDark),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -96,11 +91,11 @@ class _MemoryCardState extends State<MemoryCard> {
                     Text(
                       moment.caption!,
                       style: GoogleFonts.caveat(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            color: AppTheme.textDark,
-                            height: 1.4,
-                          ),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.textDark,
+                        height: 1.4,
+                      ),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -111,9 +106,9 @@ class _MemoryCardState extends State<MemoryCard> {
                   // Relative time
                   Text(
                     AppTheme.formatRelativeTime(moment.timestamp),
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppTheme.textGray,
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelSmall?.copyWith(color: AppTheme.textGray),
                   ),
                 ],
               ),
@@ -134,7 +129,9 @@ class _MemoryCardState extends State<MemoryCard> {
           ),
           child: AspectRatio(
             aspectRatio: 4 / 3,
-            child: hasMultiple ? _buildPhotoCarousel(tint) : _buildSinglePhoto(primaryMoment, tint),
+            child: hasMultiple
+                ? _buildPhotoCarousel(tint)
+                : _buildSinglePhoto(primaryMoment, tint),
           ),
         ),
 
@@ -177,11 +174,7 @@ class _MemoryCardState extends State<MemoryCard> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
-                    Icons.play_arrow,
-                    color: Colors.white,
-                    size: 14,
-                  ),
+                  const Icon(Icons.play_arrow, color: Colors.white, size: 14),
                   if (primaryMoment.duration != null) ...[
                     const SizedBox(width: 4),
                     Text(
@@ -253,10 +246,7 @@ class _MemoryCardState extends State<MemoryCard> {
           ),
 
         // Time-of-day tint overlay
-        if (tint != Colors.transparent)
-          Container(
-            color: tint,
-          ),
+        if (tint != Colors.transparent) Container(color: tint),
       ],
     );
   }

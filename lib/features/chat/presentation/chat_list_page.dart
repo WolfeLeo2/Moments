@@ -128,7 +128,10 @@ class _ChatListPageState extends ConsumerState<ChatListPage>
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: AppTheme.primaryBlue, width: 2),
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
             ),
           ),
@@ -207,7 +210,8 @@ class ChatListTile extends ConsumerWidget {
 
         // Filter by search query - match name or message content
         if (searchQuery.isNotEmpty) {
-          final name = (profile.displayName ?? profile.username ?? '').toLowerCase();
+          final name = (profile.displayName ?? profile.username ?? '')
+              .toLowerCase();
           final content = lastMessage.content.toLowerCase();
           if (!name.contains(searchQuery) && !content.contains(searchQuery)) {
             return const SizedBox.shrink();

@@ -84,14 +84,18 @@ class MapCacheService {
           _log.i('FMTC tile caching initialized successfully');
           if (!completer.isCompleted) completer.complete();
         } catch (e) {
-          _log.w('FMTC initialization failed (map will work without caching): $e');
+          _log.w(
+            'FMTC initialization failed (map will work without caching): $e',
+          );
           _fmtcInitialized = false;
           _tileProvider = null;
           if (!completer.isCompleted) completer.complete();
         }
       },
       (error, stack) {
-        _log.w('FMTC async error caught (map will work without caching): $error');
+        _log.w(
+          'FMTC async error caught (map will work without caching): $error',
+        );
         _fmtcInitialized = false;
         _tileProvider = null;
         if (!completer.isCompleted) completer.complete();

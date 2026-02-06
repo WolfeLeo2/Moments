@@ -28,7 +28,8 @@ class Messages extends Table {
   TextColumn get content => text()();
   TextColumn get messageType => text().withDefault(const Constant('text'))();
   TextColumn get mediaUrl => text().nullable()();
-  TextColumn get localMediaPath => text().nullable()(); // Local file path for media before upload
+  TextColumn get localMediaPath =>
+      text().nullable()(); // Local file path for media before upload
   TextColumn get metadata => text().nullable()(); // JSON string
   IntColumn get createdAt => integer()();
   BoolColumn get isRead => boolean().withDefault(const Constant(false))();
@@ -40,9 +41,14 @@ class Messages extends Table {
   TextColumn get deletedFor => text().nullable()();
   BoolColumn get isEdited => boolean().withDefault(const Constant(false))();
   // Offline-first fields
-  TextColumn get sendStatus => text().withDefault(const Constant('sent'))(); // pending, sending, sent, delivered, read, failed
-  BoolColumn get localOnly => boolean().withDefault(const Constant(false))(); // True if not synced to server
-  IntColumn get deliveredAt => integer().nullable()(); // Epoch when delivered to recipient
+  TextColumn get sendStatus => text().withDefault(
+    const Constant('sent'),
+  )(); // pending, sending, sent, delivered, read, failed
+  BoolColumn get localOnly => boolean().withDefault(
+    const Constant(false),
+  )(); // True if not synced to server
+  IntColumn get deliveredAt =>
+      integer().nullable()(); // Epoch when delivered to recipient
 
   @override
   Set<Column> get primaryKey => {id};
@@ -283,12 +289,13 @@ class AppDatabase extends _$AppDatabase {
     }
 
     // Check which messages exist locally with pending/sending/failed status
-    final localPendingMessages = await (select(messages)
-          ..where((m) => m.id.isIn(ids))
-          ..where(
-            (m) => m.sendStatus.isIn(['pending', 'sending', 'failed']),
-          ))
-        .get();
+    final localPendingMessages =
+        await (select(messages)
+              ..where((m) => m.id.isIn(ids))
+              ..where(
+                (m) => m.sendStatus.isIn(['pending', 'sending', 'failed']),
+              ))
+            .get();
 
     final pendingIds = localPendingMessages.map((m) => m.id).toSet();
 
@@ -326,8 +333,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get a single message by ID
   Future<MessageEntry?> getMessageById(String messageId) async {
-    return (select(messages)..where((m) => m.id.equals(messageId)))
-        .getSingleOrNull();
+    return (select(
+      messages,
+    )..where((m) => m.id.equals(messageId))).getSingleOrNull();
   }
 
   /// Update message send status
@@ -364,11 +372,12 @@ class AppDatabase extends _$AppDatabase {
     String conversationId,
     String currentUserId,
   ) async {
-    final affectedRows = await (update(messages)
-          ..where((m) => m.conversationId.equals(conversationId))
-          ..where((m) => m.senderId.isNotValue(currentUserId))
-          ..where((m) => m.isRead.equals(false)))
-        .write(const MessagesCompanion(isRead: Value(true)));
+    final affectedRows =
+        await (update(messages)
+              ..where((m) => m.conversationId.equals(conversationId))
+              ..where((m) => m.senderId.isNotValue(currentUserId))
+              ..where((m) => m.isRead.equals(false)))
+            .write(const MessagesCompanion(isRead: Value(true)));
     return affectedRows;
   }
 
@@ -387,10 +396,7 @@ class AppDatabase extends _$AppDatabase {
   // ============================================
 
   /// Update message content locally (for optimistic edit)
-  Future<void> updateMessageContent(
-    String messageId,
-    String newContent,
-  ) async {
+  Future<void> updateMessageContent(String messageId, String newContent) async {
     await (update(messages)..where((m) => m.id.equals(messageId))).write(
       MessagesCompanion(
         content: Value(newContent),
@@ -430,10 +436,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Update message media URL after upload completes
-  Future<void> updateMessageMediaUrl(
-    String messageId,
-    String mediaUrl,
-  ) async {
+  Future<void> updateMessageMediaUrl(String messageId, String mediaUrl) async {
     await (update(messages)..where((m) => m.id.equals(messageId))).write(
       MessagesCompanion(
         mediaUrl: Value(mediaUrl),
@@ -993,8 +996,8 @@ extension MessageEntryMapper on MessageEntry {
       reactions: parsedReactions,
       sendStatus: app.MessageSendStatus.fromString(sendStatus),
       localOnly: localOnly,
-      deliveredAt: deliveredAt != null 
-          ? DateTime.fromMillisecondsSinceEpoch(deliveredAt!) 
+      deliveredAt: deliveredAt != null
+          ? DateTime.fromMillisecondsSinceEpoch(deliveredAt!)
           : null,
     );
   }

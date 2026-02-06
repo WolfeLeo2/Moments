@@ -44,7 +44,7 @@ final _log = AppLogger('MapPage');
 
 class MapPage extends ConsumerStatefulWidget {
   const MapPage({super.key, this.scrollController});
-  
+
   /// Scroll controller from BottomBar (not used for maps but needed for consistency)
   final ScrollController? scrollController;
 
@@ -273,7 +273,9 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
       // Get the current position
       _log.d('Getting location...');
       final position = await location.getLocation();
-      _log.d('Got location: lat=${position.latitude}, lng=${position.longitude}');
+      _log.d(
+        'Got location: lat=${position.latitude}, lng=${position.longitude}',
+      );
 
       if (mounted && position.latitude != null && position.longitude != null) {
         // Check if coordinates are valid (not 0,0 which is ocean)
@@ -893,15 +895,12 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                         color: AppTheme.cardWhite,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: AppTheme.textDark,
-                            width: 2,
+                          side: BorderSide(color: AppTheme.textDark, width: 2),
                         ),
-                      ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
-                        children:[
+                        children: [
                           Text(
                             _cityName,
                             style: GoogleFonts.bangers(
@@ -927,7 +926,8 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
 
               // Animated FAB - positioned above floating dock
               Positioned(
-                bottom: 100, // Space for floating dock (64 height + 24 margin + padding)
+                bottom:
+                    100, // Space for floating dock (64 height + 24 margin + padding)
                 left: 0,
                 right: 0,
                 child: Center(

@@ -52,15 +52,22 @@ Stream<List<Message>> messagesStream(Ref ref, String conversationId) async* {
 
   // 3. Also subscribe to Supabase realtime and save to Drift with smart merge
   // Smart merge preserves local sendStatus for pending/sending messages
-  chatRepo.streamMessages(conversationId).listen(
-    (messages) {
-      db.saveMessagesWithMerge(messages.map((m) => m.toCompanion()).toList());
-    },
-    onError: (e) {
-      _log.w('Realtime stream error for conversation $conversationId', error: e);
-      // Stream errors don't break Drift - local data still works
-    },
-  );
+  chatRepo
+      .streamMessages(conversationId)
+      .listen(
+        (messages) {
+          db.saveMessagesWithMerge(
+            messages.map((m) => m.toCompanion()).toList(),
+          );
+        },
+        onError: (e) {
+          _log.w(
+            'Realtime stream error for conversation $conversationId',
+            error: e,
+          );
+          // Stream errors don't break Drift - local data still works
+        },
+      );
 
   // 4. Yield from Drift reactive stream (auto-updates when messages saved)
   await for (final messages in driftStream) {
