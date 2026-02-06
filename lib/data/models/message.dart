@@ -18,6 +18,35 @@ enum MessageType {
   }
 }
 
+/// Message send status for offline-first support
+enum MessageSendStatus {
+  /// Message created locally, not yet sent
+  pending,
+  
+  /// Message is being sent to server
+  sending,
+  
+  /// Message sent to server successfully
+  sent,
+  
+  /// Message delivered to recipient's device
+  delivered,
+  
+  /// Message read by recipient
+  read,
+  
+  /// Message failed to send
+  failed;
+
+  static MessageSendStatus fromString(String? value) {
+    if (value == null) return MessageSendStatus.sent;
+    return MessageSendStatus.values.firstWhere(
+      (e) => e.name == value,
+      orElse: () => MessageSendStatus.sent,
+    );
+  }
+}
+
 /// Chat message model
 class Message extends Equatable {
   final String id;
@@ -38,6 +67,11 @@ class Message extends Equatable {
   final bool isEdited;
   final String? deletedFor; // null, 'self', or 'everyone'
   final List<Reaction> reactions; // Message reactions
+  
+  // Offline-first fields
+  final MessageSendStatus sendStatus; // Current send status
+  final bool localOnly; // True if message hasn't synced to server yet
+  final DateTime? deliveredAt; // When message was delivered to recipient
 
   const Message({
     required this.id,
@@ -57,6 +91,9 @@ class Message extends Equatable {
     this.isEdited = false,
     this.deletedFor,
     this.reactions = const [],
+    this.sendStatus = MessageSendStatus.sent,
+    this.localOnly = false,
+    this.deliveredAt,
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
@@ -104,6 +141,11 @@ class Message extends Equatable {
               ?.map((e) => Reaction.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
+      sendStatus: MessageSendStatus.fromString(json['send_status'] as String?),
+      localOnly: json['local_only'] as bool? ?? false,
+      deliveredAt: json['delivered_at'] != null
+          ? DateTime.parse(json['delivered_at'] as String).toLocal()
+          : null,
     );
   }
 
@@ -124,6 +166,9 @@ class Message extends Equatable {
       'reply_to_message_id': replyToMessageId,
       'is_edited': isEdited,
       'deleted_for': deletedFor,
+      'send_status': sendStatus.name,
+      'local_only': localOnly,
+      'delivered_at': deliveredAt?.toIso8601String(),
     };
   }
 
@@ -145,6 +190,9 @@ class Message extends Equatable {
     bool? isEdited,
     String? deletedFor,
     List<Reaction>? reactions,
+    MessageSendStatus? sendStatus,
+    bool? localOnly,
+    DateTime? deliveredAt,
   }) {
     return Message(
       id: id ?? this.id,
@@ -164,6 +212,9 @@ class Message extends Equatable {
       isEdited: isEdited ?? this.isEdited,
       deletedFor: deletedFor ?? this.deletedFor,
       reactions: reactions ?? this.reactions,
+      sendStatus: sendStatus ?? this.sendStatus,
+      localOnly: localOnly ?? this.localOnly,
+      deliveredAt: deliveredAt ?? this.deliveredAt,
     );
   }
 
@@ -186,5 +237,8 @@ class Message extends Equatable {
     isEdited,
     deletedFor,
     reactions,
+    sendStatus,
+    localOnly,
+    deliveredAt,
   ];
 }

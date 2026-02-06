@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/features/chat/presentation/chat_page.dart';
-import 'package:hugeicons/hugeicons.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class NewChatSheet extends ConsumerWidget {
   const NewChatSheet({super.key});
@@ -74,8 +74,8 @@ class NewChatSheet extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  HugeIcon(
-                    icon: HugeIcons.strokeRoundedSearch01,
+                  FaIcon(
+                    FontAwesomeIcons.magnifyingGlass,
                     color: Colors.grey[400]!,
                     size: 24,
                   ),
@@ -103,8 +103,8 @@ class NewChatSheet extends ConsumerWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        HugeIcon(
-                          icon: HugeIcons.strokeRoundedUserMultiple,
+                        FaIcon(
+                          FontAwesomeIcons.userGroup,
                           size: 48,
                           color: Colors.grey[300]!,
                         ),

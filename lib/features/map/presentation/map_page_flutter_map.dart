@@ -15,6 +15,7 @@ import '../../../core/services/auth_service.dart';
 import '../../../core/services/map_cache_service.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/services/quick_actions_service.dart';
+import '../../../core/services/app_logger.dart';
 import '../../../core/providers/moments_providers.dart';
 import '../../../data/models/moment.dart';
 import '../../../widgets/blurred_app_bar.dart';
@@ -29,7 +30,7 @@ import '../widgets/stacked_moment_marker.dart';
 import '../widgets/friend_moments_stack.dart';
 import '../widgets/friends_in_view_sheet.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:hugeicons/hugeicons.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:moments/data/models/user_profile.dart';
 import 'package:moments/data/services/user_profile_service.dart';
@@ -39,8 +40,13 @@ import 'package:moments/core/providers/providers.dart';
 import 'package:moments/features/map/utils/map_logic_service.dart';
 import 'package:moments/features/map/providers/map_control_provider.dart';
 
+final _log = AppLogger('MapPage');
+
 class MapPage extends ConsumerStatefulWidget {
-  const MapPage({super.key});
+  const MapPage({super.key, this.scrollController});
+  
+  /// Scroll controller from BottomBar (not used for maps but needed for consistency)
+  final ScrollController? scrollController;
 
   @override
   ConsumerState<MapPage> createState() => _MapPageState();
@@ -238,43 +244,41 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
 
       // Check if location services are enabled
       bool serviceEnabled = await location.serviceEnabled();
-      print('📍 Location service enabled: $serviceEnabled');
+      _log.d('Location service enabled: $serviceEnabled');
       if (!serviceEnabled) {
         serviceEnabled = await location.requestService();
         if (!serviceEnabled) {
-          print('📍 User declined to enable location service');
+          _log.w('User declined to enable location service');
           return;
         }
       }
 
       // Check permission status
       PermissionStatus permission = await location.hasPermission();
-      print('📍 Location permission: $permission');
+      _log.d('Location permission: $permission');
 
       if (permission == PermissionStatus.denied) {
         permission = await location.requestPermission();
         if (permission == PermissionStatus.denied) {
-          print('📍 User denied location permission');
+          _log.w('User denied location permission');
           return;
         }
       }
 
       if (permission == PermissionStatus.deniedForever) {
-        print('📍 Location permission denied forever');
+        _log.w('Location permission denied forever');
         return;
       }
 
       // Get the current position
-      print('📍 Getting location...');
+      _log.d('Getting location...');
       final position = await location.getLocation();
-      print(
-        '📍 Got location: lat=${position.latitude}, lng=${position.longitude}',
-      );
+      _log.d('Got location: lat=${position.latitude}, lng=${position.longitude}');
 
       if (mounted && position.latitude != null && position.longitude != null) {
         // Check if coordinates are valid (not 0,0 which is ocean)
         if (position.latitude == 0.0 && position.longitude == 0.0) {
-          print('📍 WARNING: Location is (0,0) - likely invalid!');
+          _log.w('Location is (0,0) - likely invalid!');
         }
 
         setState(() => _currentPosition = position);
@@ -299,10 +303,10 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
         // Ensure city name is updated effectively
         _loadCityName();
       } else {
-        print('📍 Location has null coordinates or widget not mounted');
+        _log.w('Location has null coordinates or widget not mounted');
       }
     } catch (e) {
-      print('📍 Error getting location: $e');
+      _log.e('Error getting location: $e');
     }
   }
 
@@ -921,9 +925,9 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
                 child: _buildFriendsInViewStack(visibleMoments),
               ),
 
-              // Animated FAB
+              // Animated FAB - positioned above floating dock
               Positioned(
-                bottom: AppTheme.spacing32,
+                bottom: 100, // Space for floating dock (64 height + 24 margin + padding)
                 left: 0,
                 right: 0,
                 child: Center(
@@ -1074,8 +1078,8 @@ class _AnimatedFABState extends State<_AnimatedFAB>
               border: Border.all(color: Colors.black, width: 1),
               shape: BoxShape.circle,
             ),
-            child: const HugeIcon(
-              icon: HugeIcons.strokeRoundedAdd01,
+            child: const FaIcon(
+              FontAwesomeIcons.plus,
               color: AppTheme.primaryBlue,
               size: 20,
             ),
@@ -1131,8 +1135,8 @@ class _AnimatedFABState extends State<_AnimatedFAB>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const HugeIcon(
-                    icon: HugeIcons.strokeRoundedCamera01,
+                  const FaIcon(
+                    FontAwesomeIcons.camera,
                     size: 20,
                     color: AppTheme.primaryBlue,
                   ),
@@ -1174,8 +1178,8 @@ class _AnimatedFABState extends State<_AnimatedFAB>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const HugeIcon(
-                    icon: HugeIcons.strokeRoundedImage02,
+                  const FaIcon(
+                    FontAwesomeIcons.image,
                     size: 20,
                     color: Colors.black,
                   ),

@@ -3,15 +3,19 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:moments/data/models/message.dart';
+import 'package:moments/data/models/pending_action.dart';
 import 'package:moments/data/repositories/chat_repository.dart';
 import 'package:moments/core/database/database.dart';
 import 'package:moments/core/providers/database_provider.dart';
 import 'package:moments/core/services/app_logger.dart';
 import 'package:moments/core/providers/sync_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 part 'chat_providers.g.dart';
 
 final _log = AppLogger('ChatProviders');
+const _uuid = Uuid();
 
 /// Tracks the currently active chat conversation ID
 /// Used to suppress notifications when the user is already viewing the chat
@@ -46,11 +50,17 @@ Stream<List<Message>> messagesStream(Ref ref, String conversationId) async* {
       .watchMessages(conversationId)
       .map((entries) => entries.map((e) => e.toModel()).toList());
 
-  // 3. Also subscribe to Supabase realtime and save to Drift
-  // This runs in parallel to keep the DB updated
-  chatRepo.streamMessages(conversationId).listen((messages) {
-    db.saveMessages(messages.map((m) => m.toCompanion()).toList());
-  });
+  // 3. Also subscribe to Supabase realtime and save to Drift with smart merge
+  // Smart merge preserves local sendStatus for pending/sending messages
+  chatRepo.streamMessages(conversationId).listen(
+    (messages) {
+      db.saveMessagesWithMerge(messages.map((m) => m.toCompanion()).toList());
+    },
+    onError: (e) {
+      _log.w('Realtime stream error for conversation $conversationId', error: e);
+      // Stream errors don't break Drift - local data still works
+    },
+  );
 
   // 4. Yield from Drift reactive stream (auto-updates when messages saved)
   await for (final messages in driftStream) {
@@ -268,6 +278,55 @@ Stream<List<Map<String, dynamic>>> chatList(Ref ref) async* {
             details: e.toString(),
           );
       _log.w('Error in chatList stream update', error: e);
+    }
+  }
+}
+
+/// Offline-first mark conversation as read
+/// Updates local database immediately, then syncs to server in background
+@riverpod
+class MarkAsReadAction extends _$MarkAsReadAction {
+  @override
+  FutureOr<void> build() {}
+
+  /// Mark all messages in conversation as read
+  /// Returns immediately after local update - server sync is fire-and-forget
+  Future<void> markAsRead(String conversationId) async {
+    final db = ref.read(appDatabaseProvider);
+    final chatRepo = ref.read(chatRepositoryProvider);
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+
+    if (currentUserId == null) return;
+
+    // 1. Update local database immediately (instant UI feedback)
+    final updated = await db.markConversationAsReadLocally(
+      conversationId,
+      currentUserId,
+    );
+    _log.d('Marked $updated messages as read locally');
+
+    // 2. Update unread count in chat list cache
+    await db.updateChatListUnreadCount(conversationId, 0);
+
+    // 3. Sync to server in background (fire-and-forget)
+    // Queue as pending action in case of failure
+    try {
+      await chatRepo.markAsRead(conversationId);
+      _log.d('Synced read status to server');
+    } catch (e) {
+      _log.w('Failed to sync read status, queuing for retry', error: e);
+      // Queue for later retry
+      await db.queuePendingAction(
+        PendingActionsCompanion.insert(
+          id: _uuid.v4(),
+          actionType: PendingActionType.markAsRead.name,
+          entityType: 'conversation',
+          entityId: conversationId,
+          payload: const Value(null),
+          createdAt: DateTime.now().toIso8601String(),
+          priority: const Value('low'),
+        ),
+      );
     }
   }
 }

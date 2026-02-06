@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:video_compress/video_compress.dart';
 
-final _log = AppLogger('UmediaUcompressionUservice');
+final _log = AppLogger('MediaCompressionService');
 
 class MediaCompressionService {
   /// Compress image to JPG with 70% quality

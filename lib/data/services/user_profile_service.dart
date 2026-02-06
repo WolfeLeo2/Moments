@@ -2,7 +2,7 @@ import 'package:moments/core/services/app_logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_profile.dart';
 
-final _log = AppLogger('UuserUprofileUservice');
+final _log = AppLogger('UserProfileService');
 
 class UserProfileService {
   static final SupabaseClient _supabase = Supabase.instance.client;
@@ -21,7 +21,7 @@ class UserProfileService {
           .map((json) => UserProfile.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      print('Error fetching user profiles: $e');
+      _log.e('Error fetching user profiles: $e');
       return [];
     }
   }
@@ -39,7 +39,7 @@ class UserProfileService {
 
       return UserProfile.fromJson(response);
     } catch (e) {
-      print('Error fetching user profile: $e');
+      _log.e('Error fetching user profile: $e');
       return null;
     }
   }
@@ -55,7 +55,7 @@ class UserProfileService {
 
       return UserProfile.fromJson(response);
     } catch (e) {
-      print('Error upserting user profile: $e');
+      _log.e('Error upserting user profile: $e');
       return null;
     }
   }
@@ -87,7 +87,7 @@ class UserProfileService {
 
       return avatarUrls;
     } catch (e) {
-      print('Error fetching contributor avatars: $e');
+      _log.e('Error fetching contributor avatars: $e');
       // Return default avatars for all users on error
       return List.generate(userIds.length, (index) => getDefaultAvatarUrl());
     }

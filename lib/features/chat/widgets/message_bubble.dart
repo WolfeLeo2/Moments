@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/features/chat/widgets/custom_bubble_special_three.dart';
@@ -13,6 +14,7 @@ class MessageBubble extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.onSwipe,
+    this.onRetry,
   });
 
   final bool isMe;
@@ -22,6 +24,7 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onSwipe;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +36,9 @@ class MessageBubble extends StatelessWidget {
     // Handle deleted messages
     if (message.isDeleted || message.deletedFor == 'everyone') {
       return CustomBubbleSpecialThree(
+        color: bubbleColor.withValues(alpha: 0.7),
+        tail: tail,
+        isSender: isMe,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -44,17 +50,13 @@ class MessageBubble extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               'This message was deleted',
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: textColor.withValues(alpha: 0.5),
-                fontSize: 14,
                 fontStyle: FontStyle.italic,
               ),
             ),
           ],
         ),
-        color: bubbleColor.withValues(alpha: 0.7),
-        tail: tail,
-        isSender: isMe,
       );
     }
 
@@ -79,6 +81,9 @@ class MessageBubble extends StatelessWidget {
           Padding(
             padding: EdgeInsets.only(bottom: hasReactions ? 12.0 : 0),
             child: CustomBubbleSpecialThree(
+              color: bubbleColor,
+              tail: tail,
+              isSender: isMe,
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxWidth: maxWidth,
@@ -93,35 +98,43 @@ class MessageBubble extends StatelessWidget {
                       if (message.replyToMessage != null)
                         Container(
                           margin: const EdgeInsets.only(bottom: 6),
-                          child: _buildCompactReplyPreview(textColor),
+                          child: _buildCompactReplyPreview(context, textColor),
                         ),
 
                       // Message content
                       Text(
                         message.content,
-                        style: TextStyle(color: textColor, fontSize: 16),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor),
                       ),
 
-                      // Edited label
-                      if (message.isEdited)
+                      // Status row: edited label + send status (for sender only)
+                      if (message.isEdited || isMe)
                         Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            'Edited',
-                            style: TextStyle(
-                              color: textColor.withValues(alpha: 0.5),
-                              fontSize: 10,
-                              fontStyle: FontStyle.italic,
-                            ),
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              if (message.isEdited)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 4),
+                                  child: Text(
+                                    'Edited',
+                                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                      color: textColor.withValues(alpha: 0.5),
+                                      fontStyle: FontStyle.italic,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                              if (isMe) _buildStatusIcon(textColor),
+                            ],
                           ),
                         ),
                     ],
                   ),
                 ),
               ),
-              color: bubbleColor,
-              tail: tail,
-              isSender: isMe,
             ),
           ),
 
@@ -148,7 +161,7 @@ class MessageBubble extends StatelessWidget {
                     width: 0.5,
                   ),
                 ),
-                child: _buildReactions(),
+                child: _buildReactions(context),
               ),
             ),
         ],
@@ -157,7 +170,7 @@ class MessageBubble extends StatelessWidget {
   }
 
   /// Compact reply preview
-  Widget _buildCompactReplyPreview(Color textColor) {
+  Widget _buildCompactReplyPreview(BuildContext context, Color textColor) {
     final reply = message.replyToMessage!;
     final accentColor = isMe
         ? Colors.white.withValues(alpha: 0.6)
@@ -195,16 +208,15 @@ class MessageBubble extends StatelessWidget {
         children: [
           Text(
             replySenderName ?? 'Unknown',
-            style: TextStyle(
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: nameColor,
               fontWeight: FontWeight.w700,
-              fontSize: 12,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             preview,
-            style: TextStyle(color: contentColor, fontSize: 13),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: contentColor, fontSize: 13),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -214,7 +226,7 @@ class MessageBubble extends StatelessWidget {
   }
 
   /// Build reaction row
-  Widget _buildReactions() {
+  Widget _buildReactions(BuildContext context) {
     // Group reactions by emoji
     final emojiCounts = <String, int>{};
     for (final reaction in message.reactions) {
@@ -232,8 +244,7 @@ class MessageBubble extends StatelessWidget {
               const SizedBox(width: 2),
               Text(
                 '${entry.value}',
-                style: const TextStyle(
-                  fontSize: 10,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: Colors.black54,
                   fontWeight: FontWeight.w500,
                 ),
@@ -243,5 +254,105 @@ class MessageBubble extends StatelessWidget {
         );
       }).toList(),
     );
+  }
+
+  /// Build message send status icon (✓ ✓✓)
+  Widget _buildStatusIcon(Color textColor) {
+    final statusColor = textColor.withValues(alpha: 0.6);
+    const iconSize = 14.0;
+    
+    switch (message.sendStatus) {
+      case MessageSendStatus.pending:
+        return SizedBox(
+          width: iconSize,
+          height: iconSize,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.5,
+            color: statusColor,
+          ),
+        );
+      
+      case MessageSendStatus.sending:
+        return SizedBox(
+          width: iconSize,
+          height: iconSize,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.5,
+            color: statusColor,
+          ),
+        );
+      
+      case MessageSendStatus.failed:
+        return GestureDetector(
+          onTap: onRetry,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedAlertCircle,
+                color: AppTheme.emergencyRed,
+                size: iconSize,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Tap to retry',
+                style: TextStyle(
+                  color: AppTheme.emergencyRed,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        );
+      
+      case MessageSendStatus.sent:
+        return HugeIcon(
+          icon: HugeIcons.strokeRoundedTick01,
+          color: statusColor,
+          size: iconSize,
+        );
+      
+      case MessageSendStatus.delivered:
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedTick01,
+              color: statusColor,
+              size: iconSize - 2,
+            ),
+            Transform.translate(
+              offset: const Offset(-4, 0),
+              child: HugeIcon(
+                icon: HugeIcons.strokeRoundedTick01,
+                color: statusColor,
+                size: iconSize - 2,
+              ),
+            ),
+          ],
+        );
+      
+      case MessageSendStatus.read:
+        // Blue double tick for read
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedTick01,
+              color: AppTheme.primaryBlue,
+              size: iconSize - 2,
+            ),
+            Transform.translate(
+              offset: const Offset(-4, 0),
+              child: HugeIcon(
+                icon: HugeIcons.strokeRoundedTick01,
+                color: AppTheme.primaryBlue,
+                size: iconSize - 2,
+              ),
+            ),
+          ],
+        );
+    }
   }
 }

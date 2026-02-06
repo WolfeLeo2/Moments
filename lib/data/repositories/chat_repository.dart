@@ -7,7 +7,7 @@ import 'package:moments/data/models/reaction.dart';
 import 'package:moments/data/sources/supabase_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-final _log = AppLogger('UchatUrepository');
+final _log = AppLogger('ChatRepository');
 
 /// Repository for chat operations
 class ChatRepository {
@@ -419,6 +419,21 @@ class ChatRepository {
         .eq('is_read', false);
   }
 
+  /// Mark messages as delivered when fetching them
+  /// Returns number of messages marked as delivered
+  Future<int> markMessagesDelivered(String conversationId) async {
+    try {
+      final result = await _client.rpc(
+        'mark_messages_delivered',
+        params: {'p_conversation_id': conversationId},
+      );
+      return result as int? ?? 0;
+    } catch (e) {
+      _log.e('Failed to mark messages as delivered: $e');
+      return 0;
+    }
+  }
+
   /// Upload a file to Supabase Storage
   Future<String> uploadFile(File file, String path) async {
     try {
@@ -428,7 +443,7 @@ class ChatRepository {
           .getPublicUrl(path);
       return publicUrl;
     } catch (e) {
-      print('❌ [CHAT REPO] Error uploading file: $e');
+      _log.e('Error uploading file: $e');
       rethrow;
     }
   }
@@ -477,7 +492,7 @@ class ChatRepository {
 
       return Message.fromJson(response);
     } catch (e) {
-      print('❌ [CHAT REPO] Error sending audio message: $e');
+      _log.e('Error sending audio message: $e');
       rethrow;
     }
   }

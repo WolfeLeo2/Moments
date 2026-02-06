@@ -350,7 +350,7 @@ class AvatarCacheService {
 
   /// Clean up old avatar files that haven't been accessed recently
   /// Call this periodically (e.g., weekly) to prevent cache bloat
-  Future<void> cleanupOldAvatars({int daysOld = 30}) async {
+  Future<void> cleanupOldAvatars({int daysOld = 10}) async {
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final avatarDir = Directory(join(appDir.path, 'avatars'));

@@ -278,7 +278,7 @@ class MomentStorageService {
   }
 
   /// Clean up old cached media (older than specified days)
-  Future<void> cleanupOldMedia({int daysOld = 30}) async {
+  Future<void> cleanupOldMedia({int daysOld = 10}) async {
     final cutoff = DateTime.now()
         .subtract(Duration(days: daysOld))
         .millisecondsSinceEpoch;

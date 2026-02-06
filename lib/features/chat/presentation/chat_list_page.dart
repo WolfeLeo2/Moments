@@ -6,57 +6,131 @@ import 'package:moments/features/chat/presentation/chat_page.dart';
 import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/widgets/time_ago_text.dart';
 import 'package:moments/data/models/message.dart';
-import 'package:moments/features/chat/presentation/widgets/new_chat_sheet.dart';
+import 'package:moments/features/chat/presentation/new_conversation_page.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-class ChatListPage extends ConsumerWidget {
-  const ChatListPage({super.key});
+class ChatListPage extends ConsumerStatefulWidget {
+  const ChatListPage({super.key, this.scrollController});
 
-  void _showNewChatSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const NewChatSheet(),
+  final ScrollController? scrollController;
+
+  @override
+  ConsumerState<ChatListPage> createState() => _ChatListPageState();
+}
+
+class _ChatListPageState extends ConsumerState<ChatListPage>
+    with AutomaticKeepAliveClientMixin {
+  late ScrollController _scrollController;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = widget.scrollController ?? ScrollController();
+  }
+
+  @override
+  void dispose() {
+    if (widget.scrollController == null) {
+      _scrollController.dispose();
+    }
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _openNewConversation(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const NewConversationPage()),
     );
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    super.build(context);
     final chatListAsync = ref.watch(chatListProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBeige,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showNewChatSheet(context),
-        backgroundColor: AppTheme.primaryBlue,
-        child: const HugeIcon(
-          icon: HugeIcons.strokeRoundedMessageAdd01,
-          color: Colors.white,
-          size: 24,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 80), // Space for floating dock
+        child: FloatingActionButton.extended(
+          onPressed: () => _openNewConversation(context),
+          label: const Text("New Message"),
+          elevation: 0,
+          shape: RoundedSuperellipseBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          backgroundColor: ColorScheme.fromSeed(
+            seedColor: AppTheme.primaryBlue,
+          ).primary,
+          icon: const HugeIcon(
+            icon: HugeIcons.strokeRoundedMessageAdd02,
+            color: Colors.white,
+            size: 22,
+          ),
         ),
       ),
       appBar: AppBar(
         backgroundColor: AppTheme.backgroundBeige,
         elevation: 0,
         centerTitle: false,
-        leading: IconButton(
-          icon: SvgPicture.asset(
-            'assets/icons/Left arrow.svg',
-            width: 34.w,
-            height: 34.h,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
+        automaticallyImplyLeading: false,
+        title: Text(
           'Messages',
-          style: TextStyle(
-            fontSize: 24,
+          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
             fontWeight: FontWeight.w900,
             color: Colors.black87,
             letterSpacing: -0.5,
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) {
+                setState(() => _searchQuery = value.toLowerCase());
+              },
+              decoration: InputDecoration(
+                hintText: 'Search conversations...',
+                hintStyle: TextStyle(color: Colors.grey[500]),
+                prefixIcon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedSearch01,
+                  color: Colors.grey[600]!,
+                  size: 20,
+                ),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppTheme.primaryBlue, width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            ),
           ),
         ),
       ),
@@ -67,16 +141,14 @@ class ChatListPage extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  HugeIcon(
+                  const HugeIcon(
                     icon: HugeIcons.strokeRoundedMessage01,
                     size: 64,
-                    color: Colors.grey[300],
                   ),
                   const SizedBox(height: 16),
                   Text(
                     'No messages yet',
-                    style: TextStyle(
-                      fontSize: 16,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: Colors.grey[500],
                     ),
@@ -87,6 +159,7 @@ class ChatListPage extends ConsumerWidget {
           }
 
           return ListView.builder(
+            controller: _scrollController,
             padding: const EdgeInsets.symmetric(vertical: 0),
             itemCount: conversations.length,
             itemBuilder: (context, index) {
@@ -96,6 +169,7 @@ class ChatListPage extends ConsumerWidget {
                 lastMessage: conversation['lastMessage'] as Message,
                 otherUserId: conversation['otherUserId'] as String,
                 unreadCount: conversation['unreadCount'] as int? ?? 0,
+                searchQuery: _searchQuery,
               );
             },
           );
@@ -112,6 +186,7 @@ class ChatListTile extends ConsumerWidget {
   final Message lastMessage;
   final String otherUserId;
   final int unreadCount;
+  final String searchQuery;
 
   const ChatListTile({
     super.key,
@@ -119,6 +194,7 @@ class ChatListTile extends ConsumerWidget {
     required this.lastMessage,
     required this.otherUserId,
     this.unreadCount = 0,
+    this.searchQuery = '',
   });
 
   @override
@@ -128,6 +204,15 @@ class ChatListTile extends ConsumerWidget {
     return profileAsync.when(
       data: (profile) {
         if (profile == null) return const SizedBox.shrink();
+
+        // Filter by search query - match name or message content
+        if (searchQuery.isNotEmpty) {
+          final name = (profile.displayName ?? profile.username ?? '').toLowerCase();
+          final content = lastMessage.content.toLowerCase();
+          if (!name.contains(searchQuery) && !content.contains(searchQuery)) {
+            return const SizedBox.shrink();
+          }
+        }
 
         return ListTile(
           contentPadding: const EdgeInsets.symmetric(
@@ -168,9 +253,8 @@ class ChatListTile extends ConsumerWidget {
               Expanded(
                 child: Text(
                   profile.displayName ?? 'Unknown',
-                  style: const TextStyle(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
-                    fontSize: 16,
                     color: Colors.black87,
                   ),
                 ),
@@ -179,9 +263,8 @@ class ChatListTile extends ConsumerWidget {
                 const SizedBox(width: 8),
                 TimeAgoText(
                   dateTime: lastMessage.createdAt,
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: AppTheme.primaryBlue,
-                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -189,9 +272,8 @@ class ChatListTile extends ConsumerWidget {
                 const SizedBox(width: 8),
                 TimeAgoText(
                   dateTime: lastMessage.createdAt,
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: Colors.grey[600],
-                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -205,12 +287,11 @@ class ChatListTile extends ConsumerWidget {
                   lastMessage.content,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: unreadCount > 0 ? Colors.black87 : Colors.grey[600],
                     fontWeight: unreadCount > 0
                         ? FontWeight.w700
                         : FontWeight.w500,
-                    fontSize: 14,
                   ),
                 ),
               ),
@@ -218,9 +299,8 @@ class ChatListTile extends ConsumerWidget {
                 Badge(
                   label: Text(
                     unreadCount.toString(),
-                    style: const TextStyle(
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: Colors.white,
-                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
                   ),

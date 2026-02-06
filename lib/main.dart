@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'core/services/firebase_messaging_service.dart';
 import 'core/services/notification_navigator.dart';
+import 'core/services/chat_offline_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/services/map_cache_service.dart';
 import 'data/sources/supabase_config.dart';
@@ -68,6 +69,9 @@ class _MomentsRootAppState extends ConsumerState<MomentsRootApp> {
     // Initialize avatar caching (async, non-blocking)
     // This loads cached avatars from database so they're ready immediately
     ref.read(avatarCacheServiceProvider).initialize();
+
+    // Start chat offline service for message retry and sync
+    ref.read(chatOfflineServiceProvider).start();
 
     // Refresh badges when a notification arrives
     FirebaseMessagingService.onMessageReceived = () {

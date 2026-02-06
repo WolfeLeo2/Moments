@@ -177,7 +177,7 @@ final class MessagesStreamProvider
   }
 }
 
-String _$messagesStreamHash() => r'40ab7b67e398fa35aeea604b5f654088991d5fea';
+String _$messagesStreamHash() => r'c253dfcac6da0ebbbdb910ce05148cf3fd58102a';
 
 /// Stream messages for a specific conversation with Drift reactive storage
 
@@ -785,3 +785,58 @@ final class ChatListProvider
 }
 
 String _$chatListHash() => r'3c7a67169735de3a9b4b97ff3e14271a0d49b2b5';
+
+/// Offline-first mark conversation as read
+/// Updates local database immediately, then syncs to server in background
+
+@ProviderFor(MarkAsReadAction)
+const markAsReadActionProvider = MarkAsReadActionProvider._();
+
+/// Offline-first mark conversation as read
+/// Updates local database immediately, then syncs to server in background
+final class MarkAsReadActionProvider
+    extends $AsyncNotifierProvider<MarkAsReadAction, void> {
+  /// Offline-first mark conversation as read
+  /// Updates local database immediately, then syncs to server in background
+  const MarkAsReadActionProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'markAsReadActionProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$markAsReadActionHash();
+
+  @$internal
+  @override
+  MarkAsReadAction create() => MarkAsReadAction();
+}
+
+String _$markAsReadActionHash() => r'3f618d54816a335321534ead1609018e9c2a49fa';
+
+/// Offline-first mark conversation as read
+/// Updates local database immediately, then syncs to server in background
+
+abstract class _$MarkAsReadAction extends $AsyncNotifier<void> {
+  FutureOr<void> build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    build();
+    final ref = this.ref as $Ref<AsyncValue<void>, void>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<AsyncValue<void>, void>,
+              AsyncValue<void>,
+              Object?,
+              Object?
+            >;
+    element.handleValue(ref, null);
+  }
+}

@@ -9,6 +9,7 @@ import 'package:lottie/lottie.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/utils/extensions.dart';
 import 'package:moments/core/providers/providers.dart';
+import 'package:moments/core/services/chat_offline_service.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/data/sources/supabase_config.dart';
 import 'package:moments/features/chat/providers/chat_providers.dart';
@@ -46,11 +47,14 @@ class ChatPage extends ConsumerStatefulWidget {
 class _ChatPageState extends ConsumerState<ChatPage>
     with AutomaticKeepAliveClientMixin {
   final TextEditingController _messageController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   Timer? _typingTimer;
 
   bool _showScrollToBottomButton = false;
   int _unreadCount = 0;
+  bool _isSearchMode = false;
+  String _searchQuery = '';
 
   // Reply/Edit state
   Message? _replyingToMessage;
@@ -73,8 +77,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
         FirebaseMessagingService.currentChatId = id;
         FirebaseMessagingService.cancelNotificationByRelatedId(id);
 
-        // Mark messages as read
-        ref.read(chatRepositoryProvider).markAsRead(id);
+        // Mark messages as read (offline-first)
+        ref.read(markAsReadActionProvider.notifier).markAsRead(id);
       });
     }, fireImmediately: true);
   }
@@ -82,6 +86,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
   @override
   void dispose() {
     _messageController.dispose();
+    _searchController.dispose();
     _scrollController.dispose();
     _typingTimer?.cancel();
     FirebaseMessagingService.currentChatId = null; // Clear static var
@@ -175,31 +180,46 @@ class _ChatPageState extends ConsumerState<ChatPage>
     _messageController.clear();
     _typingTimer?.cancel();
 
-    try {
-      final chatRepo = ref.read(chatRepositoryProvider);
+    final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
+    if (currentUserId == null) {
+      if (mounted) context.showErrorSnackBar('Not authenticated');
+      return;
+    }
 
-      if (_editingMessage != null) {
-        // Edit existing message
-        await chatRepo.editMessage(
-          messageId: _editingMessage!.id,
-          newContent: content,
-        );
-        setState(() => _editingMessage = null);
-      } else {
-        // Send new message (with optional reply)
-        await chatRepo.sendMessage(
-          conversationId: conversationId,
-          content: content,
-          replyToMessageId: _replyingToMessage?.id,
-        );
-        if (_replyingToMessage != null) {
-          setState(() => _replyingToMessage = null);
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar('Failed to send message: $e');
-      }
+    final offlineService = ref.read(chatOfflineServiceProvider);
+
+    if (_editingMessage != null) {
+      // Edit existing message (optimistic - updates local DB immediately)
+      await offlineService.editMessageOptimistic(
+        messageId: _editingMessage!.id,
+        newContent: content,
+      );
+      setState(() => _editingMessage = null);
+      return;
+    }
+
+    // Send text message using unified offline-first service
+    final replyTo = _replyingToMessage;
+    if (replyTo != null) {
+      setState(() => _replyingToMessage = null);
+    }
+
+    await offlineService.sendTextOptimistic(
+      conversationId: conversationId,
+      senderId: currentUserId,
+      content: content,
+      replyToMessageId: replyTo?.id,
+      replyToMessage: replyTo,
+    );
+  }
+
+  /// Retry a failed message
+  Future<void> _retryFailedMessage(String messageId) async {
+    final offlineService = ref.read(chatOfflineServiceProvider);
+    final success = await offlineService.retryMessage(messageId);
+    
+    if (!success && mounted) {
+      context.showErrorSnackBar('Failed to retry message');
     }
   }
 
@@ -230,8 +250,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
     Message message,
     MessageAction action,
   ) async {
-    final chatRepo = ref.read(chatRepositoryProvider);
-
     switch (action) {
       case MessageAction.reply:
         _startReply(message);
@@ -249,23 +267,21 @@ class _ChatPageState extends ConsumerState<ChatPage>
         break;
 
       case MessageAction.deleteForSelf:
-        try {
-          await chatRepo.deleteMessageForSelf(message.id);
-        } catch (e) {
-          if (mounted) {
-            context.showErrorSnackBar('Failed to delete: $e');
-          }
+        final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
+        if (currentUserId != null) {
+          final offlineService = ref.read(chatOfflineServiceProvider);
+          await offlineService.deleteForSelfOptimistic(
+            messageId: message.id,
+            currentUserId: currentUserId,
+          );
         }
         break;
 
       case MessageAction.deleteForEveryone:
-        try {
-          await chatRepo.deleteMessageForEveryone(message.id);
-        } catch (e) {
-          if (mounted) {
-            context.showErrorSnackBar('Failed to delete: $e');
-          }
-        }
+        final offlineService = ref.read(chatOfflineServiceProvider);
+        await offlineService.deleteForEveryoneOptimistic(
+          messageId: message.id,
+        );
         break;
     }
   }
@@ -275,23 +291,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
     String path,
     int durationMs,
   ) async {
-    try {
-      final chatRepo = ref.read(chatRepositoryProvider);
-      await chatRepo.sendAudioMessage(
-        conversationId: conversationId,
-        audioPath: path,
-        durationMs: durationMs,
-      );
+    final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
+    if (currentUserId == null) return;
 
-      ref.read(isRecordingProvider(conversationId).notifier).stop();
+    // Use offline-first service for optimistic audio sending
+    final offlineService = ref.read(chatOfflineServiceProvider);
+    await offlineService.sendAudioOptimistic(
+      conversationId: conversationId,
+      senderId: currentUserId,
+      localPath: path,
+      durationMs: durationMs,
+    );
 
-      _scrollToBottom();
-    } catch (e) {
-      debugPrint('Error sending audio: $e');
-      if (mounted) {
-        context.showErrorSnackBar('Failed to send voice note');
-      }
-    }
+    ref.read(isRecordingProvider(conversationId).notifier).stop();
+    _scrollToBottom();
   }
 
   void _scrollToBottom({bool animated = true}) {
@@ -337,41 +350,74 @@ class _ChatPageState extends ConsumerState<ChatPage>
         elevation: 0,
         leadingWidth: 24,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+          icon: Icon(_isSearchMode ? Icons.close : Icons.arrow_back, color: Colors.black),
+          onPressed: () {
+            if (_isSearchMode) {
+              setState(() {
+                _isSearchMode = false;
+                _searchQuery = '';
+                _searchController.clear();
+              });
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundImage: ref
-                  .watch(avatarCacheServiceProvider)
-                  .getAvatarImageProvider(widget.friendAvatarUrl),
-              backgroundColor: AppTheme.electricPurple.withValues(alpha: 0.2),
-              child: widget.friendAvatarUrl == null
-                  ? Text(
-                      widget.friendName.isNotEmpty ? widget.friendName[0] : '?',
-                      style: const TextStyle(
-                        color: AppTheme.electricPurple,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                widget.friendName,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
+        title: _isSearchMode
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search messages...',
+                  hintStyle: TextStyle(color: Colors.grey[500]),
+                  border: InputBorder.none,
                 ),
+                style: const TextStyle(color: Colors.black, fontSize: 16),
+                onChanged: (value) {
+                  setState(() => _searchQuery = value.toLowerCase());
+                },
+              )
+            : Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundImage: ref
+                        .watch(avatarCacheServiceProvider)
+                        .getAvatarImageProvider(widget.friendAvatarUrl),
+                    backgroundColor: AppTheme.electricPurple.withValues(alpha: 0.2),
+                    child: widget.friendAvatarUrl == null
+                        ? Text(
+                            widget.friendName.isNotEmpty ? widget.friendName[0] : '?',
+                            style: const TextStyle(
+                              color: AppTheme.electricPurple,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.friendName,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+        actions: [
+          if (!_isSearchMode)
+            IconButton(
+              icon: const Icon(Icons.search, color: Colors.black),
+              onPressed: () {
+                setState(() => _isSearchMode = true);
+              },
             ),
-          ],
-        ),
+        ],
       ),
       extendBodyBehindAppBar: true,
       body: conversationAsync.when(
@@ -404,8 +450,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
               );
 
               if (hasUnreadMessages) {
-                // Mark as read without awaiting to avoid blocking UI
-                ref.read(chatRepositoryProvider).markAsRead(conversationId);
+                // Mark as read (offline-first - instant local update)
+                ref
+                    .read(markAsReadActionProvider.notifier)
+                    .markAsRead(conversationId);
               }
 
               // Handle Scroll Logic
@@ -444,6 +492,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
 
                     return messagesAsync.when(
                       data: (messages) {
+                        // Filter messages if search is active
+                        final filteredMessages = _searchQuery.isEmpty
+                            ? messages
+                            : messages.where((m) => 
+                                m.content.toLowerCase().contains(_searchQuery)
+                              ).toList();
+
                         if (messages.isEmpty) {
                           return Center(
                             child: Column(
@@ -475,28 +530,60 @@ class _ChatPageState extends ConsumerState<ChatPage>
                           );
                         }
 
+                        // Show "no results" if search has no matches
+                        if (_searchQuery.isNotEmpty && filteredMessages.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.search_off,
+                                  size: 64,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No messages found',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Try a different search term',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
                         // No need for initial scroll with reverse: true -
                         // newest messages are already at the bottom
 
                         // With DESC ordering, index 0 is newest.
                         // Find the newest message sent by the current user (first match = newest)
                         int lastMyMessageIndex = -1;
-                        for (int i = 0; i < messages.length; i++) {
-                          if (messages[i].senderId == currentUserId) {
+                        for (int i = 0; i < filteredMessages.length; i++) {
+                          if (filteredMessages[i].senderId == currentUserId) {
                             lastMyMessageIndex = i;
                             break; // First match in DESC order = newest sent by me
                           }
                         }
 
-                        // Check if anyone is typing
-                        final typingUsers = ref.watch(
-                          typingUsersProvider(conversationId),
-                        );
+                        // Check if anyone is typing (hide during search)
+                        final typingUsers = _searchQuery.isEmpty
+                            ? ref.watch(typingUsersProvider(conversationId))
+                            : <String, DateTime>{};
                         final hasTypingIndicator = typingUsers.isNotEmpty;
 
                         // Total items = messages + typing indicator (if any)
                         final itemCount =
-                            messages.length + (hasTypingIndicator ? 1 : 0);
+                            filteredMessages.length + (hasTypingIndicator ? 1 : 0);
 
                         return SafeArea(
                           child: ListView.builder(
@@ -534,7 +621,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                               final messageIndex = hasTypingIndicator
                                   ? index - 1
                                   : index;
-                              final message = messages[messageIndex];
+                              final message = filteredMessages[messageIndex];
                               final isMe = message.senderId == currentUserId;
 
                               // For date headers and tail logic, we need to look at
@@ -543,7 +630,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                               // - "prev" visually (below) is messageIndex - 1
                               final isNewest = messageIndex == 0;
                               final isOldest =
-                                  messageIndex == messages.length - 1;
+                                  messageIndex == filteredMessages.length - 1;
 
                               // Smart Date Header Logic (shows ABOVE message in visual order)
                               // In reverse list, we show header if THIS message starts a new day/time block
@@ -553,7 +640,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                 showDate =
                                     true; // Always show for oldest message
                               } else {
-                                final olderMessage = messages[messageIndex + 1];
+                                final olderMessage = filteredMessages[messageIndex + 1];
                                 final diff = message.createdAt
                                     .difference(olderMessage.createdAt)
                                     .inMinutes
@@ -572,7 +659,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                               if (isNewest) {
                                 tail = true;
                               } else {
-                                final newerMessage = messages[messageIndex - 1];
+                                final newerMessage = filteredMessages[messageIndex - 1];
                                 // Different sender = new group, show tail
                                 if (newerMessage.senderId != message.senderId) {
                                   tail = true;
@@ -621,6 +708,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                   isMe: isMe,
                                   tail: tail,
                                   replySenderName: replySenderName,
+                                  onRetry: message.sendStatus == MessageSendStatus.failed
+                                      ? () => _retryFailedMessage(message.id)
+                                      : null,
                                 );
                               }
 
@@ -661,21 +751,19 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                       onAction: (action) =>
                                           _handleMessageAction(message, action),
                                       onReaction: (emoji) async {
-                                        final chatRepo = ref.read(
-                                          chatRepositoryProvider,
+                                        final currentUserId = SupabaseConfig
+                                            .client.auth.currentUser?.id;
+                                        if (currentUserId == null) return;
+
+                                        // Use offline-first service for optimistic reactions
+                                        final offlineService = ref.read(
+                                          chatOfflineServiceProvider,
                                         );
-                                        try {
-                                          await chatRepo.addReaction(
-                                            message.id,
-                                            emoji,
-                                          );
-                                        } catch (e) {
-                                          if (mounted) {
-                                            context.showErrorSnackBar(
-                                              'Failed to add reaction: $e',
-                                            );
-                                          }
-                                        }
+                                        await offlineService.addReactionOptimistic(
+                                          messageId: message.id,
+                                          emoji: emoji,
+                                          userId: currentUserId,
+                                        );
                                       },
                                     );
                                   },
@@ -1101,37 +1189,31 @@ class _ChatPageState extends ConsumerState<ChatPage>
   }
 
   Future<void> _sendImageMessage(String conversationId, File file) async {
-    try {
-      await ref
-          .read(chatRepositoryProvider)
-          .sendImageMessage(
-            conversationId: conversationId,
-            imagePath: file.path,
-          );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
-      }
-    }
+    final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
+    if (currentUserId == null) return;
+
+    // Use offline-first service for optimistic image sending
+    final offlineService = ref.read(chatOfflineServiceProvider);
+    await offlineService.sendImageOptimistic(
+      conversationId: conversationId,
+      senderId: currentUserId,
+      localPath: file.path,
+    );
+    _scrollToBottom();
   }
 
   Future<void> _sendVideoMessage(String conversationId, File file) async {
-    try {
-      await ref
-          .read(chatRepositoryProvider)
-          .sendVideoMessage(
-            conversationId: conversationId,
-            videoPath: file.path,
-          );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send video: $e')));
-      }
-    }
+    final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
+    if (currentUserId == null) return;
+
+    // Use offline-first service for optimistic video sending
+    final offlineService = ref.read(chatOfflineServiceProvider);
+    await offlineService.sendVideoOptimistic(
+      conversationId: conversationId,
+      senderId: currentUserId,
+      localPath: file.path,
+    );
+    _scrollToBottom();
   }
 
   Future<void> _pickCameraImage(String conversationId) async {

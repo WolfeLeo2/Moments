@@ -2,9 +2,9 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_m3shapes_extended/flutter_m3shapes_extended.dart';
-import 'package:hugeicons/hugeicons.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 /// Modern glassmorphic app bar with avatar popup menu and notification bell
 /// Simplified version: Friends, Title, Notifications, Profile
@@ -102,7 +102,7 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
                       child: Text(
                         widget.title.toUpperCase(),
                         style: GoogleFonts.rubikDoodleShadow(
-                          fontSize: 24,
+                          textStyle: Theme.of(context).textTheme.headlineLarge,
                           fontWeight: FontWeight.w900,
                           color: Colors.black87,
                           letterSpacing: 0.5,
@@ -141,7 +141,7 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
                                 placeholder: (context, url) => Container(
                                   color: Colors.grey[300],
                                   child: HugeIcon(
-                                    icon: HugeIcons.strokeRoundedUserMultiple,
+                                    icon: HugeIcons.strokeRoundedUser02,
                                     size: 20,
                                     color: Colors.grey[600],
                                   ),
@@ -149,7 +149,7 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
                                 errorWidget: (context, url, error) => Container(
                                   color: Colors.grey[300],
                                   child: HugeIcon(
-                                    icon: HugeIcons.strokeRoundedUser,
+                                    icon: HugeIcons.strokeRoundedUser02,
                                     size: 20,
                                     color: Colors.grey[600],
                                   ),
@@ -158,7 +158,7 @@ class _BlurredAppBarState extends State<BlurredAppBar> {
                             )
                           : M3Container.l8LeafClover(
                               child: HugeIcon(
-                                icon: HugeIcons.strokeRoundedUser,
+                                icon: HugeIcons.strokeRoundedUser02,
                                 size: 24,
                                 color: Colors.grey[600],
                               ),

@@ -10,6 +10,9 @@ enum PendingActionType {
   removeReaction,
   editMessage,
   deleteMessage,
+  deleteMessageForEveryone,
+  sendMediaMessage,
+  markAsRead,
 }
 
 /// Priority levels for action processing

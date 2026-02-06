@@ -979,7 +979,7 @@ class MomentRepository {
       });
     } catch (e) {
       // Ignore duplicate errors (owner already added)
-      print('Note: $e');
+      _log.d('Owner already added or duplicate error: $e');
     }
   }
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:hugeicons/hugeicons.dart';
 import 'package:motor/motor.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -30,6 +29,7 @@ import '../../../core/providers/moments_providers.dart';
 import '../../../core/providers/database_provider.dart';
 import 'dart:io';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 /// Details page showing moments in a carousel with spring animations
 class MomentDetailsPage extends ConsumerStatefulWidget {
@@ -1140,8 +1140,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
           value: 'share',
           child: Row(
             children: [
-              HugeIcon(
-                icon: HugeIcons.strokeRoundedShare08,
+              FaIcon(
+                FontAwesomeIcons.share,
                 size: 20,
                 color: AppTheme.textDark,
               ),
@@ -1163,10 +1163,10 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             value: 'toggle_privacy',
             child: Row(
               children: [
-                HugeIcon(
-                  icon: moment.isPrivate
-                      ? HugeIcons.strokeRoundedSquareUnlock02
-                      : HugeIcons.strokeRoundedSquareLock02,
+                FaIcon(
+                  moment.isPrivate
+                      ? FontAwesomeIcons.lock
+                      : FontAwesomeIcons.lockOpen,
                   size: 20,
                   color: moment.isPrivate
                       ? AppTheme.vibrantGreen
@@ -1191,11 +1191,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             value: 'delete',
             child: Row(
               children: [
-                HugeIcon(
-                  icon: HugeIcons.strokeRoundedDelete02,
-                  size: 20,
-                  color: Colors.red,
-                ),
+                FaIcon(FontAwesomeIcons.trashCan, size: 20, color: Colors.red),
                 const SizedBox(width: 12),
                 Text(
                   'Delete',
@@ -1415,8 +1411,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             children: [
               Row(
                 children: [
-                  HugeIcon(
-                    icon: HugeIcons.strokeRoundedSquareLock02,
+                  FaIcon(
+                    FontAwesomeIcons.lock,
                     size: 18,
                     color: AppTheme.emergencyRed,
                   ),
@@ -1447,8 +1443,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             value: 'make_public',
             child: Row(
               children: [
-                HugeIcon(
-                  icon: HugeIcons.strokeRoundedSquareUnlock02,
+                FaIcon(
+                  FontAwesomeIcons.lockOpen,
                   size: 20,
                   color: AppTheme.vibrantGreen,
                 ),
@@ -1639,10 +1635,10 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
           value: 'toggle',
           child: Row(
             children: [
-              HugeIcon(
-                icon: currentMoment.isPrivate
-                    ? HugeIcons.strokeRoundedSquareUnlock02
-                    : HugeIcons.strokeRoundedSquareLock02,
+              FaIcon(
+                currentMoment.isPrivate
+                    ? FontAwesomeIcons.lockOpen
+                    : FontAwesomeIcons.lock,
                 size: 20,
                 color: currentMoment.isPrivate
                     ? AppTheme.vibrantGreen
@@ -1726,8 +1722,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                   strokeWidth: 2,
                                 ),
                               )
-                            : HugeIcon(
-                                icon: HugeIcons.strokeRoundedImageAdd02,
+                            : FaIcon(
+                                FontAwesomeIcons.image,
                                 size: 20.sp,
                                 color: Colors.white,
                               ),
@@ -1801,9 +1797,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                             padding: const EdgeInsets.only(
                                               right: 6.0,
                                             ),
-                                            child: HugeIcon(
-                                              icon: HugeIcons
-                                                  .strokeRoundedSquareLock02,
+                                            child: FaIcon(
+                                              FontAwesomeIcons.lock,
                                               size: 20,
                                               color: AppTheme.emergencyRed,
                                             ),
@@ -1833,8 +1828,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const HugeIcon(
-                                        icon: HugeIcons.strokeRoundedLocation03,
+                                      FaIcon(
+                                        FontAwesomeIcons.locationDot,
                                         size: 12,
                                         color: AppTheme.primaryBlue,
                                       ),
@@ -1869,10 +1864,10 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                       color: AppTheme.primaryBlue,
                                     ),
                                   )
-                                : HugeIcon(
-                                    icon: _allSavedOffline
-                                        ? HugeIcons.strokeRoundedDownload04
-                                        : HugeIcons.strokeRoundedDownload02,
+                                : FaIcon(
+                                    _allSavedOffline
+                                        ? FontAwesomeIcons.arrowDown
+                                        : FontAwesomeIcons.circleCheck,
                                     size: 24.sp,
                                     color: _allSavedOffline
                                         ? Colors.green
@@ -1938,8 +1933,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const HugeIcon(
-                                        icon: HugeIcons.strokeRoundedUserAdd01,
+                                      FaIcon(
+                                        FontAwesomeIcons.userPlus,
                                         size: 16,
                                         color: AppTheme.primaryBlue,
                                       ),
@@ -1957,8 +1952,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                 ),
                               if (_contributors.length > 1) ...[
                                 const SizedBox(width: 8),
-                                const HugeIcon(
-                                  icon: HugeIcons.strokeRoundedArrowRight01,
+                                FaIcon(
+                                  FontAwesomeIcons.arrowRight,
                                   size: 16,
                                   color: Colors.grey,
                                 ),
@@ -2072,9 +2067,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                const HugeIcon(
-                                                  icon: HugeIcons
-                                                      .strokeRoundedSquareLock02,
+                                                FaIcon(
+                                                  FontAwesomeIcons.lock,
                                                   size: 14,
                                                   color: Colors.white,
                                                 ),
@@ -2114,98 +2108,107 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                                     child: AspectRatio(
                                       aspectRatio: 4 / 5,
                                       child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(
-                                          14,
-                                        ),
-                                      child: Stack(
-                                        fit: StackFit.expand,
-                                        children: [
-                                          _buildMediaContent(moment, imageUrl),
-                                          // Heart/Dislike animation overlay (dotLottie)
-                                          if (_showingHeartAtIndex == index)
-                                            Center(
-                                              child: HeartAnimation(
-                                                size: 120,
-                                                isLike: _isLikeAnimation,
-                                              ),
+                                        borderRadius: BorderRadius.circular(14),
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            _buildMediaContent(
+                                              moment,
+                                              imageUrl,
                                             ),
-                                          // Heart count badge (bottom right of image)
-                                          // Only show when count > 1 (not for single heart)
-                                          if ((_photoHeartCounts[index] ?? 0) >
-                                              1)
-                                            Positioned(
-                                              bottom: 8,
-                                              right: 8,
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 4,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.black
-                                                      .withValues(alpha: 0.6),
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
+                                            // Heart/Dislike animation overlay (dotLottie)
+                                            if (_showingHeartAtIndex == index)
+                                              Center(
+                                                child: HeartAnimation(
+                                                  size: 120,
+                                                  isLike: _isLikeAnimation,
                                                 ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                          _userHeartedPhoto[index] ==
-                                                              true
+                                              ),
+                                            // Heart count badge (bottom right of image)
+                                            // Only show when count > 1 (not for single heart)
+                                            if ((_photoHeartCounts[index] ??
+                                                    0) >
+                                                1)
+                                              Positioned(
+                                                bottom: 8,
+                                                right: 8,
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 4,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black
+                                                        .withValues(alpha: 0.6),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        _userHeartedPhoto[index] ==
+                                                                true
                                                             ? Icons.favorite
                                                             : Icons
                                                                   .favorite_border,
-                                                      size: 14,
-                                                      color:
-                                                          _userHeartedPhoto[index] ==
-                                                              true
-                                                          ? Colors.red
-                                                          : Colors.white,
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      '${_photoHeartCounts[index]}',
-                                                      style: GoogleFonts.inter(
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: Colors.white,
+                                                        size: 14,
+                                                        color:
+                                                            _userHeartedPhoto[index] ==
+                                                                true
+                                                            ? Colors.red
+                                                            : Colors.white,
                                                       ),
-                                                    ),
-                                                  ],
+                                                      const SizedBox(width: 4),
+                                                      Text(
+                                                        '${_photoHeartCounts[index]}',
+                                                        style:
+                                                            GoogleFonts.inter(
+                                                              fontSize: 12,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              color:
+                                                                  Colors.white,
+                                                            ),
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                          // Show heart icon only when user hearted but count is 1
-                                          if ((_photoHeartCounts[index] ?? 0) ==
-                                                  1 &&
-                                              _userHeartedPhoto[index] == true)
-                                            Positioned(
-                                              bottom: 8,
-                                              right: 8,
-                                              child: Container(
-                                                padding: const EdgeInsets.all(
-                                                  6,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.black
-                                                      .withValues(alpha: 0.6),
-                                                  shape: BoxShape.circle,
-                                                ),
+                                            // Show heart icon only when user hearted but count is 1
+                                            if ((_photoHeartCounts[index] ??
+                                                        0) ==
+                                                    1 &&
+                                                _userHeartedPhoto[index] ==
+                                                    true)
+                                              Positioned(
+                                                bottom: 8,
+                                                right: 8,
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(
+                                                    6,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black
+                                                        .withValues(alpha: 0.6),
+                                                    shape: BoxShape.circle,
+                                                  ),
                                                   child: const Icon(
                                                     Icons.favorite,
-                                                  size: 14,
-                                                  color: Colors.red,
+                                                    size: 14,
+                                                    color: Colors.red,
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
                                   ),
 
                                   // Description below image

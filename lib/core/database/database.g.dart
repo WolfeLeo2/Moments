@@ -74,6 +74,17 @@ class $MessagesTable extends Messages
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _localMediaPathMeta = const VerificationMeta(
+    'localMediaPath',
+  );
+  @override
+  late final GeneratedColumn<String> localMediaPath = GeneratedColumn<String>(
+    'local_media_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _metadataMeta = const VerificationMeta(
     'metadata',
   );
@@ -194,6 +205,44 @@ class $MessagesTable extends Messages
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _sendStatusMeta = const VerificationMeta(
+    'sendStatus',
+  );
+  @override
+  late final GeneratedColumn<String> sendStatus = GeneratedColumn<String>(
+    'send_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('sent'),
+  );
+  static const VerificationMeta _localOnlyMeta = const VerificationMeta(
+    'localOnly',
+  );
+  @override
+  late final GeneratedColumn<bool> localOnly = GeneratedColumn<bool>(
+    'local_only',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("local_only" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _deliveredAtMeta = const VerificationMeta(
+    'deliveredAt',
+  );
+  @override
+  late final GeneratedColumn<int> deliveredAt = GeneratedColumn<int>(
+    'delivered_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -202,6 +251,7 @@ class $MessagesTable extends Messages
     content,
     messageType,
     mediaUrl,
+    localMediaPath,
     metadata,
     createdAt,
     isRead,
@@ -212,6 +262,9 @@ class $MessagesTable extends Messages
     reactions,
     deletedFor,
     isEdited,
+    sendStatus,
+    localOnly,
+    deliveredAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -270,6 +323,15 @@ class $MessagesTable extends Messages
       context.handle(
         _mediaUrlMeta,
         mediaUrl.isAcceptableOrUnknown(data['media_url']!, _mediaUrlMeta),
+      );
+    }
+    if (data.containsKey('local_media_path')) {
+      context.handle(
+        _localMediaPathMeta,
+        localMediaPath.isAcceptableOrUnknown(
+          data['local_media_path']!,
+          _localMediaPathMeta,
+        ),
       );
     }
     if (data.containsKey('metadata')) {
@@ -343,6 +405,27 @@ class $MessagesTable extends Messages
         isEdited.isAcceptableOrUnknown(data['is_edited']!, _isEditedMeta),
       );
     }
+    if (data.containsKey('send_status')) {
+      context.handle(
+        _sendStatusMeta,
+        sendStatus.isAcceptableOrUnknown(data['send_status']!, _sendStatusMeta),
+      );
+    }
+    if (data.containsKey('local_only')) {
+      context.handle(
+        _localOnlyMeta,
+        localOnly.isAcceptableOrUnknown(data['local_only']!, _localOnlyMeta),
+      );
+    }
+    if (data.containsKey('delivered_at')) {
+      context.handle(
+        _deliveredAtMeta,
+        deliveredAt.isAcceptableOrUnknown(
+          data['delivered_at']!,
+          _deliveredAtMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -375,6 +458,10 @@ class $MessagesTable extends Messages
       mediaUrl: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}media_url'],
+      ),
+      localMediaPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_media_path'],
       ),
       metadata: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -416,6 +503,18 @@ class $MessagesTable extends Messages
         DriftSqlType.bool,
         data['${effectivePrefix}is_edited'],
       )!,
+      sendStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}send_status'],
+      )!,
+      localOnly: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}local_only'],
+      )!,
+      deliveredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}delivered_at'],
+      ),
     );
   }
 
@@ -432,6 +531,7 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
   final String content;
   final String messageType;
   final String? mediaUrl;
+  final String? localMediaPath;
   final String? metadata;
   final int createdAt;
   final bool isRead;
@@ -442,6 +542,9 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
   final String? reactions;
   final String? deletedFor;
   final bool isEdited;
+  final String sendStatus;
+  final bool localOnly;
+  final int? deliveredAt;
   const MessageEntry({
     required this.id,
     required this.conversationId,
@@ -449,6 +552,7 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
     required this.content,
     required this.messageType,
     this.mediaUrl,
+    this.localMediaPath,
     this.metadata,
     required this.createdAt,
     required this.isRead,
@@ -459,6 +563,9 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
     this.reactions,
     this.deletedFor,
     required this.isEdited,
+    required this.sendStatus,
+    required this.localOnly,
+    this.deliveredAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -470,6 +577,9 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
     map['message_type'] = Variable<String>(messageType);
     if (!nullToAbsent || mediaUrl != null) {
       map['media_url'] = Variable<String>(mediaUrl);
+    }
+    if (!nullToAbsent || localMediaPath != null) {
+      map['local_media_path'] = Variable<String>(localMediaPath);
     }
     if (!nullToAbsent || metadata != null) {
       map['metadata'] = Variable<String>(metadata);
@@ -493,6 +603,11 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
       map['deleted_for'] = Variable<String>(deletedFor);
     }
     map['is_edited'] = Variable<bool>(isEdited);
+    map['send_status'] = Variable<String>(sendStatus);
+    map['local_only'] = Variable<bool>(localOnly);
+    if (!nullToAbsent || deliveredAt != null) {
+      map['delivered_at'] = Variable<int>(deliveredAt);
+    }
     return map;
   }
 
@@ -506,6 +621,9 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
       mediaUrl: mediaUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(mediaUrl),
+      localMediaPath: localMediaPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(localMediaPath),
       metadata: metadata == null && nullToAbsent
           ? const Value.absent()
           : Value(metadata),
@@ -528,6 +646,11 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
           ? const Value.absent()
           : Value(deletedFor),
       isEdited: Value(isEdited),
+      sendStatus: Value(sendStatus),
+      localOnly: Value(localOnly),
+      deliveredAt: deliveredAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deliveredAt),
     );
   }
 
@@ -543,6 +666,7 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
       content: serializer.fromJson<String>(json['content']),
       messageType: serializer.fromJson<String>(json['messageType']),
       mediaUrl: serializer.fromJson<String?>(json['mediaUrl']),
+      localMediaPath: serializer.fromJson<String?>(json['localMediaPath']),
       metadata: serializer.fromJson<String?>(json['metadata']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       isRead: serializer.fromJson<bool>(json['isRead']),
@@ -553,6 +677,9 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
       reactions: serializer.fromJson<String?>(json['reactions']),
       deletedFor: serializer.fromJson<String?>(json['deletedFor']),
       isEdited: serializer.fromJson<bool>(json['isEdited']),
+      sendStatus: serializer.fromJson<String>(json['sendStatus']),
+      localOnly: serializer.fromJson<bool>(json['localOnly']),
+      deliveredAt: serializer.fromJson<int?>(json['deliveredAt']),
     );
   }
   @override
@@ -565,6 +692,7 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
       'content': serializer.toJson<String>(content),
       'messageType': serializer.toJson<String>(messageType),
       'mediaUrl': serializer.toJson<String?>(mediaUrl),
+      'localMediaPath': serializer.toJson<String?>(localMediaPath),
       'metadata': serializer.toJson<String?>(metadata),
       'createdAt': serializer.toJson<int>(createdAt),
       'isRead': serializer.toJson<bool>(isRead),
@@ -575,6 +703,9 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
       'reactions': serializer.toJson<String?>(reactions),
       'deletedFor': serializer.toJson<String?>(deletedFor),
       'isEdited': serializer.toJson<bool>(isEdited),
+      'sendStatus': serializer.toJson<String>(sendStatus),
+      'localOnly': serializer.toJson<bool>(localOnly),
+      'deliveredAt': serializer.toJson<int?>(deliveredAt),
     };
   }
 
@@ -585,6 +716,7 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
     String? content,
     String? messageType,
     Value<String?> mediaUrl = const Value.absent(),
+    Value<String?> localMediaPath = const Value.absent(),
     Value<String?> metadata = const Value.absent(),
     int? createdAt,
     bool? isRead,
@@ -595,6 +727,9 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
     Value<String?> reactions = const Value.absent(),
     Value<String?> deletedFor = const Value.absent(),
     bool? isEdited,
+    String? sendStatus,
+    bool? localOnly,
+    Value<int?> deliveredAt = const Value.absent(),
   }) => MessageEntry(
     id: id ?? this.id,
     conversationId: conversationId ?? this.conversationId,
@@ -602,6 +737,9 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
     content: content ?? this.content,
     messageType: messageType ?? this.messageType,
     mediaUrl: mediaUrl.present ? mediaUrl.value : this.mediaUrl,
+    localMediaPath: localMediaPath.present
+        ? localMediaPath.value
+        : this.localMediaPath,
     metadata: metadata.present ? metadata.value : this.metadata,
     createdAt: createdAt ?? this.createdAt,
     isRead: isRead ?? this.isRead,
@@ -618,6 +756,9 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
     reactions: reactions.present ? reactions.value : this.reactions,
     deletedFor: deletedFor.present ? deletedFor.value : this.deletedFor,
     isEdited: isEdited ?? this.isEdited,
+    sendStatus: sendStatus ?? this.sendStatus,
+    localOnly: localOnly ?? this.localOnly,
+    deliveredAt: deliveredAt.present ? deliveredAt.value : this.deliveredAt,
   );
   MessageEntry copyWithCompanion(MessagesCompanion data) {
     return MessageEntry(
@@ -631,6 +772,9 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
           ? data.messageType.value
           : this.messageType,
       mediaUrl: data.mediaUrl.present ? data.mediaUrl.value : this.mediaUrl,
+      localMediaPath: data.localMediaPath.present
+          ? data.localMediaPath.value
+          : this.localMediaPath,
       metadata: data.metadata.present ? data.metadata.value : this.metadata,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       isRead: data.isRead.present ? data.isRead.value : this.isRead,
@@ -649,6 +793,13 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
           ? data.deletedFor.value
           : this.deletedFor,
       isEdited: data.isEdited.present ? data.isEdited.value : this.isEdited,
+      sendStatus: data.sendStatus.present
+          ? data.sendStatus.value
+          : this.sendStatus,
+      localOnly: data.localOnly.present ? data.localOnly.value : this.localOnly,
+      deliveredAt: data.deliveredAt.present
+          ? data.deliveredAt.value
+          : this.deliveredAt,
     );
   }
 
@@ -661,6 +812,7 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
           ..write('content: $content, ')
           ..write('messageType: $messageType, ')
           ..write('mediaUrl: $mediaUrl, ')
+          ..write('localMediaPath: $localMediaPath, ')
           ..write('metadata: $metadata, ')
           ..write('createdAt: $createdAt, ')
           ..write('isRead: $isRead, ')
@@ -670,7 +822,10 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
           ..write('replySenderName: $replySenderName, ')
           ..write('reactions: $reactions, ')
           ..write('deletedFor: $deletedFor, ')
-          ..write('isEdited: $isEdited')
+          ..write('isEdited: $isEdited, ')
+          ..write('sendStatus: $sendStatus, ')
+          ..write('localOnly: $localOnly, ')
+          ..write('deliveredAt: $deliveredAt')
           ..write(')'))
         .toString();
   }
@@ -683,6 +838,7 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
     content,
     messageType,
     mediaUrl,
+    localMediaPath,
     metadata,
     createdAt,
     isRead,
@@ -693,6 +849,9 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
     reactions,
     deletedFor,
     isEdited,
+    sendStatus,
+    localOnly,
+    deliveredAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -704,6 +863,7 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
           other.content == this.content &&
           other.messageType == this.messageType &&
           other.mediaUrl == this.mediaUrl &&
+          other.localMediaPath == this.localMediaPath &&
           other.metadata == this.metadata &&
           other.createdAt == this.createdAt &&
           other.isRead == this.isRead &&
@@ -713,7 +873,10 @@ class MessageEntry extends DataClass implements Insertable<MessageEntry> {
           other.replySenderName == this.replySenderName &&
           other.reactions == this.reactions &&
           other.deletedFor == this.deletedFor &&
-          other.isEdited == this.isEdited);
+          other.isEdited == this.isEdited &&
+          other.sendStatus == this.sendStatus &&
+          other.localOnly == this.localOnly &&
+          other.deliveredAt == this.deliveredAt);
 }
 
 class MessagesCompanion extends UpdateCompanion<MessageEntry> {
@@ -723,6 +886,7 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
   final Value<String> content;
   final Value<String> messageType;
   final Value<String?> mediaUrl;
+  final Value<String?> localMediaPath;
   final Value<String?> metadata;
   final Value<int> createdAt;
   final Value<bool> isRead;
@@ -733,6 +897,9 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
   final Value<String?> reactions;
   final Value<String?> deletedFor;
   final Value<bool> isEdited;
+  final Value<String> sendStatus;
+  final Value<bool> localOnly;
+  final Value<int?> deliveredAt;
   final Value<int> rowid;
   const MessagesCompanion({
     this.id = const Value.absent(),
@@ -741,6 +908,7 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
     this.content = const Value.absent(),
     this.messageType = const Value.absent(),
     this.mediaUrl = const Value.absent(),
+    this.localMediaPath = const Value.absent(),
     this.metadata = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.isRead = const Value.absent(),
@@ -751,6 +919,9 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
     this.reactions = const Value.absent(),
     this.deletedFor = const Value.absent(),
     this.isEdited = const Value.absent(),
+    this.sendStatus = const Value.absent(),
+    this.localOnly = const Value.absent(),
+    this.deliveredAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MessagesCompanion.insert({
@@ -760,6 +931,7 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
     required String content,
     this.messageType = const Value.absent(),
     this.mediaUrl = const Value.absent(),
+    this.localMediaPath = const Value.absent(),
     this.metadata = const Value.absent(),
     required int createdAt,
     this.isRead = const Value.absent(),
@@ -770,6 +942,9 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
     this.reactions = const Value.absent(),
     this.deletedFor = const Value.absent(),
     this.isEdited = const Value.absent(),
+    this.sendStatus = const Value.absent(),
+    this.localOnly = const Value.absent(),
+    this.deliveredAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        conversationId = Value(conversationId),
@@ -783,6 +958,7 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
     Expression<String>? content,
     Expression<String>? messageType,
     Expression<String>? mediaUrl,
+    Expression<String>? localMediaPath,
     Expression<String>? metadata,
     Expression<int>? createdAt,
     Expression<bool>? isRead,
@@ -793,6 +969,9 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
     Expression<String>? reactions,
     Expression<String>? deletedFor,
     Expression<bool>? isEdited,
+    Expression<String>? sendStatus,
+    Expression<bool>? localOnly,
+    Expression<int>? deliveredAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -802,6 +981,7 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
       if (content != null) 'content': content,
       if (messageType != null) 'message_type': messageType,
       if (mediaUrl != null) 'media_url': mediaUrl,
+      if (localMediaPath != null) 'local_media_path': localMediaPath,
       if (metadata != null) 'metadata': metadata,
       if (createdAt != null) 'created_at': createdAt,
       if (isRead != null) 'is_read': isRead,
@@ -812,6 +992,9 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
       if (reactions != null) 'reactions': reactions,
       if (deletedFor != null) 'deleted_for': deletedFor,
       if (isEdited != null) 'is_edited': isEdited,
+      if (sendStatus != null) 'send_status': sendStatus,
+      if (localOnly != null) 'local_only': localOnly,
+      if (deliveredAt != null) 'delivered_at': deliveredAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -823,6 +1006,7 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
     Value<String>? content,
     Value<String>? messageType,
     Value<String?>? mediaUrl,
+    Value<String?>? localMediaPath,
     Value<String?>? metadata,
     Value<int>? createdAt,
     Value<bool>? isRead,
@@ -833,6 +1017,9 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
     Value<String?>? reactions,
     Value<String?>? deletedFor,
     Value<bool>? isEdited,
+    Value<String>? sendStatus,
+    Value<bool>? localOnly,
+    Value<int?>? deliveredAt,
     Value<int>? rowid,
   }) {
     return MessagesCompanion(
@@ -842,6 +1029,7 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
       content: content ?? this.content,
       messageType: messageType ?? this.messageType,
       mediaUrl: mediaUrl ?? this.mediaUrl,
+      localMediaPath: localMediaPath ?? this.localMediaPath,
       metadata: metadata ?? this.metadata,
       createdAt: createdAt ?? this.createdAt,
       isRead: isRead ?? this.isRead,
@@ -852,6 +1040,9 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
       reactions: reactions ?? this.reactions,
       deletedFor: deletedFor ?? this.deletedFor,
       isEdited: isEdited ?? this.isEdited,
+      sendStatus: sendStatus ?? this.sendStatus,
+      localOnly: localOnly ?? this.localOnly,
+      deliveredAt: deliveredAt ?? this.deliveredAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -876,6 +1067,9 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
     }
     if (mediaUrl.present) {
       map['media_url'] = Variable<String>(mediaUrl.value);
+    }
+    if (localMediaPath.present) {
+      map['local_media_path'] = Variable<String>(localMediaPath.value);
     }
     if (metadata.present) {
       map['metadata'] = Variable<String>(metadata.value);
@@ -907,6 +1101,15 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
     if (isEdited.present) {
       map['is_edited'] = Variable<bool>(isEdited.value);
     }
+    if (sendStatus.present) {
+      map['send_status'] = Variable<String>(sendStatus.value);
+    }
+    if (localOnly.present) {
+      map['local_only'] = Variable<bool>(localOnly.value);
+    }
+    if (deliveredAt.present) {
+      map['delivered_at'] = Variable<int>(deliveredAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -922,6 +1125,7 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
           ..write('content: $content, ')
           ..write('messageType: $messageType, ')
           ..write('mediaUrl: $mediaUrl, ')
+          ..write('localMediaPath: $localMediaPath, ')
           ..write('metadata: $metadata, ')
           ..write('createdAt: $createdAt, ')
           ..write('isRead: $isRead, ')
@@ -932,6 +1136,9 @@ class MessagesCompanion extends UpdateCompanion<MessageEntry> {
           ..write('reactions: $reactions, ')
           ..write('deletedFor: $deletedFor, ')
           ..write('isEdited: $isEdited, ')
+          ..write('sendStatus: $sendStatus, ')
+          ..write('localOnly: $localOnly, ')
+          ..write('deliveredAt: $deliveredAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4643,6 +4850,7 @@ typedef $$MessagesTableCreateCompanionBuilder =
       required String content,
       Value<String> messageType,
       Value<String?> mediaUrl,
+      Value<String?> localMediaPath,
       Value<String?> metadata,
       required int createdAt,
       Value<bool> isRead,
@@ -4653,6 +4861,9 @@ typedef $$MessagesTableCreateCompanionBuilder =
       Value<String?> reactions,
       Value<String?> deletedFor,
       Value<bool> isEdited,
+      Value<String> sendStatus,
+      Value<bool> localOnly,
+      Value<int?> deliveredAt,
       Value<int> rowid,
     });
 typedef $$MessagesTableUpdateCompanionBuilder =
@@ -4663,6 +4874,7 @@ typedef $$MessagesTableUpdateCompanionBuilder =
       Value<String> content,
       Value<String> messageType,
       Value<String?> mediaUrl,
+      Value<String?> localMediaPath,
       Value<String?> metadata,
       Value<int> createdAt,
       Value<bool> isRead,
@@ -4673,6 +4885,9 @@ typedef $$MessagesTableUpdateCompanionBuilder =
       Value<String?> reactions,
       Value<String?> deletedFor,
       Value<bool> isEdited,
+      Value<String> sendStatus,
+      Value<bool> localOnly,
+      Value<int?> deliveredAt,
       Value<int> rowid,
     });
 
@@ -4712,6 +4927,11 @@ class $$MessagesTableFilterComposer
 
   ColumnFilters<String> get mediaUrl => $composableBuilder(
     column: $table.mediaUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get localMediaPath => $composableBuilder(
+    column: $table.localMediaPath,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4764,6 +4984,21 @@ class $$MessagesTableFilterComposer
     column: $table.isEdited,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<String> get sendStatus => $composableBuilder(
+    column: $table.sendStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get localOnly => $composableBuilder(
+    column: $table.localOnly,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deliveredAt => $composableBuilder(
+    column: $table.deliveredAt,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$MessagesTableOrderingComposer
@@ -4802,6 +5037,11 @@ class $$MessagesTableOrderingComposer
 
   ColumnOrderings<String> get mediaUrl => $composableBuilder(
     column: $table.mediaUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get localMediaPath => $composableBuilder(
+    column: $table.localMediaPath,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -4854,6 +5094,21 @@ class $$MessagesTableOrderingComposer
     column: $table.isEdited,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get sendStatus => $composableBuilder(
+    column: $table.sendStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get localOnly => $composableBuilder(
+    column: $table.localOnly,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deliveredAt => $composableBuilder(
+    column: $table.deliveredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MessagesTableAnnotationComposer
@@ -4886,6 +5141,11 @@ class $$MessagesTableAnnotationComposer
 
   GeneratedColumn<String> get mediaUrl =>
       $composableBuilder(column: $table.mediaUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get localMediaPath => $composableBuilder(
+    column: $table.localMediaPath,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get metadata =>
       $composableBuilder(column: $table.metadata, builder: (column) => column);
@@ -4924,6 +5184,19 @@ class $$MessagesTableAnnotationComposer
 
   GeneratedColumn<bool> get isEdited =>
       $composableBuilder(column: $table.isEdited, builder: (column) => column);
+
+  GeneratedColumn<String> get sendStatus => $composableBuilder(
+    column: $table.sendStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get localOnly =>
+      $composableBuilder(column: $table.localOnly, builder: (column) => column);
+
+  GeneratedColumn<int> get deliveredAt => $composableBuilder(
+    column: $table.deliveredAt,
+    builder: (column) => column,
+  );
 }
 
 class $$MessagesTableTableManager
@@ -4963,6 +5236,7 @@ class $$MessagesTableTableManager
                 Value<String> content = const Value.absent(),
                 Value<String> messageType = const Value.absent(),
                 Value<String?> mediaUrl = const Value.absent(),
+                Value<String?> localMediaPath = const Value.absent(),
                 Value<String?> metadata = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<bool> isRead = const Value.absent(),
@@ -4973,6 +5247,9 @@ class $$MessagesTableTableManager
                 Value<String?> reactions = const Value.absent(),
                 Value<String?> deletedFor = const Value.absent(),
                 Value<bool> isEdited = const Value.absent(),
+                Value<String> sendStatus = const Value.absent(),
+                Value<bool> localOnly = const Value.absent(),
+                Value<int?> deliveredAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MessagesCompanion(
                 id: id,
@@ -4981,6 +5258,7 @@ class $$MessagesTableTableManager
                 content: content,
                 messageType: messageType,
                 mediaUrl: mediaUrl,
+                localMediaPath: localMediaPath,
                 metadata: metadata,
                 createdAt: createdAt,
                 isRead: isRead,
@@ -4991,6 +5269,9 @@ class $$MessagesTableTableManager
                 reactions: reactions,
                 deletedFor: deletedFor,
                 isEdited: isEdited,
+                sendStatus: sendStatus,
+                localOnly: localOnly,
+                deliveredAt: deliveredAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5001,6 +5282,7 @@ class $$MessagesTableTableManager
                 required String content,
                 Value<String> messageType = const Value.absent(),
                 Value<String?> mediaUrl = const Value.absent(),
+                Value<String?> localMediaPath = const Value.absent(),
                 Value<String?> metadata = const Value.absent(),
                 required int createdAt,
                 Value<bool> isRead = const Value.absent(),
@@ -5011,6 +5293,9 @@ class $$MessagesTableTableManager
                 Value<String?> reactions = const Value.absent(),
                 Value<String?> deletedFor = const Value.absent(),
                 Value<bool> isEdited = const Value.absent(),
+                Value<String> sendStatus = const Value.absent(),
+                Value<bool> localOnly = const Value.absent(),
+                Value<int?> deliveredAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MessagesCompanion.insert(
                 id: id,
@@ -5019,6 +5304,7 @@ class $$MessagesTableTableManager
                 content: content,
                 messageType: messageType,
                 mediaUrl: mediaUrl,
+                localMediaPath: localMediaPath,
                 metadata: metadata,
                 createdAt: createdAt,
                 isRead: isRead,
@@ -5029,6 +5315,9 @@ class $$MessagesTableTableManager
                 reactions: reactions,
                 deletedFor: deletedFor,
                 isEdited: isEdited,
+                sendStatus: sendStatus,
+                localOnly: localOnly,
+                deliveredAt: deliveredAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

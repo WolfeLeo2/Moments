@@ -60,7 +60,7 @@ class AddMoment extends _$AddMoment {
       state = state.copyWith(locationName: cityName);
     } catch (e) {
       // Fail silently for name, user can still post with coords
-      print('Error fetching city name: $e');
+      _log.e('Error fetching city name: $e');
     }
   }
 
@@ -122,7 +122,7 @@ class AddMoment extends _$AddMoment {
       final groups = await _momentRepository.getNearbyGroups(lat, lng);
       state = state.copyWith(nearbyGroups: groups);
     } catch (e) {
-      print('Error fetching nearby groups: $e');
+      _log.e('Error fetching nearby groups: $e');
     }
   }
 

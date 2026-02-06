@@ -28,6 +28,7 @@ class Messages extends Table {
   TextColumn get content => text()();
   TextColumn get messageType => text().withDefault(const Constant('text'))();
   TextColumn get mediaUrl => text().nullable()();
+  TextColumn get localMediaPath => text().nullable()(); // Local file path for media before upload
   TextColumn get metadata => text().nullable()(); // JSON string
   IntColumn get createdAt => integer()();
   BoolColumn get isRead => boolean().withDefault(const Constant(false))();
@@ -38,6 +39,10 @@ class Messages extends Table {
   TextColumn get reactions => text().nullable()(); // JSON array
   TextColumn get deletedFor => text().nullable()();
   BoolColumn get isEdited => boolean().withDefault(const Constant(false))();
+  // Offline-first fields
+  TextColumn get sendStatus => text().withDefault(const Constant('sent'))(); // pending, sending, sent, delivered, read, failed
+  BoolColumn get localOnly => boolean().withDefault(const Constant(false))(); // True if not synced to server
+  IntColumn get deliveredAt => integer().nullable()(); // Epoch when delivered to recipient
 
   @override
   Set<Column> get primaryKey => {id};
@@ -176,7 +181,7 @@ class AppDatabase extends _$AppDatabase {
 
   // Bump this when schema changes
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   // Migration strategy for future schema changes
   @override
@@ -186,7 +191,33 @@ class AppDatabase extends _$AppDatabase {
         await m.createAll();
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        // Handle future migrations here
+        // Handle migrations
+        if (from < 2) {
+          // Add offline-first columns for chat
+          await m.addColumn(messages, messages.sendStatus);
+          await m.addColumn(messages, messages.localOnly);
+        }
+        if (from < 3) {
+          // Add deliveredAt column for delivery receipts
+          await m.addColumn(messages, messages.deliveredAt);
+          // Ensure sendStatus and localOnly exist (in case v1 -> v3 jump)
+          try {
+            await m.addColumn(messages, messages.sendStatus);
+          } catch (_) {} // Column may already exist
+          try {
+            await m.addColumn(messages, messages.localOnly);
+          } catch (_) {} // Column may already exist
+        }
+        if (from < 4) {
+          // v4: Ensure sendStatus and localOnly columns exist
+          // (were missing from v2/v3 migrations in some builds)
+          try {
+            await m.addColumn(messages, messages.sendStatus);
+          } catch (_) {} // Column may already exist
+          try {
+            await m.addColumn(messages, messages.localOnly);
+          } catch (_) {} // Column may already exist
+        }
       },
       beforeOpen: (details) async {
         // Enable foreign keys if needed
@@ -234,6 +265,87 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Save messages from server with smart merge
+  /// Preserves local sendStatus for pending/sending/failed messages
+  /// This prevents server sync from overwriting optimistic UI state
+  Future<void> saveMessagesWithMerge(List<MessagesCompanion> entries) async {
+    if (entries.isEmpty) return;
+
+    // Get IDs of incoming messages
+    final ids = entries
+        .map((e) => e.id.value)
+        .where((id) => id.isNotEmpty)
+        .toList();
+
+    if (ids.isEmpty) {
+      await saveMessages(entries);
+      return;
+    }
+
+    // Check which messages exist locally with pending/sending/failed status
+    final localPendingMessages = await (select(messages)
+          ..where((m) => m.id.isIn(ids))
+          ..where(
+            (m) => m.sendStatus.isIn(['pending', 'sending', 'failed']),
+          ))
+        .get();
+
+    final pendingIds = localPendingMessages.map((m) => m.id).toSet();
+
+    // Filter entries to:
+    // 1. Insert new messages (not in pending)
+    // 2. For pending messages, only update if server confirms sent
+    final entriesToSave = <MessagesCompanion>[];
+
+    for (final entry in entries) {
+      final id = entry.id.value;
+      if (pendingIds.contains(id)) {
+        // Message exists locally with pending/sending/failed status
+        // Update it but preserve that the server confirmed it (mark as sent)
+        entriesToSave.add(
+          entry.copyWith(
+            sendStatus: const Value('sent'),
+            localOnly: const Value(false),
+          ),
+        );
+      } else {
+        // New message from server or already synced - save as-is
+        entriesToSave.add(entry);
+      }
+    }
+
+    await batch((b) {
+      b.insertAllOnConflictUpdate(messages, entriesToSave);
+    });
+  }
+
+  /// Delete a single message by ID
+  Future<void> deleteMessage(String messageId) async {
+    await (delete(messages)..where((m) => m.id.equals(messageId))).go();
+  }
+
+  /// Get a single message by ID
+  Future<MessageEntry?> getMessageById(String messageId) async {
+    return (select(messages)..where((m) => m.id.equals(messageId)))
+        .getSingleOrNull();
+  }
+
+  /// Update message send status
+  Future<void> updateMessageStatus(String messageId, String status) async {
+    await (update(messages)..where((m) => m.id.equals(messageId))).write(
+      MessagesCompanion(sendStatus: Value(status)),
+    );
+  }
+
+  /// Get all pending/failed messages for retry
+  Future<List<MessageEntry>> getPendingMessages() async {
+    return (select(messages)
+          ..where((m) => m.sendStatus.isIn(['pending', 'failed']))
+          ..where((m) => m.localOnly.equals(true))
+          ..orderBy([(m) => OrderingTerm.asc(m.createdAt)]))
+        .get();
+  }
+
   /// Clear messages for a conversation
   Future<void> clearConversation(String conversationId) async {
     await (delete(
@@ -244,6 +356,101 @@ class AppDatabase extends _$AppDatabase {
   /// Clear all messages
   Future<void> clearAllMessages() async {
     await delete(messages).go();
+  }
+
+  /// Mark all messages in a conversation as read (locally)
+  /// Returns the count of messages that were updated
+  Future<int> markConversationAsReadLocally(
+    String conversationId,
+    String currentUserId,
+  ) async {
+    final affectedRows = await (update(messages)
+          ..where((m) => m.conversationId.equals(conversationId))
+          ..where((m) => m.senderId.isNotValue(currentUserId))
+          ..where((m) => m.isRead.equals(false)))
+        .write(const MessagesCompanion(isRead: Value(true)));
+    return affectedRows;
+  }
+
+  /// Update unread count in chat list cache
+  Future<void> updateChatListUnreadCount(
+    String conversationId,
+    int unreadCount,
+  ) async {
+    await (update(chatListCache)
+          ..where((c) => c.conversationId.equals(conversationId)))
+        .write(ChatListCacheCompanion(unreadCount: Value(unreadCount)));
+  }
+
+  // ============================================
+  // OFFLINE-FIRST MESSAGE OPERATIONS
+  // ============================================
+
+  /// Update message content locally (for optimistic edit)
+  Future<void> updateMessageContent(
+    String messageId,
+    String newContent,
+  ) async {
+    await (update(messages)..where((m) => m.id.equals(messageId))).write(
+      MessagesCompanion(
+        content: Value(newContent),
+        isEdited: const Value(true),
+      ),
+    );
+  }
+
+  /// Mark message as deleted locally (for optimistic delete)
+  Future<void> markMessageDeletedLocally(
+    String messageId, {
+    required String deletedFor,
+  }) async {
+    if (deletedFor == 'everyone') {
+      await (update(messages)..where((m) => m.id.equals(messageId))).write(
+        const MessagesCompanion(
+          isDeleted: Value(true),
+          deletedFor: Value('everyone'),
+          content: Value(''), // Clear content for privacy
+        ),
+      );
+    } else {
+      await (update(messages)..where((m) => m.id.equals(messageId))).write(
+        MessagesCompanion(deletedFor: Value(deletedFor)),
+      );
+    }
+  }
+
+  /// Update message reactions locally (for optimistic reaction)
+  Future<void> updateMessageReactions(
+    String messageId,
+    String reactionsJson,
+  ) async {
+    await (update(messages)..where((m) => m.id.equals(messageId))).write(
+      MessagesCompanion(reactions: Value(reactionsJson)),
+    );
+  }
+
+  /// Update message media URL after upload completes
+  Future<void> updateMessageMediaUrl(
+    String messageId,
+    String mediaUrl,
+  ) async {
+    await (update(messages)..where((m) => m.id.equals(messageId))).write(
+      MessagesCompanion(
+        mediaUrl: Value(mediaUrl),
+        sendStatus: const Value('sent'),
+        localOnly: const Value(false),
+      ),
+    );
+  }
+
+  /// Get pending media messages (for background upload)
+  Future<List<MessageEntry>> getPendingMediaMessages() async {
+    return (select(messages)
+          ..where((m) => m.localOnly.equals(true))
+          ..where((m) => m.messageType.isIn(['image', 'audio', 'video']))
+          ..where((m) => m.sendStatus.isIn(['pending', 'failed']))
+          ..orderBy([(m) => OrderingTerm.asc(m.createdAt)]))
+        .get();
   }
 
   // ============================================
@@ -773,6 +980,7 @@ extension MessageEntryMapper on MessageEntry {
       content: content,
       messageType: app.MessageType.fromString(messageType),
       mediaUrl: mediaUrl,
+      localMediaPath: localMediaPath,
       metadata: parsedMetadata,
       createdAt: DateTime.fromMillisecondsSinceEpoch(createdAt),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(createdAt),
@@ -783,6 +991,11 @@ extension MessageEntryMapper on MessageEntry {
       isEdited: isEdited,
       deletedFor: deletedFor,
       reactions: parsedReactions,
+      sendStatus: app.MessageSendStatus.fromString(sendStatus),
+      localOnly: localOnly,
+      deliveredAt: deliveredAt != null 
+          ? DateTime.fromMillisecondsSinceEpoch(deliveredAt!) 
+          : null,
     );
   }
 }
@@ -803,6 +1016,7 @@ extension MessageToCompanion on app.Message {
       content: content,
       messageType: Value(messageType.name),
       mediaUrl: Value(mediaUrl),
+      localMediaPath: Value(localMediaPath),
       metadata: Value(metadata != null ? jsonEncode(metadata) : null),
       createdAt: createdAt.millisecondsSinceEpoch,
       isRead: Value(isRead),
@@ -813,6 +1027,9 @@ extension MessageToCompanion on app.Message {
       reactions: Value(reactionsJson),
       deletedFor: Value(deletedFor),
       isEdited: Value(isEdited),
+      sendStatus: Value(sendStatus.name),
+      localOnly: Value(localOnly),
+      deliveredAt: Value(deliveredAt?.millisecondsSinceEpoch),
     );
   }
 }

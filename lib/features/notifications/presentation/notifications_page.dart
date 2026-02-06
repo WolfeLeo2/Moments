@@ -8,7 +8,6 @@ import 'package:moments/core/utils/extensions.dart';
 import 'package:moments/data/models/friendship.dart';
 import 'package:moments/data/models/moment_contributor.dart';
 import 'package:moments/core/widgets/time_ago_text.dart';
-import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:lottie/lottie.dart';
@@ -17,6 +16,7 @@ import 'package:moments/features/moments/presentation/moment_details_page.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:moments/features/map/providers/map_control_provider.dart';
 import 'package:moments/data/models/moment.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 enum NotificationType {
   friendRequest,
@@ -59,7 +59,7 @@ class NotificationItem {
 class _NotificationTypeConfig {
   final Color accentColor;
   final Color backgroundColor;
-  final dynamic icon; // HugeIcons use a special type
+  final IconData icon;
   final String label;
 
   const _NotificationTypeConfig({
@@ -75,7 +75,7 @@ class _NotificationTypeConfig {
         return _NotificationTypeConfig(
           accentColor: AppTheme.primaryBlue,
           backgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.08),
-          icon: HugeIcons.strokeRoundedUserAdd01,
+          icon: FontAwesomeIcons.userPlus,
           label: 'Friend Request',
         );
       case NotificationType.collaborationInvite:
@@ -83,42 +83,42 @@ class _NotificationTypeConfig {
         return _NotificationTypeConfig(
           accentColor: AppTheme.electricPurple,
           backgroundColor: AppTheme.electricPurple.withValues(alpha: 0.08),
-          icon: HugeIcons.strokeRoundedUserGroup,
+          icon: FontAwesomeIcons.users,
           label: 'Collaboration',
         );
       case NotificationType.momentLike:
         return _NotificationTypeConfig(
           accentColor: const Color(0xFFE91E63),
           backgroundColor: const Color(0xFFE91E63).withValues(alpha: 0.08),
-          icon: HugeIcons.strokeRoundedFavourite,
+          icon: FontAwesomeIcons.solidHeart,
           label: 'Reaction',
         );
       case NotificationType.newMoment:
         return _NotificationTypeConfig(
           accentColor: const Color(0xFF4CAF50),
           backgroundColor: const Color(0xFF4CAF50).withValues(alpha: 0.08),
-          icon: HugeIcons.strokeRoundedImage01,
+          icon: FontAwesomeIcons.image,
           label: 'New Moment',
         );
       case NotificationType.system:
         return _NotificationTypeConfig(
           accentColor: const Color(0xFFFF9800),
           backgroundColor: const Color(0xFFFF9800).withValues(alpha: 0.08),
-          icon: HugeIcons.strokeRoundedAlert02,
+          icon: FontAwesomeIcons.gears,
           label: 'System',
         );
       case NotificationType.promo:
         return _NotificationTypeConfig(
           accentColor: AppTheme.neonPink,
           backgroundColor: AppTheme.neonPink.withValues(alpha: 0.08),
-          icon: HugeIcons.strokeRoundedGift,
+          icon: FontAwesomeIcons.gift,
           label: 'Promo',
         );
       case NotificationType.other:
         return _NotificationTypeConfig(
           accentColor: Colors.grey,
           backgroundColor: Colors.grey.withValues(alpha: 0.08),
-          icon: HugeIcons.strokeRoundedNotification01,
+          icon: FontAwesomeIcons.bell,
           label: 'Notification',
         );
     }
@@ -418,8 +418,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          HugeIcon(
-            icon: HugeIcons.strokeRoundedInbox,
+          FaIcon(
+            FontAwesomeIcons.solidEnvelope,
             size: 64,
             color: Colors.grey[300],
           ),
@@ -585,8 +585,8 @@ class _NotificationCard extends ConsumerWidget {
             color: Colors.red.shade400,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const HugeIcon(
-            icon: HugeIcons.strokeRoundedDelete02,
+          child: const FaIcon(
+            FontAwesomeIcons.trashCan,
             color: Colors.white,
             size: 24,
           ),
@@ -692,8 +692,8 @@ class _NotificationCard extends ConsumerWidget {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              HugeIcon(
-                                icon: HugeIcons.strokeRoundedFolder01,
+                              FaIcon(
+                                FontAwesomeIcons.folder,
                                 size: 14,
                                 color: config.accentColor,
                               ),
@@ -780,8 +780,8 @@ class _NotificationCard extends ConsumerWidget {
         shape: BoxShape.circle,
       ),
       child: Center(
-        child: HugeIcon(
-          icon: config.icon,
+        child: FaIcon(
+          config.icon,
           color: config.accentColor,
           size: 24,
         ),

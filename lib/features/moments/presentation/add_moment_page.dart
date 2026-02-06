@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hugeicons/hugeicons.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moments/core/utils/extensions.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/constants.dart';
@@ -293,8 +293,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                     ),
                     child: Row(
                       children: [
-                        HugeIcon(
-                          icon: HugeIcons.strokeRoundedLocation03,
+                        FaIcon(
+                          FontAwesomeIcons.locationDot,
                           size: 16,
                           color: AppTheme.primaryBlue,
                         ),
@@ -442,8 +442,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      HugeIcon(
-                                        icon: HugeIcons.strokeRoundedUserGroup,
+                                      FaIcon(
+                                        FontAwesomeIcons.users,
                                         size: 18,
                                         color: !state.isGroupPrivate
                                             ? Colors.white
@@ -509,9 +509,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      HugeIcon(
-                                        icon:
-                                            HugeIcons.strokeRoundedSquareLock02,
+                                      FaIcon(
+                                        FontAwesomeIcons.lock,
                                         size: 18,
                                         color: state.isGroupPrivate
                                             ? Colors.white
@@ -599,8 +598,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                         color: AppTheme.backgroundBeige,
                         shape: BoxShape.circle,
                       ),
-                      child: const HugeIcon(
-                        icon: HugeIcons.strokeRoundedAdd01,
+                      child: const FaIcon(
+                        FontAwesomeIcons.userPlus,
                         size: 32,
                         color: Colors.black,
                       ),
@@ -712,10 +711,10 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          HugeIcon(
-                            icon: state.isPhotoPrivate(index)
-                                ? HugeIcons.strokeRoundedSquareLock02
-                                : HugeIcons.strokeRoundedGlobal,
+                          FaIcon(
+                            state.isPhotoPrivate(index)
+                                ? FontAwesomeIcons.lock
+                                : FontAwesomeIcons.earthAmericas,
                             size: 14,
                             color: Colors.white,
                           ),
@@ -819,8 +818,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                   ),
                   child: Row(
                     children: [
-                      const HugeIcon(
-                        icon: HugeIcons.strokeRoundedCamera01,
+                      FaIcon(
+                        FontAwesomeIcons.camera,
                         size: 24,
                       ),
                       const SizedBox(width: 8),
@@ -852,8 +851,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                   ),
                   child: Row(
                     children: [
-                      const HugeIcon(
-                        icon: HugeIcons.strokeRoundedImage02,
+                      FaIcon(
+                        FontAwesomeIcons.image,
                         size: 24,
                       ),
                       const SizedBox(width: 8),

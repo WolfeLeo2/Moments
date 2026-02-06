@@ -4,7 +4,7 @@ import '../models/profile.dart';
 import '../models/friendship.dart';
 import '../sources/supabase_config.dart';
 
-final _log = AppLogger('UsocialUrepository');
+final _log = AppLogger('SocialRepository');
 
 /// Repository for managing user profiles and friendships
 class SocialRepository {
@@ -118,24 +118,24 @@ class SocialRepository {
   /// Send friend request using invite code
   Future<Friendship> sendFriendRequest(String inviteCode) async {
     try {
-      print('🔵 [FRIEND REQUEST] Starting request with code: $inviteCode');
+      _log.d('Starting friend request with code: $inviteCode');
 
       final userId = _client.auth.currentUser?.id;
       if (userId == null) {
-        print('❌ [FRIEND REQUEST] User not authenticated');
+        _log.e('User not authenticated');
         throw Exception('User not authenticated');
       }
-      print('✅ [FRIEND REQUEST] User ID: $userId');
+      _log.d('User ID: $userId');
 
       // Find the user with this invite code
-      print('🔍 [FRIEND REQUEST] Looking up profile with invite code...');
+      _log.d('Looking up profile with invite code...');
       final friendProfile = await getProfileByInviteCode(inviteCode);
       if (friendProfile == null) {
-        print('❌ [FRIEND REQUEST] No profile found with code: $inviteCode');
+        _log.e('No profile found with code: $inviteCode');
         throw Exception('Invalid invite code');
       }
-      print(
-        '✅ [FRIEND REQUEST] Found profile: ${friendProfile.id} (${friendProfile.displayName ?? friendProfile.username})',
+      _log.d(
+        'Found profile: ${friendProfile.id} (${friendProfile.displayName ?? friendProfile.username})',
       );
 
       if (friendProfile.id == userId) {
@@ -177,13 +177,13 @@ class SocialRepository {
       _log.d('No existing friendship found');
 
       // Create friendship request
-      print('📝 [FRIEND REQUEST] Inserting friendship record...');
+      _log.d('Inserting friendship record...');
       final insertData = {
         'user_id': userId,
         'friend_id': friendProfile.id,
         'status': 'pending',
       };
-      print('📝 [FRIEND REQUEST] Insert data: $insertData');
+      _log.d('Insert data: $insertData');
 
       final response = await _client
           .from('friendships')
@@ -191,13 +191,12 @@ class SocialRepository {
           .select()
           .single();
 
-      print('✅ [FRIEND REQUEST] Successfully created friendship!');
-      print('📊 [FRIEND REQUEST] Response: $response');
+      _log.i('Successfully created friendship!');
+      _log.d('Response: $response');
 
       return Friendship.fromJson(response);
     } catch (e, stackTrace) {
-      print('❌ [FRIEND REQUEST] Error: $e');
-      print('📚 [FRIEND REQUEST] Stack trace: $stackTrace');
+      _log.e('Friend request error: $e', stackTrace: stackTrace);
       throw Exception('Failed to send friend request: $e');
     }
   }
@@ -205,18 +204,16 @@ class SocialRepository {
   /// Accept friend request
   Future<void> acceptFriendRequest(String friendshipId) async {
     try {
-      print(
-        '🔵 [ACCEPT REQUEST] Starting accept for friendship: $friendshipId',
-      );
+      _log.d('Starting accept for friendship: $friendshipId');
 
       final userId = _client.auth.currentUser?.id;
       if (userId == null) {
-        print('❌ [ACCEPT REQUEST] User not authenticated');
+        _log.e('User not authenticated');
         throw Exception('User not authenticated');
       }
-      print('✅ [ACCEPT REQUEST] User ID: $userId');
+      _log.d('User ID: $userId');
 
-      print('📝 [ACCEPT REQUEST] Updating friendship status to accepted...');
+      _log.d('Updating friendship status to accepted...');
       await _client
           .from('friendships')
           .update({
@@ -225,10 +222,9 @@ class SocialRepository {
           })
           .eq('id', friendshipId);
 
-      print('✅ [ACCEPT REQUEST] Successfully accepted friendship!');
+      _log.i('Successfully accepted friendship!');
     } catch (e, stackTrace) {
-      print('❌ [ACCEPT REQUEST] Error: $e');
-      print('📚 [ACCEPT REQUEST] Stack trace: $stackTrace');
+      _log.e('Accept friend request error: $e', stackTrace: stackTrace);
       throw Exception('Failed to accept friend request: $e');
     }
   }
@@ -419,19 +415,17 @@ class SocialRepository {
   Stream<List<Friendship>> streamPendingRequests() {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
-      print('⚠️ [PENDING REQUESTS STREAM] No authenticated user');
+      _log.w('No authenticated user for pending requests stream');
       return Stream.value(<Friendship>[]);
     }
 
-    print('🔵 [PENDING REQUESTS STREAM] Starting stream for user: $userId');
+    _log.d('Starting pending requests stream for user: $userId');
 
     return _client
         .from('friendships')
         .stream(primaryKey: ['id'])
         .map((data) {
-          print(
-            '📊 [PENDING REQUESTS STREAM] Received ${data.length} total friendships',
-          );
+          _log.d('Received ${data.length} total friendships');
 
           // Filter in Dart because .eq() is not supported on stream builder
           final requests = (data as List)
@@ -442,16 +436,11 @@ class SocialRepository {
                     f.status ==
                     FriendshipStatus
                         .pending; // FIX: Compare to enum, not string
-                print(
-                  '  - Friendship ${f.id}: friendId=${f.friendId}, status=${f.status}, isForMe=$isForMe, isPending=$isPending',
-                );
                 return isForMe && isPending;
               })
               .toList();
 
-          print(
-            '✅ [PENDING REQUESTS STREAM] Filtered to ${requests.length} pending requests',
-          );
+          _log.d('Filtered to ${requests.length} pending requests');
 
           // Sort by requested_at desc
           requests.sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
@@ -459,7 +448,7 @@ class SocialRepository {
           return requests;
         })
         .handleError((e) {
-          print('❌ [PENDING REQUESTS STREAM] Error: $e');
+          _log.e('Pending requests stream error: $e');
           return <Friendship>[];
         });
   }

@@ -8,7 +8,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import '../../data/sources/supabase_config.dart';
 
-final _log = AppLogger('UmapUcacheUservice');
+final _log = AppLogger('MapCacheService');
 
 class MapCacheService {
   static const String _tileCacheDir = 'mapbox_tiles';
@@ -81,21 +81,17 @@ class MapCacheService {
             },
           );
           _fmtcInitialized = true;
-          print('FMTC tile caching initialized successfully');
+          _log.i('FMTC tile caching initialized successfully');
           if (!completer.isCompleted) completer.complete();
         } catch (e) {
-          print(
-            'FMTC initialization failed (map will work without caching): $e',
-          );
+          _log.w('FMTC initialization failed (map will work without caching): $e');
           _fmtcInitialized = false;
           _tileProvider = null;
           if (!completer.isCompleted) completer.complete();
         }
       },
       (error, stack) {
-        print(
-          'FMTC async error caught (map will work without caching): $error',
-        );
+        _log.w('FMTC async error caught (map will work without caching): $error');
         _fmtcInitialized = false;
         _tileProvider = null;
         if (!completer.isCompleted) completer.complete();
@@ -136,9 +132,9 @@ class MapCacheService {
     try {
       final store = FMTCStore(_fmtcStoreName);
       await store.manage.reset();
-      print('Tile cache cleared');
+      _log.i('Tile cache cleared');
     } catch (e) {
-      print('Failed to clear tile cache: $e');
+      _log.e('Failed to clear tile cache: $e');
     }
   }
 
@@ -232,7 +228,7 @@ class MapCacheService {
             imageUrls.add(signedUrl);
             continue;
           } catch (e) {
-            print('Failed to create signed URL for cache: $e');
+            _log.e('Failed to create signed URL for cache: $e');
           }
         }
 
@@ -243,9 +239,9 @@ class MapCacheService {
     }
 
     if (imageUrls.isNotEmpty) {
-      print('Preloading ${imageUrls.length} moment images...');
+      _log.d('Preloading ${imageUrls.length} moment images...');
       await cacheImagesBatch(imageUrls);
-      print('Preloading complete');
+      _log.d('Preloading complete');
     }
   }
 

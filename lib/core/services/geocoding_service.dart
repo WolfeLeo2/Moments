@@ -1,7 +1,7 @@
 import 'package:moments/core/services/app_logger.dart';
 import 'package:geocoding/geocoding.dart';
 
-final _log = AppLogger('UgeocodingUservice');
+final _log = AppLogger('GeocodingService');
 
 class GeocodingService {
   /// Get city name from coordinates
@@ -15,15 +15,13 @@ class GeocodingService {
       if (placemarks.isNotEmpty) {
         final placemark = placemarks.first;
 
-        // Debug: Print all available fields
-        print('🗺️ Geocoding Debug:');
-        print('  Locality: ${placemark.locality}');
-        print('  SubLocality: ${placemark.subLocality}');
-        print('  SubAdministrativeArea: ${placemark.subAdministrativeArea}');
-        print('  AdministrativeArea: ${placemark.administrativeArea}');
-        print('  Country: ${placemark.country}');
-        print('  PostalCode: ${placemark.postalCode}');
-        print('  Thoroughfare: ${placemark.thoroughfare}');
+        // Debug: Log all available fields
+        _log.d(
+          'Geocoding result: locality=${placemark.locality}, '
+          'subLocality=${placemark.subLocality}, '
+          'subAdmin=${placemark.subAdministrativeArea}, '
+          'admin=${placemark.administrativeArea}',
+        );
 
         // Try to get city name in order of preference
         // For Kenya, locality usually contains the town/area name
@@ -33,7 +31,7 @@ class GeocodingService {
             placemark.subAdministrativeArea ??
             placemark.administrativeArea;
 
-        print('✅ Selected city name: $cityName');
+        _log.d('Selected city name: $cityName');
 
         if (cityName != null && cityName.isNotEmpty) {
           return cityName;
@@ -44,7 +42,7 @@ class GeocodingService {
 
       return 'Unknown Location';
     } catch (e) {
-      print('❌ Error getting city name: $e');
+      _log.e('Error getting city name: $e');
       return 'Unknown Location';
     }
   }

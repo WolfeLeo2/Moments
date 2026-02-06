@@ -3,23 +3,53 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class AppTheme {
-  // Soft Minimalism Color Palette
-  static const Color primaryBlue = Color.fromARGB(255, 32, 102, 243); // Softer Royal Blue
-  static const Color backgroundBeige = Color.fromARGB(255, 251, 244, 234); // Clean Off-White
+  // ============================================
+  // CORE COLOR PALETTE (Playful & Bright)
+  // ============================================
+  static const Color primaryBlue = Color.fromARGB(
+    255,
+    32,
+    102,
+    243,
+  ); // Softer Royal Blue
+  static const Color backgroundBeige = Color.fromARGB(
+    255,
+    251,
+    244,
+    234,
+  ); // Clean Off-White
   static const Color cardWhite = Color(0xFFFFFFFF);
   static const Color textDark = Color(0xFF1A1A1A); // Softer Black
   static const Color textGray = Color(0xFF718096);
   static Color borderGray = Colors.grey[200]!; // Subtle border
 
-  // Deprecated vivid neons - mapped to softer accents or removed
-  static const Color neonPink = Color(0xFFFF4081); // Softer Pink
-  static const Color brightYellow = Color(0xFFFFD740); // Softer Yellow
-  static const Color electricPurple = Color(0xFF9C27B0); // Softer Purple
-  static const Color vibrantGreen = Color(0xFF00C853); // Softer Green
-  static const Color emergencyRed = Color(0xFFEF5350); // Softer Red
-  static const Color borderBlack = Colors.transparent; // Removed hard borders
+  // Accent Colors (Vivid & Playful)
+  static const Color neonPink = Color(0xFFFF4081);
+  static const Color brightYellow = Color(0xFFFFD740);
+  static const Color electricPurple = Color(0xFF9C27B0);
+  static const Color vibrantGreen = Color(0xFF00C853);
+  static const Color emergencyRed = Color(0xFFEF5350);
+  static const Color borderBlack = Colors.transparent;
 
-  // Spacing Constants (8dp grid system)
+  // ============================================
+  // EMOTIONAL / MEMORY LANE COLORS (Playful & Bright)
+  // ============================================
+  static const Color warmCream = Color(0xFFFFF8E7);      // Bright warm paper
+  static const Color softIvory = Color(0xFFFFFDF5);      // Warm card background
+  static const Color coralPink = Color(0xFFFF6B6B);      // Lively nostalgic pink
+  static const Color mintGreen = Color(0xFF51D88A);      // Fresh nature green
+  static const Color skyBlue = Color(0xFF54B7F5);        // Bright reflective blue
+  static const Color sunsetOrange = Color(0xFFFFAA5C);   // Warm sunset glow
+  static const Color lavenderPop = Color(0xFFA78BFA);    // Playful purple
+  // Legacy aliases for emotional references
+  static const Color dustyRose = coralPink;
+  static const Color sageGreen = mintGreen;
+  static const Color twilightBlue = skyBlue;
+  static const Color amberGold = sunsetOrange;
+
+  // ============================================
+  // SPACING CONSTANTS (8dp grid system)
+  // ============================================
   static const double spacing4 = 4.0;
   static const double spacing8 = 8.0;
   static const double spacing12 = 12.0;
@@ -36,7 +66,6 @@ class AppTheme {
   static double radiusCircle = 50.0.r;
   static double radiusMomentCard = 16.0.r; // Rounded corners for photos
 
-  // Border widths
   // Border widths - Reduced or Removed
   static double borderThin = 1.0.w;
   static double borderMedium = 1.0.w;
@@ -62,11 +91,22 @@ class AppTheme {
   ];
 
   static List<BoxShadow> get cardShadow => brutalShadow;
+  static List<BoxShadow> get softShadow => brutalShadowSmall;
   static List<BoxShadow> get buttonShadow => [
     BoxShadow(
       color: primaryBlue.withValues(alpha: 0.25),
       offset: const Offset(0, 4),
       blurRadius: 12,
+    ),
+  ];
+
+  /// Subtle glow for interactive elements
+  static List<BoxShadow> get glowShadow => [
+    BoxShadow(
+      color: primaryBlue.withValues(alpha: 0.15),
+      offset: Offset.zero,
+      blurRadius: 16,
+      spreadRadius: 2,
     ),
   ];
 
@@ -222,5 +262,61 @@ class AppTheme {
         letterSpacing: 0.5,
       ),
     );
+  }
+
+  // ============================================
+  // HELPER METHODS
+  // ============================================
+
+  /// Get time-of-day tint color for a moment
+  static Color getTimeOfDayTint(DateTime timestamp) {
+    final hour = timestamp.hour;
+    if (hour >= 5 && hour < 11) {
+      return amberGold.withValues(alpha: 0.05); // Morning - warm amber
+    } else if (hour >= 11 && hour < 17) {
+      return Colors.transparent; // Afternoon - neutral
+    } else if (hour >= 17 && hour < 21) {
+      return dustyRose.withValues(alpha: 0.05); // Evening - dusty rose
+    } else {
+      return twilightBlue.withValues(alpha: 0.08); // Night - twilight blue
+    }
+  }
+
+  /// Get saturation multiplier based on moment age
+  static double getAgeSaturation(DateTime timestamp) {
+    final age = DateTime.now().difference(timestamp);
+    if (age.inDays < 1) return 1.0;
+    if (age.inDays < 7) return 0.95;
+    if (age.inDays < 30) return 0.90;
+    if (age.inDays < 365) return 0.85;
+    if (age.inDays < 365 * 3) return 0.80;
+    return 0.75; // 3+ years - vintage
+  }
+
+  /// Format timestamp as relative, emotional text
+  static String formatRelativeTime(DateTime timestamp) {
+    final now = DateTime.now();
+    final diff = now.difference(timestamp);
+
+    if (diff.inDays == 0) return 'Today';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7) return '${diff.inDays} days ago';
+    if (diff.inDays < 14) return 'Last week';
+    if (diff.inDays < 30) return '${(diff.inDays / 7).floor()} weeks ago';
+    if (diff.inDays < 60) return 'Last month';
+    if (diff.inDays < 365) return '${(diff.inDays / 30).floor()} months ago';
+    
+    final years = (diff.inDays / 365).floor();
+    if (years == 1) return 'A year ago';
+    if (years == 2) return 'Two years ago';
+    return '$years years ago';
+  }
+
+  /// Check if moment is from same day in a previous year
+  static bool isAnniversary(DateTime timestamp) {
+    final now = DateTime.now();
+    return timestamp.month == now.month && 
+           timestamp.day == now.day && 
+           timestamp.year < now.year;
   }
 }

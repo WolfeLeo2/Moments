@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/providers/providers.dart';
-import 'package:moments/features/map/presentation/map_page_mapbox.dart';
-import 'package:moments/features/feed/presentation/feed_page.dart';
-import 'package:moments/features/chat/presentation/chat_list_page.dart';
 import 'package:moments/features/map/presentation/map_page_flutter_map.dart';
-/// Main scaffold with bottom navigation for the app's primary tabs
+import 'package:moments/features/feed/presentation/memory_lane_page.dart';
+import 'package:moments/features/chat/presentation/chat_list_page.dart';
+
+/// Main scaffold with floating bottom bar navigation
 class MainScaffold extends ConsumerStatefulWidget {
   const MainScaffold({super.key, this.initialIndex = 0});
 
@@ -16,20 +18,31 @@ class MainScaffold extends ConsumerStatefulWidget {
   ConsumerState<MainScaffold> createState() => _MainScaffoldState();
 }
 
-class _MainScaffoldState extends ConsumerState<MainScaffold> {
+class _MainScaffoldState extends ConsumerState<MainScaffold>
+    with SingleTickerProviderStateMixin {
   late int _currentIndex;
-
-  // Keep pages alive to preserve state
-  final List<Widget> _pages = const [
-    MapPage(),
-    FeedPage(),
-    ChatListPage(),
-  ];
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: _currentIndex,
+    );
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        setState(() => _currentIndex = _tabController.index);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
@@ -37,50 +50,134 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     final unreadChatCount = ref.watch(unreadChatCountProvider).value ?? 0;
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
+      body: BottomBar(
+      
+        borderRadius: BorderRadius.circular(500),
+        duration: const Duration(milliseconds: 200),
+        width: MediaQuery.of(context).size.width * 0.55,
+        barColor: AppTheme.cardWhite,
+        start: 2,
+        end: 0,
+        offset: 20,
+        barAlignment: Alignment.bottomCenter,
+        iconHeight: 24,
+        iconWidth: 24,
+        reverse: false,
+        hideOnScroll: true,
+        scrollOpposite: true,
+        
+        body: (context, controller) => TabBarView(
+          controller: _tabController,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            // Only pass scroll controller to active tab to avoid "attached to multiple scroll views" error
+            _KeepAlivePage(child: MapPage(scrollController: _currentIndex == 0 ? controller : null)),
+            _KeepAlivePage(child: MemoryLanePage(scrollController: _currentIndex == 1 ? controller : null)),
+            _KeepAlivePage(child: ChatListPage(scrollController: _currentIndex == 2 ? controller : null)),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          child: TabBar(
+            controller: _tabController,
+            indicator: UnderlineTabIndicator(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: BorderSide(
+                color: AppTheme.primaryBlue,
+                width: 3,
+              ),
+              insets: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+            indicatorSize: TabBarIndicatorSize.label,
+            dividerColor: Colors.transparent,
+            labelColor: AppTheme.primaryBlue,
+            unselectedLabelColor: Colors.grey.shade600,
+            splashFactory: InkRipple.splashFactory,
+            overlayColor: WidgetStateProperty.all(Colors.transparent),
+            tabs: [
+              _buildTab(
+                hugeIcon: HugeIcons.strokeRoundedMapsLocation01,
+                label: 'Map',
+                isSelected: _currentIndex == 0,
+              ),
+              _buildTab(
+                hugeIcon: HugeIcons.strokeRoundedDashboardSquare01,
+                label: 'Feed',
+                isSelected: _currentIndex == 1,
+              ),
+              _buildTab(
+                hugeIcon: HugeIcons.strokeRoundedBubbleChat,
+                label: 'Messages',
+                isSelected: _currentIndex == 2,
+                badge: unreadChatCount,
+              ),
+            ],
+          ),
+        ),
       ),
-      bottomNavigationBar: NavigationBar(
-        backgroundColor: Colors.transparent,
-        height: 60,
-        indicatorColor: AppTheme.primaryBlue.withValues(alpha: 0.15),
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() => _currentIndex = index);
-        },
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map),
-            label: 'Map',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Feed',
-          ),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: unreadChatCount > 0,
-              label: Text(
-                unreadChatCount > 9 ? '9+' : '$unreadChatCount',
-                style: const TextStyle(fontSize: 10),
+    );
+  }
+
+  Widget _buildTab({
+    required dynamic hugeIcon,
+    required bool isSelected,
+    required String label,
+    int badge = 0,
+  }) {
+    return Tab(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Badge(
+            isLabelVisible: badge > 0,
+            label: Text(
+              badge > 9 ? '9+' : '$badge',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
               ),
-              child: const Icon(Icons.chat_bubble_outline),
             ),
-            selectedIcon: Badge(
-              isLabelVisible: unreadChatCount > 0,
-              label: Text(
-                unreadChatCount > 9 ? '9+' : '$unreadChatCount',
-                style: const TextStyle(fontSize: 10),
-              ),
-              child: const Icon(Icons.chat_bubble),
+            backgroundColor: AppTheme.emergencyRed,
+            child: HugeIcon(
+              icon: hugeIcon,
+              color: isSelected ? AppTheme.primaryBlue : Colors.grey.shade500,
+              size: 22,
             ),
-            label: 'Chat',
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: isSelected ? AppTheme.primaryBlue : Colors.grey.shade500,
+            ),
           ),
         ],
       ),
     );
+  }
+}
+
+/// Wrapper to keep pages alive when switching tabs
+class _KeepAlivePage extends StatefulWidget {
+  final Widget child;
+  
+  const _KeepAlivePage({required this.child});
+  
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+  
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
