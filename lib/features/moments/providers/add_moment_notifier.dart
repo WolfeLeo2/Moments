@@ -5,6 +5,8 @@ import 'package:location/location.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/services/geocoding_service.dart';
+import '../../../core/services/audio_note_service.dart';
+import '../../../data/models/music_data.dart';
 import '../../../core/providers/moments_providers.dart';
 import '../../../data/repositories/moment_repository.dart';
 import 'add_moment_state.dart';
@@ -250,6 +252,9 @@ class AddMoment extends _$AddMoment {
   Future<bool> createMoment({
     required String title,
     required String caption,
+    String? audioPath,
+    int? audioDuration,
+    MusicData? musicData,
   }) async {
     if (state.imageFiles.isEmpty) {
       state = state.copyWith(
@@ -266,6 +271,17 @@ class AddMoment extends _$AddMoment {
     state = state.copyWith(status: AddMomentStatus.loading, errorMessage: null);
 
     try {
+      // Upload audio note if present
+      String? uploadedAudioPath;
+      if (audioPath != null) {
+        try {
+          uploadedAudioPath = await AudioNoteService.uploadAudio(audioPath);
+        } catch (e) {
+          _log.e('Failed to upload audio note: $e');
+          // Continue without audio — don't block moment creation
+        }
+      }
+
       // If single media (could be video or single image)
       if (state.imageFiles.length == 1) {
         await _momentRepository.createMoment(
@@ -275,11 +291,14 @@ class AddMoment extends _$AddMoment {
           state.locationName ?? 'Unknown Location',
           state.latitude!,
           state.longitude!,
-          isPrivate: state.isPhotoPrivate(0), // Use per-photo privacy
+          isPrivate: state.isPhotoPrivate(0),
           isGroupPrivate: state.isGroupPrivate,
           momentGroupId: state.selectedGroupId,
           isVideo: state.isVideo,
           videoDuration: state.videoDuration,
+          audioPath: uploadedAudioPath,
+          audioDuration: audioDuration,
+          musicData: musicData,
         );
       } else {
         // Multiple images - use batch with per-photo privacy
@@ -298,6 +317,9 @@ class AddMoment extends _$AddMoment {
           photoPrivacyList: photoPrivacyList,
           isGroupPrivate: state.isGroupPrivate,
           momentGroupId: state.selectedGroupId,
+          audioPath: uploadedAudioPath,
+          audioDuration: audioDuration,
+          musicData: musicData,
         );
       }
 

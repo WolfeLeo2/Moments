@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:moments/core/theme/app_theme.dart';
+import 'package:moments/core/services/audio_note_service.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/features/chat/providers/media_cache_provider.dart';
 import 'package:moments/features/chat/widgets/custom_bubble_special_three.dart';
+import 'package:moments/widgets/audio_waveform_widget.dart';
 
 class AudioMessageBubble extends ConsumerStatefulWidget {
   final Message message;
@@ -152,22 +154,28 @@ class _AudioMessageBubbleState extends ConsumerState<AudioMessageBubble>
             ),
             const SizedBox(width: 12),
 
-            // Progress and duration
+            // Waveform visualization
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Progress bar
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                      value: _duration.inMilliseconds > 0
+                  // Audio waveform
+                  SizedBox(
+                    height: 28,
+                    child: AudioWaveformWidget(
+                      amplitudes: AudioNoteService.generateFakeWaveform(
+                        _duration.inSeconds > 0 ? _duration.inSeconds : 10,
+                      ),
+                      mode: WaveformMode.playback,
+                      progress: _duration.inMilliseconds > 0
                           ? _position.inMilliseconds / _duration.inMilliseconds
-                          : 0,
-                      backgroundColor: color.withValues(alpha: 0.2),
-                      valueColor: AlwaysStoppedAnimation<Color>(color),
-                      minHeight: 4,
+                          : 0.0,
+                      activeColor: color,
+                      inactiveColor: color.withValues(alpha: 0.25),
+                      height: 28,
+                      barWidth: 2.5,
+                      barSpacing: 1.5,
                     ),
                   ),
                   const SizedBox(height: 4),

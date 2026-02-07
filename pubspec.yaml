@@ -40,6 +40,8 @@ dependencies:
   crypto: ^3.0.3
   firebase_core: ^4.3.0
   firebase_messaging: ^16.1.0
+  firebase_ai: ^3.7.0
+  firebase_auth: ^6.1.4
   flutter_local_notifications: ^17.2.1
   moments_native:
     path: ./plugins/moments_native

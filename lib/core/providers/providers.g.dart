@@ -211,6 +211,52 @@ final class AvatarCacheServiceProvider
 String _$avatarCacheServiceHash() =>
     r'3034cda50bc866bf5ba9a9d2d573c738c4868aff';
 
+/// AI service provider - singleton, uses Firebase AI (Gemini Developer API free tier)
+
+@ProviderFor(aiService)
+const aiServiceProvider = AiServiceProvider._();
+
+/// AI service provider - singleton, uses Firebase AI (Gemini Developer API free tier)
+
+final class AiServiceProvider
+    extends $FunctionalProvider<AIService, AIService, AIService>
+    with $Provider<AIService> {
+  /// AI service provider - singleton, uses Firebase AI (Gemini Developer API free tier)
+  const AiServiceProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'aiServiceProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$aiServiceHash();
+
+  @$internal
+  @override
+  $ProviderElement<AIService> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  AIService create(Ref ref) {
+    return aiService(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(AIService value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<AIService>(value),
+    );
+  }
+}
+
+String _$aiServiceHash() => r'f3676f4c3d527135c19190275905b7fddc88471a';
+
 /// Current authenticated user
 
 @ProviderFor(currentUser)

@@ -6,8 +6,12 @@ import 'package:moments/core/utils/extensions.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/services/haptic_service.dart';
+import '../../../core/services/audio_note_service.dart';
 import '../../../widgets/spring_button.dart';
 import '../../../widgets/video_player_widget.dart';
+import '../../../widgets/audio_waveform_widget.dart';
+import '../../../widgets/music_picker_sheet.dart';
+import '../../../data/models/music_data.dart';
 import '../providers/add_moment_notifier.dart';
 import '../providers/add_moment_state.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -40,9 +44,32 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
   final _titleController = TextEditingController();
   final _captionController = TextEditingController();
 
+  // Audio note state
+  final AudioNoteService _audioService = AudioNoteService();
+  String? _audioNotePath;
+  int _audioNoteDuration = 0;
+  bool _isRecordingAudio = false;
+  int _recordingSeconds = 0;
+  List<double> _amplitudes = [];
+
+  // Music state
+  MusicData? _selectedMusic;
+
   @override
   void initState() {
     super.initState();
+
+    // Listen to audio recording streams
+    _audioService.isRecordingStream.listen((recording) {
+      if (mounted) setState(() => _isRecordingAudio = recording);
+    });
+    _audioService.recordingDurationStream.listen((seconds) {
+      if (mounted) setState(() => _recordingSeconds = seconds);
+    });
+    _audioService.amplitudeStream.listen((amps) {
+      if (mounted) setState(() => _amplitudes = amps);
+    });
+
     // Initialize the notifier with passed arguments
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref
@@ -62,6 +89,7 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
   void dispose() {
     _titleController.dispose();
     _captionController.dispose();
+    _audioService.dispose();
     super.dispose();
   }
 
@@ -71,6 +99,9 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
         .createMoment(
           title: _titleController.text.trim(),
           caption: _captionController.text.trim(),
+          audioPath: _audioNotePath,
+          audioDuration: _audioNoteDuration > 0 ? _audioNoteDuration : null,
+          musicData: _selectedMusic,
         );
 
     if (success && mounted) {
@@ -378,6 +409,16 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                       ],
                     ),
                   ),
+
+                  const SizedBox(height: 24),
+
+                  // Audio Note Section
+                  _buildAudioNoteSection(),
+
+                  const SizedBox(height: 24),
+
+                  // Music Section
+                  _buildMusicSection(),
 
                   const SizedBox(height: 24),
 
@@ -763,6 +804,523 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
     );
   }
 
+  Widget _buildAudioNoteSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'AUDIO NOTE',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textDark,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_isRecordingAudio)
+            _buildRecordingState()
+          else if (_audioNotePath != null)
+            _buildRecordedPreview()
+          else
+            _buildRecordButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMusicSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'MUSIC',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textDark,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_selectedMusic != null)
+            _buildSelectedMusicPreview()
+          else
+            _buildAddMusicButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAddMusicButton() {
+    return GestureDetector(
+      onTap: () async {
+        final music = await showMusicPickerSheet(context);
+        if (music != null && mounted) {
+          HapticService.lightTap();
+          setState(() => _selectedMusic = music);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: ShapeDecoration(
+          color: Colors.white,
+          shape: RoundedSuperellipseBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+            side: BorderSide(color: AppTheme.borderGray, width: 1),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppTheme.lavenderPop.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.music_note_rounded,
+                color: AppTheme.lavenderPop,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Add music to your moment',
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textGray,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectedMusicPreview() {
+    final music = _selectedMusic!;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: ShapeDecoration(
+        color: Colors.white,
+        shape: RoundedSuperellipseBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          side: BorderSide(color: AppTheme.lavenderPop, width: 1.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Album art or icon
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: music.albumArt != null && music.albumArt!.isNotEmpty
+                ? Image.network(
+                    music.albumArt!,
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _musicPlaceholder(),
+                  )
+                : _musicPlaceholder(),
+          ),
+          const SizedBox(width: 12),
+          // Track info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  music.title,
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textDark,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  music.artist,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: AppTheme.textGray,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          // Change button
+          GestureDetector(
+            onTap: () async {
+              final music = await showMusicPickerSheet(context);
+              if (music != null && mounted) {
+                setState(() => _selectedMusic = music);
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppTheme.lavenderPop.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Change',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.lavenderPop,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Remove button
+          GestureDetector(
+            onTap: () {
+              HapticService.lightTap();
+              setState(() => _selectedMusic = null);
+            },
+            child: Icon(
+              Icons.close_rounded,
+              color: AppTheme.textGray,
+              size: 20,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _musicPlaceholder() {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: AppTheme.lavenderPop.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(
+        Icons.music_note_rounded,
+        color: AppTheme.lavenderPop,
+        size: 22,
+      ),
+    );
+  }
+
+  Widget _buildRecordButton() {
+    return GestureDetector(
+      onTap: _startRecording,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: ShapeDecoration(
+          color: Colors.white,
+          shape: RoundedSuperellipseBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+            side: BorderSide(color: AppTheme.borderGray, width: 1),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppTheme.coralPink.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.mic_rounded,
+                color: AppTheme.coralPink,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Tap to record a voice note',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textGray,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecordingState() {
+    final minutes = _recordingSeconds ~/ 60;
+    final seconds = _recordingSeconds % 60;
+    final timeStr =
+        '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: ShapeDecoration(
+        color: AppTheme.coralPink.withValues(alpha: 0.08),
+        shape: RoundedSuperellipseBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          side: BorderSide(
+            color: AppTheme.coralPink.withValues(alpha: 0.3),
+            width: 1.5,
+          ),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Live waveform
+          SizedBox(
+            height: 48,
+            child: AudioWaveformWidget(
+              amplitudes: _amplitudes,
+              mode: WaveformMode.recording,
+              activeColor: AppTheme.coralPink,
+              inactiveColor: AppTheme.coralPink.withValues(alpha: 0.3),
+              barWidth: 3,
+              barSpacing: 2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Duration + controls
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Cancel button
+              GestureDetector(
+                onTap: _cancelRecording,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppTheme.borderGray),
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.black54,
+                    size: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 20),
+              // Recording indicator + time
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: AppTheme.coralPink,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      timeStr,
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textDark,
+                        fontFeatures: [const FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 20),
+              // Stop button
+              GestureDetector(
+                onTap: _stopRecording,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppTheme.coralPink,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.coralPink.withValues(alpha: 0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.stop_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecordedPreview() {
+    final minutes = _audioNoteDuration ~/ 60;
+    final seconds = _audioNoteDuration % 60;
+    final timeStr =
+        '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: ShapeDecoration(
+        color: Colors.white,
+        shape: RoundedSuperellipseBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          side: BorderSide(color: AppTheme.borderGray, width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Play button
+          GestureDetector(
+            onTap: _playPreview,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue,
+                shape: BoxShape.circle,
+              ),
+              child: StreamBuilder<bool>(
+                stream: _audioService.isPlayingStream,
+                initialData: false,
+                builder: (context, snapshot) {
+                  final isPlaying = snapshot.data ?? false;
+                  return Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Waveform preview
+          Expanded(
+            child: SizedBox(
+              height: 32,
+              child: AudioWaveformWidget(
+                amplitudes: _amplitudes.isNotEmpty
+                    ? _amplitudes
+                    : AudioNoteService.generateFakeWaveform(_audioNoteDuration),
+                mode: WaveformMode.compact,
+                activeColor: AppTheme.primaryBlue,
+                inactiveColor: AppTheme.primaryBlue.withValues(alpha: 0.2),
+                barWidth: 2,
+                barSpacing: 1.5,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Duration
+          Text(
+            timeStr,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textDark,
+              fontFeatures: [const FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Delete button
+          GestureDetector(
+            onTap: _deleteRecording,
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppTheme.emergencyRed.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.delete_outline_rounded,
+                color: AppTheme.emergencyRed,
+                size: 18,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _startRecording() async {
+    HapticService.lightTap();
+    await _audioService.startRecording();
+  }
+
+  Future<void> _stopRecording() async {
+    HapticService.lightTap();
+    final result = await _audioService.stopRecording();
+    if (result != null && mounted) {
+      setState(() {
+        _audioNotePath = result.path;
+        _audioNoteDuration = result.durationSeconds;
+      });
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    HapticService.lightTap();
+    await _audioService.cancelRecording();
+    if (mounted) {
+      setState(() {
+        _audioNotePath = null;
+        _audioNoteDuration = 0;
+        _amplitudes = [];
+      });
+    }
+  }
+
+  void _playPreview() {
+    if (_audioNotePath == null) return;
+    HapticService.lightTap();
+    if (_audioService.isPlaying) {
+      _audioService.pause();
+    } else {
+      _audioService.play(_audioNotePath!);
+    }
+  }
+
+  void _deleteRecording() {
+    HapticService.lightTap();
+    _audioService.stop();
+    setState(() {
+      _audioNotePath = null;
+      _audioNoteDuration = 0;
+      _amplitudes = [];
+    });
+  }
+
   Widget _buildEmptyState(AddMomentState state) {
     return Center(
       child: Column(
@@ -818,10 +1376,7 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                   ),
                   child: Row(
                     children: [
-                      FaIcon(
-                        FontAwesomeIcons.camera,
-                        size: 24,
-                      ),
+                      FaIcon(FontAwesomeIcons.camera, size: 24),
                       const SizedBox(width: 8),
                       Text(
                         'CAMERA',
@@ -851,10 +1406,7 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                   ),
                   child: Row(
                     children: [
-                      FaIcon(
-                        FontAwesomeIcons.image,
-                        size: 24,
-                      ),
+                      FaIcon(FontAwesomeIcons.image, size: 24),
                       const SizedBox(width: 8),
                       Text(
                         'GALLERY',

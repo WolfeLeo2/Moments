@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:equatable/equatable.dart';
+import 'music_data.dart';
 
 class Moment extends Equatable {
   final String id;
@@ -18,6 +20,9 @@ class Moment extends Equatable {
   final String? description;
   final String? momentGroupId; // Reference to moment group
   final bool isPrivate; // Completely private, only visible to owner
+  final String? audioPath; // Storage path for audio note
+  final int? audioDuration; // Duration of audio note in seconds
+  final MusicData? musicData; // Attached music (Deezer preview or curated)
 
   const Moment({
     required this.id,
@@ -37,6 +42,9 @@ class Moment extends Equatable {
     this.description,
     this.momentGroupId,
     this.isPrivate = false,
+    this.audioPath,
+    this.audioDuration,
+    this.musicData,
   });
 
   factory Moment.fromJson(Map<String, dynamic> json) {
@@ -58,6 +66,16 @@ class Moment extends Equatable {
       description: json['description'] as String?,
       momentGroupId: json['moment_group_id'] as String?,
       isPrivate: json['is_private'] as bool? ?? false,
+      audioPath: json['audio_path'] as String?,
+      audioDuration: json['audio_duration'] as int?,
+      musicData: json['music_data'] != null
+          ? MusicData.fromJson(
+              json['music_data'] is String
+                  ? jsonDecode(json['music_data'] as String)
+                        as Map<String, dynamic>
+                  : json['music_data'] as Map<String, dynamic>,
+            )
+          : null,
     );
   }
 
@@ -80,6 +98,9 @@ class Moment extends Equatable {
       'description': description,
       'moment_group_id': momentGroupId,
       'is_private': isPrivate,
+      'audio_path': audioPath,
+      'audio_duration': audioDuration,
+      'music_data': musicData?.toJson(),
     };
   }
 
@@ -107,6 +128,9 @@ class Moment extends Equatable {
     String? description,
     String? momentGroupId,
     bool? isPrivate,
+    String? audioPath,
+    int? audioDuration,
+    MusicData? musicData,
   }) {
     return Moment(
       id: id ?? this.id,
@@ -126,6 +150,9 @@ class Moment extends Equatable {
       description: description ?? this.description,
       momentGroupId: momentGroupId ?? this.momentGroupId,
       isPrivate: isPrivate ?? this.isPrivate,
+      audioPath: audioPath ?? this.audioPath,
+      audioDuration: audioDuration ?? this.audioDuration,
+      musicData: musicData ?? this.musicData,
     );
   }
 
@@ -148,6 +175,9 @@ class Moment extends Equatable {
     description,
     momentGroupId,
     isPrivate,
+    audioPath,
+    audioDuration,
+    musicData,
   ];
 
   @override

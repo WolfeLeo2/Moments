@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:moments/features/moments/presentation/relive_experience_page.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:motor/motor.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -17,6 +18,8 @@ import '../../../widgets/share_bottom_sheet.dart';
 import '../../../widgets/heart_animation.dart';
 import '../../../widgets/contributors_list.dart';
 import '../../../widgets/invite_contributors_sheet.dart';
+import '../../../widgets/music_indicator.dart';
+import '../../../widgets/collaborative_audio_list.dart';
 
 import 'dart:math' as math;
 import 'package:google_fonts/google_fonts.dart';
@@ -1668,7 +1671,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
   @override
   Widget build(BuildContext context) {
-    // Listen for realtime updates (properly handles side effects outside build)
+    // Listen for realtime updates
     if (_groupId != null) {
       ref.listen(momentsByGroupStreamProvider(_groupId!), (previous, next) {
         next.whenData((updatedMoments) {
@@ -1677,596 +1680,558 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       });
     }
 
-    // Get screen height for proper sizing
     final screenHeight = MediaQuery.of(context).size.height;
     final availableHeight =
         screenHeight -
         MediaQuery.of(context).padding.top -
         MediaQuery.of(context).padding.bottom;
 
+    // Calculate how much space bottom sections need
+    final hasAudioNotes = _moments.any((m) => m.audioPath != null);
+    final hasMusic = _moments.any((m) => m.musicData != null);
+    final bottomSectionHeight =
+        (hasAudioNotes ? 90.0 : 0.0) + (hasMusic ? 56.0 : 0.0);
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundBeige,
-      // Only show FAB if user can add photos (owner or accepted contributor)
-      floatingActionButton: _canAddPhotos
-          ? Container(
-              decoration: BoxDecoration(
-                color: AppTheme.primaryBlue,
-                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                border: Border.all(
-                  color: AppTheme.borderBlack,
-                  width: AppTheme.borderMedium,
-                ),
-                boxShadow: AppTheme.brutalShadow,
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: _isUploading ? null : _handleAddPhotos,
-                  borderRadius: BorderRadius.circular(
-                    (AppTheme.radiusMedium - 2).clamp(0.0, double.infinity),
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 16.w,
-                      vertical: 12.h,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _isUploading
-                            ? SizedBox(
-                                width: 20.w,
-                                height: 20.w,
-                                child: const CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : FaIcon(
-                                FontAwesomeIcons.image,
-                                size: 20.sp,
-                                color: Colors.white,
-                              ),
-                        SizedBox(width: 8.w),
-                        Text(
-                          _isUploading ? 'Adding...' : 'Add to Moment',
-                          style: GoogleFonts.inter(
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            )
-          : null,
+      floatingActionButton: _buildFAB(),
       body: SafeArea(
         child: Column(
           children: [
-            // Animated header with spring animation - clamp scale to prevent RRect geometry errors
-            Transform.scale(
-              scale: _headerScale.clamp(0.01, 1.0),
-              child: Opacity(
-                opacity: _headerOpacity.clamp(0.0, 1.0),
-                child: Column(
-                  children: [
-                    // AppBar with back button and centered location
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8.0,
-                        vertical: 16.0,
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: SvgPicture.asset(
-                              'assets/icons/Left arrow.svg',
-                              width: 34.w,
-                              height: 34.h,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          Expanded(
-                            child: GestureDetector(
-                              onLongPress: () {
-                                if (_moments.isNotEmpty &&
-                                    _isOwnMoment(_moments[_currentPage])) {
-                                  HapticService.mediumTap();
-                                  _showTitlePrivacyMenu();
-                                }
-                              },
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      // Show lock icon for current moment's privacy state
-                                      if (_moments.isNotEmpty &&
-                                          _moments[_currentPage].isPrivate)
-                                        GestureDetector(
-                                          onTap: () => _showPrivacyDropdown(
-                                            context,
-                                            _moments[_currentPage],
-                                            _currentPage,
-                                          ),
-                                          child: Padding(
-                                            padding: const EdgeInsets.only(
-                                              right: 6.0,
-                                            ),
-                                            child: FaIcon(
-                                              FontAwesomeIcons.lock,
-                                              size: 20,
-                                              color: AppTheme.emergencyRed,
-                                            ),
-                                          ),
-                                        ),
-                                      Flexible(
-                                        child: Text(
-                                          _moments.isNotEmpty
-                                              ? _moments.first.title
-                                                    .toUpperCase()
-                                              : 'MOMENT',
-                                          style: GoogleFonts.bebasNeue(
-                                            fontSize: 28.sp,
-                                            letterSpacing: 1.5.sp,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.black,
-                                            height: 1.2.h,
-                                          ),
-                                          textAlign: TextAlign.center,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      FaIcon(
-                                        FontAwesomeIcons.locationDot,
-                                        size: 12,
-                                        color: AppTheme.primaryBlue,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        widget.locationName,
-                                        style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                          color: AppTheme.primaryBlue,
-                                          letterSpacing: 1,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          // Save offline button
-                          IconButton(
-                            onPressed: _isSavingOffline
-                                ? null
-                                : _saveAllOffline,
-                            icon: _isSavingOffline
-                                ? SizedBox(
-                                    width: 24.w,
-                                    height: 24.w,
-                                    child: const CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppTheme.primaryBlue,
-                                    ),
-                                  )
-                                : FaIcon(
-                                    _allSavedOffline
-                                        ? FontAwesomeIcons.arrowDown
-                                        : FontAwesomeIcons.circleCheck,
-                                    size: 24.sp,
-                                    color: _allSavedOffline
-                                        ? Colors.green
-                                        : AppTheme.textDark,
-                                  ),
-                            tooltip: _allSavedOffline
-                                ? 'Saved offline'
-                                : 'Save offline',
-                          ),
-                        ],
-                      ),
-                    ),
+            _buildHeader(),
+            Expanded(
+              child: _buildCarousel(availableHeight, bottomSectionHeight),
+            ),
+            if (hasAudioNotes) _buildAudioNotesSection(),
+            if (hasMusic) _buildMusicSection(),
+            SizedBox(height: 8.h),
+          ],
+        ),
+      ),
+    );
+  }
 
-                    // Total count and date range in same line (sentence case)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 4.0,
+  // ─── FAB ──────────────────────────────────────────────────────────
+
+  Widget? _buildFAB() {
+    if (!_canAddPhotos) return null;
+
+    return FloatingActionButton(
+      onPressed: _isUploading ? null : _handleAddPhotos,
+      backgroundColor: AppTheme.primaryBlue,
+      elevation: 4,
+      child: _isUploading
+          ? const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2.5,
+              ),
+            )
+          : const Icon(
+              Icons.add_photo_alternate_rounded,
+              color: Colors.white,
+              size: 26,
+            ),
+    );
+  }
+
+  // ─── HEADER ───────────────────────────────────────────────────────
+
+  Widget _buildHeader() {
+    return Transform.scale(
+      scale: _headerScale.clamp(0.01, 1.0),
+      child: Opacity(
+        opacity: _headerOpacity.clamp(0.0, 1.0),
+        child: Column(
+          children: [_buildAppBar(), _buildMetaRow(), _buildContributorRow()],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
+      child: Row(
+        children: [
+          IconButton(
+            icon: SvgPicture.asset(
+              'assets/icons/Left arrow.svg',
+              width: 34.w,
+              height: 34.h,
+            ),
+            onPressed: () => Navigator.pop(context),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onLongPress: () {
+                if (_moments.isNotEmpty &&
+                    _isOwnMoment(_moments[_currentPage])) {
+                  HapticService.mediumTap();
+                  _showTitlePrivacyMenu();
+                }
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_moments.isNotEmpty &&
+                          _moments[_currentPage].isPrivate)
+                        GestureDetector(
+                          onTap: () => _showPrivacyDropdown(
+                            context,
+                            _moments[_currentPage],
+                            _currentPage,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 6.0),
+                            child: FaIcon(
+                              FontAwesomeIcons.lock,
+                              size: 20,
+                              color: AppTheme.emergencyRed,
+                            ),
+                          ),
+                        ),
+                      Flexible(
+                        child: Text(
+                          _moments.isNotEmpty
+                              ? _moments.first.title.toUpperCase()
+                              : 'MOMENT',
+                          style: GoogleFonts.bebasNeue(
+                            fontSize: 28.sp,
+                            letterSpacing: 1.5.sp,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black,
+                            height: 1.2.h,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      child: Text(
-                        '${_moments.length} ${_moments.length == 1 ? 'photo' : 'photos'}  •  ${_getDateRange()}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.black54,
-                          letterSpacing: 0.3,
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FaIcon(
+                        FontAwesomeIcons.locationDot,
+                        size: 12,
+                        color: AppTheme.primaryBlue,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        widget.locationName,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: AppTheme.primaryBlue,
+                          letterSpacing: 1,
                         ),
                         textAlign: TextAlign.center,
                       ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: _isSavingOffline ? null : _saveAllOffline,
+            icon: _isSavingOffline
+                ? SizedBox(
+                    width: 24.w,
+                    height: 24.w,
+                    child: const CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppTheme.primaryBlue,
                     ),
+                  )
+                : FaIcon(
+                    _allSavedOffline
+                        ? FontAwesomeIcons.arrowDown
+                        : FontAwesomeIcons.circleCheck,
+                    size: 24.sp,
+                    color: _allSavedOffline ? Colors.green : AppTheme.textDark,
+                  ),
+            tooltip: _allSavedOffline ? 'Saved offline' : 'Save offline',
+          ),
+        ],
+      ),
+    );
+  }
 
-                    // Avatar stack of contributors (tappable to show full list)
-                    // Always show for owners so they can invite friends
-                    if (_getAvatarsToDisplay().isNotEmpty ||
-                        _contributors.isNotEmpty ||
-                        _isOwner)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6.0),
-                        child: GestureDetector(
-                          onTap: _showContributorsModal,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              if (_getAvatarsToDisplay().isNotEmpty)
-                                _buildAvatarStack()
-                              else if (_isOwner)
-                                // Show invite prompt for owners with no contributors yet
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.primaryBlue.withValues(
-                                      alpha: 0.1,
-                                    ),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: AppTheme.primaryBlue.withValues(
-                                        alpha: 0.3,
-                                      ),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      FaIcon(
-                                        FontAwesomeIcons.userPlus,
-                                        size: 16,
-                                        color: AppTheme.primaryBlue,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        'Invite friends',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppTheme.primaryBlue,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              if (_contributors.length > 1) ...[
-                                const SizedBox(width: 8),
-                                FaIcon(
-                                  FontAwesomeIcons.arrowRight,
-                                  size: 16,
-                                  color: Colors.grey,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
+  Widget _buildMetaRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Text(
+        '${_moments.length} ${_moments.length == 1 ? 'photo' : 'photos'}  •  ${_getDateRange()}',
+        style: const TextStyle(
+          fontSize: 14,
+          color: Colors.black54,
+          letterSpacing: 0.3,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildContributorRow() {
+    if (_getAvatarsToDisplay().isEmpty && _contributors.isEmpty && !_isOwner) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: GestureDetector(
+        onTap: _showContributorsModal,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_getAvatarsToDisplay().isNotEmpty)
+              _buildAvatarStack()
+            else if (_isOwner)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppTheme.primaryBlue.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FaIcon(
+                      FontAwesomeIcons.userPlus,
+                      size: 16,
+                      color: AppTheme.primaryBlue,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Invite friends',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.primaryBlue,
                       ),
+                    ),
+                  ],
+                ),
+              ),
+            if (_contributors.length > 1) ...[
+              const SizedBox(width: 8),
+              FaIcon(FontAwesomeIcons.arrowRight, size: 16, color: Colors.grey),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── CAROUSEL ─────────────────────────────────────────────────────
+
+  Widget _buildCarousel(double availableHeight, double bottomOffset) {
+    return CarouselSlider.builder(
+      itemCount: _moments.length,
+      options: CarouselOptions(
+        height: double.infinity,
+        viewportFraction: 0.72,
+        enlargeCenterPage: true,
+        enlargeFactor: 0.18,
+        enableInfiniteScroll: false,
+        initialPage: widget.initialPage,
+        onPageChanged: (index, reason) {
+          _currentPage = index;
+          _prewarmVideoControllers();
+          HapticService.cardSnap();
+        },
+      ),
+      itemBuilder: (context, index, realIndex) {
+        return _buildCarouselCard(index);
+      },
+    );
+  }
+
+  Widget _buildCarouselCard(int index) {
+    final moment = _moments[index];
+    final imageUrl = _imageUrls[moment.id];
+
+    final scale = (index < _scales.length ? _scales[index] : 0.85).clamp(
+      0.01,
+      1.0,
+    );
+    final opacity = index < _opacities.length
+        ? _opacities[index].clamp(0.0, 1.0)
+        : 0.0;
+    final rotation = (((index * 37) % 5) - 2) * 0.5;
+
+    return GestureDetector(
+      onTap: () => _openRelive(index),
+      onDoubleTap: () => _handleDoubleTapHeart(index),
+      onLongPressStart: (details) {
+        HapticService.longPress();
+        _showMomentActionsMenu(moment, imageUrl, details.globalPosition);
+      },
+      child: Transform.scale(
+        scale: scale,
+        child: Opacity(
+          opacity: opacity.clamp(0.0, 1.0),
+          child: Transform.rotate(
+            angle: rotation * math.pi / 180,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 320,
+                  maxHeight: 500,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Privacy tag
+                    if (moment.isPrivate) _buildPrivacyTag(moment, index),
+                    // Image card
+                    _buildImageCard(moment, imageUrl, index),
+                    // Caption + date only
+                    _buildCardFooter(moment),
                   ],
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
 
-            // Carousel with spring animations using carousel_slider - fixed height
-            SizedBox(
-              height: availableHeight - 270.h, // Subtract header/avatar space
-              child: CarouselSlider.builder(
-                itemCount: _moments.length,
-                options: CarouselOptions(
-                  height: availableHeight - 200.h,
-                  viewportFraction: 0.7, // 70% viewport for nice peek effect
-                  enlargeCenterPage: true,
-                  enlargeFactor: 0.2, // Subtle scale effect
-                  enableInfiniteScroll: false,
-                  initialPage: widget.initialPage,
-                  onPageChanged: (index, reason) {
-                    _currentPage = index;
-                    _prewarmVideoControllers();
-                    // Haptic feedback on card snap
-                    HapticService.cardSnap();
-                  },
+  void _openRelive(int index) {
+    HapticService.lightTap();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => ReliveExperiencePage(
+          moments: _moments,
+          locationName: widget.locationName,
+          initialIndex: index,
+        ),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
+  }
+
+  Widget _buildPrivacyTag(Moment moment, int index) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0, left: 4.0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: GestureDetector(
+          onTap: () => _showPrivacyDropdown(context, moment, index),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppTheme.emergencyRed,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
                 ),
-                itemBuilder: (context, index, realIndex) {
-                  final moment = _moments[index];
-                  final imageUrl = _imageUrls[moment.id];
-
-                  // Get animation values - clamp scale to prevent RRect geometry errors
-                  final scale = (index < _scales.length ? _scales[index] : 0.85)
-                      .clamp(0.01, 1.0);
-                  final opacity = index < _opacities.length
-                      ? _opacities[index].clamp(0.0, 1.0)
-                      : 0.0;
-
-                  // Slight rotation for natural feel
-                  final rotation = (((index * 37) % 5) - 2) * 0.5;
-
-                  return GestureDetector(
-                    onDoubleTap: () => _handleDoubleTapHeart(index),
-                    onLongPressStart: (details) {
-                      HapticService.longPress();
-                      _showMomentActionsMenu(
-                        moment,
-                        imageUrl,
-                        details.globalPosition,
-                      );
-                    },
-                    child: Transform.scale(
-                      scale: scale,
-                      child: Opacity(
-                        opacity: opacity.clamp(0.0, 1.0),
-                        child: Transform.rotate(
-                          angle: rotation * math.pi / 180,
-                          child: Center(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(
-                                maxWidth:
-                                    320, // Slightly larger for better visibility with 0.7 viewport
-                                maxHeight: 500,
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  // Privacy tag above card -> ensures full image visibility
-                                  if (moment.isPrivate)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 8.0,
-                                        left: 4.0,
-                                      ),
-                                      child: Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: GestureDetector(
-                                          onTap: () => _showPrivacyDropdown(
-                                            context,
-                                            moment,
-                                            index,
-                                          ),
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 6,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: AppTheme.emergencyRed,
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              border: Border.all(
-                                                color: Colors.white,
-                                                width: 1.5,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black
-                                                      .withValues(alpha: 0.2),
-                                                  blurRadius: 4,
-                                                  offset: const Offset(0, 2),
-                                                ),
-                                              ],
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                FaIcon(
-                                                  FontAwesomeIcons.lock,
-                                                  size: 14,
-                                                  color: Colors.white,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  'Private',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  // Image card with white border - 4:5 aspect ratio
-                                  // Image card - Soft Minimalism
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(18),
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 4,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.15),
-                                          blurRadius: 30,
-                                          offset: const Offset(0, 15),
-                                        ),
-                                      ],
-                                    ),
-                                    child: AspectRatio(
-                                      aspectRatio: 4 / 5,
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(14),
-                                        child: Stack(
-                                          fit: StackFit.expand,
-                                          children: [
-                                            _buildMediaContent(
-                                              moment,
-                                              imageUrl,
-                                            ),
-                                            // Heart/Dislike animation overlay (dotLottie)
-                                            if (_showingHeartAtIndex == index)
-                                              Center(
-                                                child: HeartAnimation(
-                                                  size: 120,
-                                                  isLike: _isLikeAnimation,
-                                                ),
-                                              ),
-                                            // Heart count badge (bottom right of image)
-                                            // Only show when count > 1 (not for single heart)
-                                            if ((_photoHeartCounts[index] ??
-                                                    0) >
-                                                1)
-                                              Positioned(
-                                                bottom: 8,
-                                                right: 8,
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.black
-                                                        .withValues(alpha: 0.6),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                  ),
-                                                  child: Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      Icon(
-                                                        _userHeartedPhoto[index] ==
-                                                                true
-                                                            ? Icons.favorite
-                                                            : Icons
-                                                                  .favorite_border,
-                                                        size: 14,
-                                                        color:
-                                                            _userHeartedPhoto[index] ==
-                                                                true
-                                                            ? Colors.red
-                                                            : Colors.white,
-                                                      ),
-                                                      const SizedBox(width: 4),
-                                                      Text(
-                                                        '${_photoHeartCounts[index]}',
-                                                        style:
-                                                            GoogleFonts.inter(
-                                                              fontSize: 12,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                            // Show heart icon only when user hearted but count is 1
-                                            if ((_photoHeartCounts[index] ??
-                                                        0) ==
-                                                    1 &&
-                                                _userHeartedPhoto[index] ==
-                                                    true)
-                                              Positioned(
-                                                bottom: 8,
-                                                right: 8,
-                                                child: Container(
-                                                  padding: const EdgeInsets.all(
-                                                    6,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.black
-                                                        .withValues(alpha: 0.6),
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.favorite,
-                                                    size: 14,
-                                                    color: Colors.red,
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-
-                                  // Description below image
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      top: 16.0,
-                                      left: 8.0,
-                                      right: 8.0,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
-                                      children: [
-                                        if (moment.caption != null &&
-                                            moment.caption!.isNotEmpty)
-                                          Text(
-                                            moment.caption!,
-                                            style: GoogleFonts.spaceMono(
-                                              fontSize: 15.sp,
-                                              color: AppTheme.textDark,
-                                            ),
-                                            maxLines: 3,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          _formatDate(moment.timestamp),
-                                          style: TextStyle(
-                                            fontSize: 12.sp,
-                                            color: AppTheme.textGray,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Double-tap to ❤️  •  Hold to share',
-                                          style: TextStyle(
-                                            fontSize: 10.sp,
-                                            color: AppTheme.textGray.withValues(
-                                              alpha: 0.6,
-                                            ),
-                                            fontStyle: FontStyle.italic,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
+              ],
             ),
-          ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FaIcon(FontAwesomeIcons.lock, size: 14, color: Colors.white),
+                const SizedBox(width: 4),
+                Text(
+                  'Private',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageCard(Moment moment, String? imageUrl, int index) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white, width: 4),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: AspectRatio(
+        aspectRatio: 4 / 5,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _buildMediaContent(moment, imageUrl),
+              // Heart animation
+              if (_showingHeartAtIndex == index)
+                Center(
+                  child: HeartAnimation(size: 120, isLike: _isLikeAnimation),
+                ),
+              // Heart count
+              _buildHeartBadge(index),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeartBadge(int index) {
+    final count = _photoHeartCounts[index] ?? 0;
+    final userHearted = _userHeartedPhoto[index] == true;
+
+    if (count > 1) {
+      return Positioned(
+        bottom: 8,
+        right: 8,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                userHearted ? Icons.favorite : Icons.favorite_border,
+                size: 14,
+                color: userHearted ? Colors.red : Colors.white,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '$count',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (count == 1 && userHearted) {
+      return Positioned(
+        bottom: 8,
+        right: 8,
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.6),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.favorite, size: 14, color: Colors.red),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildCardFooter(Moment moment) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12.0, left: 8.0, right: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (moment.caption != null && moment.caption!.isNotEmpty)
+            Text(
+              moment.caption!,
+              style: GoogleFonts.spaceMono(
+                fontSize: 14.sp,
+                color: AppTheme.textDark,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          const SizedBox(height: 4),
+          Text(
+            _formatDate(moment.timestamp),
+            style: TextStyle(fontSize: 12.sp, color: AppTheme.textGray),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Tap to relive  •  Double-tap to \u2764\uFE0F',
+            style: TextStyle(
+              fontSize: 10.sp,
+              color: AppTheme.textGray.withValues(alpha: 0.5),
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── BOTTOM SECTIONS ──────────────────────────────────────────────
+
+  Widget _buildAudioNotesSection() {
+    return CollaborativeAudioList(
+      moments: _moments,
+      userAvatars: _userAvatars,
+      userNames: {
+        for (final c in _contributors)
+          c.userId: c.displayName ?? c.username ?? 'Unknown',
+      },
+    );
+  }
+
+  Widget _buildMusicSection() {
+    final momentsWithMusic = _moments
+        .where((m) => m.musicData != null)
+        .toList();
+    if (momentsWithMusic.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      child: SizedBox(
+        height: 48,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: momentsWithMusic.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final music = momentsWithMusic[index].musicData!;
+            return MusicPlayerWidget(musicData: music, compact: true);
+          },
         ),
       ),
     );

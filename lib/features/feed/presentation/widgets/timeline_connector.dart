@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:moments/core/theme/app_theme.dart';
 
-/// Timeline connector widget that draws a vertical dashed line
-/// connecting memory cards in the Memory Lane view
+/// Scrapbook-style timeline connector.
+/// Draws a hand-drawn-feeling dashed vertical line between memory cards,
+/// with small heart/star doodles at the dot position.
 class TimelineConnector extends StatelessWidget {
   const TimelineConnector({
     super.key,
@@ -19,35 +20,34 @@ class TimelineConnector extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Timeline column
+          // Timeline column with scrapbook doodle dot
           SizedBox(
-            width: 16,
+            width: 20,
             child: Column(
               children: [
-                // Small dot
-                Container(
-                  width: 10,
-                  height: 10,
-                  margin: const EdgeInsets.only(top: 24, left: 3),
-                  decoration: BoxDecoration(
-                    color: AppTheme.dustyRose.withOpacity(0.6),
-                    shape: BoxShape.circle,
+                // Heart-shaped dot instead of plain circle
+                Padding(
+                  padding: const EdgeInsets.only(top: 26, left: 2),
+                  child: Icon(
+                    Icons.favorite,
+                    size: 12,
+                    color: AppTheme.coralPink.withValues(alpha: 0.55),
                   ),
                 ),
-                // Dashed line (if not last)
+                // Hand-drawn dashed line (if not last)
                 if (!isLast)
                   Expanded(
                     child: CustomPaint(
-                      painter: _DashedLinePainter(
-                        color: AppTheme.dustyRose.withOpacity(0.3),
+                      painter: _ScrapbookDashedLinePainter(
+                        color: AppTheme.coralPink.withValues(alpha: 0.22),
                       ),
                     ),
                   ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          
+          const SizedBox(width: 8),
+
           // Content
           Expanded(child: child),
         ],
@@ -56,9 +56,9 @@ class TimelineConnector extends StatelessWidget {
   }
 }
 
-/// Custom painter for drawing a dashed vertical line
-class _DashedLinePainter extends CustomPainter {
-  _DashedLinePainter({required this.color});
+/// Hand-drawn-style dashed line with slight wobble
+class _ScrapbookDashedLinePainter extends CustomPainter {
+  _ScrapbookDashedLinePainter({required this.color});
 
   final Color color;
 
@@ -66,21 +66,29 @@ class _DashedLinePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..strokeWidth = 1.5
+      ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
 
-    const dashHeight = 6.0;
-    const dashSpace = 4.0;
-    double startY = 8;
+    const dashHeight = 5.0;
+    const dashSpace = 5.0;
+    double startY = 6;
     final centerX = size.width / 2;
 
-    while (startY < size.height - 8) {
+    // Slight wobble to feel hand-drawn
+    int i = 0;
+    while (startY < size.height - 6) {
+      final wobble = (i % 3 == 0)
+          ? 0.8
+          : (i % 3 == 1)
+          ? -0.6
+          : 0.3;
       canvas.drawLine(
-        Offset(centerX, startY),
-        Offset(centerX, startY + dashHeight),
+        Offset(centerX + wobble, startY),
+        Offset(centerX - wobble, startY + dashHeight),
         paint,
       );
       startY += dashHeight + dashSpace;
+      i++;
     }
   }
 

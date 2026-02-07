@@ -1,13 +1,18 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moments/core/theme/app_theme.dart';
+import 'package:moments/core/services/signed_url_cache.dart';
 import 'package:moments/data/models/moment.dart';
+import 'package:moments/widgets/offline_image.dart';
+import 'package:moments/widgets/audio_waveform_widget.dart';
+import 'package:moments/widgets/music_indicator.dart';
+import 'package:moments/features/feed/presentation/widgets/scrapbook_elements.dart';
 
-/// A memory card for the Memory Lane timeline view
-/// Displays a photo with location, caption, and relative time
-/// Supports multiple photos in a cluster (carousel dots shown)
+/// Scrapbook-style memory card for the Memory Lane timeline view
+/// Features: polaroid border, washi tape, slight rotation, handwritten captions,
+/// location stamps, sticker decorations
 class MemoryCard extends StatefulWidget {
   const MemoryCard({super.key, required this.moments, required this.onTap});
 
@@ -24,6 +29,67 @@ class _MemoryCardState extends State<MemoryCard> {
 
   Moment get primaryMoment => widget.moments.first;
   bool get hasMultiple => widget.moments.length > 1;
+
+  /// Resolved signed URLs keyed by mediaPath
+  final Map<String, String> _signedUrls = {};
+
+  /// Deterministic random based on moment ID for consistent decoration
+  late final Random _random;
+  late final double _rotation;
+  late final int _washiColorSeed;
+  late final bool _showWashiTopLeft;
+  late final bool _showWashiTopRight;
+  late final bool _showPaperClip;
+  late final bool _showSticker;
+  late final bool _showStamp;
+
+  @override
+  void initState() {
+    super.initState();
+    _random = Random(primaryMoment.id.hashCode);
+    // Slight random rotation: ±2°
+    _rotation = (_random.nextDouble() - 0.5) * 0.07;
+    _washiColorSeed = _random.nextInt(100);
+    _showWashiTopLeft = _random.nextBool();
+    _showWashiTopRight = !_showWashiTopLeft || _random.nextDouble() > 0.6;
+    _showPaperClip = _random.nextDouble() > 0.65;
+    _showSticker = _random.nextDouble() > 0.5;
+    _showStamp = _random.nextDouble() > 0.7;
+
+    _resolveSignedUrls();
+  }
+
+  /// Resolve mediaPath → signed URL for all moments that need it
+  Future<void> _resolveSignedUrls() async {
+    final pathsToResolve = <String>[];
+    for (final moment in widget.moments) {
+      // If imageUrl is already set, use it directly
+      if (moment.imageUrl != null && moment.imageUrl!.isNotEmpty) continue;
+      // If mediaPath exists, we need a signed URL
+      if (moment.mediaPath != null && moment.mediaPath!.isNotEmpty) {
+        pathsToResolve.add(moment.mediaPath!);
+      }
+    }
+    if (pathsToResolve.isEmpty) return;
+
+    final urls = await SignedUrlCache.getSignedUrlsBatch(pathsToResolve);
+    if (mounted && urls.isNotEmpty) {
+      setState(() => _signedUrls.addAll(urls));
+    }
+  }
+
+  /// Get the best available image URL for a moment
+  String? _getImageUrl(Moment moment) {
+    // Prefer existing imageUrl
+    if (moment.imageUrl != null && moment.imageUrl!.isNotEmpty) {
+      return moment.imageUrl;
+    }
+    // Fall back to resolved signed URL from mediaPath
+    if (moment.mediaPath != null && _signedUrls.containsKey(moment.mediaPath)) {
+      return _signedUrls[moment.mediaPath!];
+    }
+    return null;
+  }
 
   @override
   void dispose() {
@@ -43,78 +109,176 @@ class _MemoryCardState extends State<MemoryCard> {
       },
       onLongPress: () {
         HapticFeedback.mediumImpact();
-        // TODO: Show quick actions menu
       },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: AppTheme.cardWhite,
-          borderRadius: BorderRadius.circular(AppTheme.radiusMomentCard),
-          boxShadow: AppTheme.cardShadow,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Photo section
-            _buildPhotoSection(timeOfDayTint),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: Transform.rotate(
+          angle: _rotation,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Main polaroid card
+              _buildPolaroidCard(moment, timeOfDayTint),
 
-            // Content section
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Location row
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.place_outlined,
-                        size: 16,
-                        color: AppTheme.sageGreen,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          moment.location,
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(color: AppTheme.textDark),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+              // Washi tape top-left
+              if (_showWashiTopLeft)
+                Positioned(
+                  top: -6,
+                  left: 16,
+                  child: WashiTape(
+                    color: WashiTape.colorFromSeed(_washiColorSeed),
+                    angle: -0.15 + _random.nextDouble() * 0.3,
+                    width: 50 + _random.nextDouble() * 20,
                   ),
+                ),
 
-                  // Caption (if exists) - handwritten font
-                  if (moment.caption != null && moment.caption!.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      moment.caption!,
-                      style: GoogleFonts.caveat(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.textDark,
-                        height: 1.4,
+              // Washi tape top-right
+              if (_showWashiTopRight)
+                Positioned(
+                  top: -5,
+                  right: 20,
+                  child: WashiTape(
+                    color: WashiTape.colorFromSeed(_washiColorSeed + 3),
+                    angle: 0.1 + _random.nextDouble() * 0.2,
+                    width: 45 + _random.nextDouble() * 15,
+                  ),
+                ),
+
+              // Paper clip on right edge
+              if (_showPaperClip)
+                Positioned(
+                  top: -8,
+                  right: -4,
+                  child: PaperClip(
+                    color: AppTheme.textGray.withValues(alpha: 0.45),
+                    size: 36,
+                    angle: 0.1,
+                  ),
+                ),
+
+              // Sticker near bottom-right
+              if (_showSticker)
+                Positioned(
+                  bottom: 55,
+                  right: 10,
+                  child: ScrapbookSticker(
+                    emoji: ScrapbookSticker.stickerForLocation(moment.location),
+                    size: 22,
+                    angle: (_random.nextDouble() - 0.5) * 0.4,
+                  ),
+                ),
+
+              // Location stamp (bottom-right, only on some cards)
+              if (_showStamp)
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: LocationStamp(
+                    location: moment.location,
+                    year: moment.timestamp.year,
+                    color: WashiTape.colorFromSeed(
+                      _washiColorSeed + 1,
+                    ).withValues(alpha: 0.5),
+                    size: 52,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The core polaroid-style card: white border, photo, caption area
+  Widget _buildPolaroidCard(Moment moment, Color tint) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            offset: const Offset(2, 4),
+            blurRadius: 12,
+            spreadRadius: 1,
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            offset: const Offset(0, 1),
+            blurRadius: 4,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Photo with polaroid-style thick white border
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+            child: _buildPhotoSection(tint),
+          ),
+
+          // Caption / metadata area (polaroid bottom section)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Location row
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.place,
+                      size: 15,
+                      color: AppTheme.coralPink,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        moment.location,
+                        style: GoogleFonts.rubik(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textDark,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
+                ),
 
-                  const SizedBox(height: 12),
-
-                  // Relative time
+                // Caption in handwritten font
+                if (moment.caption != null && moment.caption!.isNotEmpty) ...[
+                  const SizedBox(height: 10),
                   Text(
-                    AppTheme.formatRelativeTime(moment.timestamp),
-                    style: Theme.of(
-                      context,
-                    ).textTheme.labelSmall?.copyWith(color: AppTheme.textGray),
+                    '"${moment.caption!}"',
+                    style: GoogleFonts.caveat(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.textDark.withValues(alpha: 0.85),
+                      height: 1.3,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
-              ),
+
+                const SizedBox(height: 10),
+
+                // Date / relative time
+                Text(
+                  AppTheme.formatRelativeTime(moment.timestamp),
+                  style: GoogleFonts.caveat(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w400,
+                    color: AppTheme.textGray,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -122,11 +286,9 @@ class _MemoryCardState extends State<MemoryCard> {
   Widget _buildPhotoSection(Color tint) {
     return Stack(
       children: [
-        // Photo(s)
+        // Photo(s) with tight border radius for polaroid feel
         ClipRRect(
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppTheme.radiusMomentCard),
-          ),
+          borderRadius: BorderRadius.circular(3),
           child: AspectRatio(
             aspectRatio: 4 / 3,
             child: hasMultiple
@@ -135,10 +297,10 @@ class _MemoryCardState extends State<MemoryCard> {
           ),
         ),
 
-        // Carousel dots (if multiple)
+        // Carousel dots
         if (hasMultiple)
           Positioned(
-            bottom: 12,
+            bottom: 10,
             left: 0,
             right: 0,
             child: Row(
@@ -153,22 +315,22 @@ class _MemoryCardState extends State<MemoryCard> {
                     shape: BoxShape.circle,
                     color: index == _currentIndex
                         ? Colors.white
-                        : Colors.white.withOpacity(0.5),
+                        : Colors.white.withValues(alpha: 0.5),
                   ),
                 ),
               ),
             ),
           ),
 
-        // Video indicator (if video)
+        // Video indicator
         if (primaryMoment.mediaType == 'video')
           Positioned(
-            top: 12,
-            right: 12,
+            top: 10,
+            right: 10,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
+                color: Colors.black.withValues(alpha: 0.55),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -190,6 +352,24 @@ class _MemoryCardState extends State<MemoryCard> {
               ),
             ),
           ),
+
+        // Audio note indicator
+        if (primaryMoment.audioPath != null)
+          Positioned(
+            top: primaryMoment.mediaType == 'video' ? 40 : 10,
+            right: 10,
+            child: AudioNoteIndicator(
+              durationSeconds: primaryMoment.audioDuration ?? 0,
+            ),
+          ),
+
+        // Music indicator
+        if (primaryMoment.musicData != null)
+          Positioned(
+            bottom: 10,
+            left: 10,
+            child: MusicNoteIndicator(musicData: primaryMoment.musicData!),
+          ),
       ],
     );
   }
@@ -209,39 +389,42 @@ class _MemoryCardState extends State<MemoryCard> {
   }
 
   Widget _buildSinglePhoto(Moment moment, Color tint) {
+    final imageUrl = _getImageUrl(moment);
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Image
-        if (moment.imageUrl != null)
-          CachedNetworkImage(
-            imageUrl: moment.imageUrl!,
+        if (imageUrl != null)
+          OfflineImage(
+            networkUrl: imageUrl,
+            cacheKey: moment.mediaPath ?? moment.id,
             fit: BoxFit.cover,
-            placeholder: (context, url) => Container(
-              color: AppTheme.dustyRose.withOpacity(0.1),
+            placeholder: Container(
+              color: AppTheme.coralPink.withValues(alpha: 0.08),
               child: const Center(
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: AppTheme.dustyRose,
+                  color: AppTheme.coralPink,
                 ),
               ),
             ),
-            errorWidget: (context, url, error) => Container(
-              color: AppTheme.dustyRose.withOpacity(0.1),
+            errorWidget: Container(
+              color: AppTheme.coralPink.withValues(alpha: 0.08),
               child: Icon(
                 Icons.broken_image_outlined,
-                color: AppTheme.dustyRose.withOpacity(0.5),
+                color: AppTheme.coralPink.withValues(alpha: 0.4),
                 size: 48,
               ),
             ),
           )
         else
           Container(
-            color: AppTheme.dustyRose.withOpacity(0.1),
-            child: Icon(
-              Icons.photo_outlined,
-              color: AppTheme.dustyRose.withOpacity(0.5),
-              size: 48,
+            color: AppTheme.coralPink.withValues(alpha: 0.08),
+            child: const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppTheme.coralPink,
+              ),
             ),
           ),
 

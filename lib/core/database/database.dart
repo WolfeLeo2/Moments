@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:moments/data/models/message.dart' as app;
 import 'package:moments/data/models/moment.dart' as app_moment;
+import 'package:moments/data/models/music_data.dart';
 import 'package:moments/data/models/profile.dart' as app_profile;
 import 'package:moments/data/models/friendship.dart' as app_friendship;
 import 'package:moments/data/models/pending_action.dart' as app_action;
@@ -101,6 +102,12 @@ class Moments extends Table {
   TextColumn get localMediaPath => text().nullable()();
   TextColumn get localThumbnailPath => text().nullable()();
   IntColumn get syncedAt => integer()();
+  TextColumn get audioPath =>
+      text().nullable()(); // Storage path for audio note
+  IntColumn get audioDuration =>
+      integer().nullable()(); // Audio note duration in seconds
+  TextColumn get musicData =>
+      text().nullable()(); // JSON string for music metadata
 
   @override
   Set<Column> get primaryKey => {id};
@@ -187,7 +194,7 @@ class AppDatabase extends _$AppDatabase {
 
   // Bump this when schema changes
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 6;
 
   // Migration strategy for future schema changes
   @override
@@ -222,6 +229,21 @@ class AppDatabase extends _$AppDatabase {
           } catch (_) {} // Column may already exist
           try {
             await m.addColumn(messages, messages.localOnly);
+          } catch (_) {} // Column may already exist
+        }
+        if (from < 5) {
+          // v5: Add audio note columns to moments table
+          try {
+            await m.addColumn(moments, moments.audioPath);
+          } catch (_) {} // Column may already exist
+          try {
+            await m.addColumn(moments, moments.audioDuration);
+          } catch (_) {} // Column may already exist
+        }
+        if (from < 6) {
+          // v6: Add music_data column to moments table
+          try {
+            await m.addColumn(moments, moments.musicData);
           } catch (_) {} // Column may already exist
         }
       },
@@ -1062,6 +1084,11 @@ extension MomentEntryMapper on MomentEntry {
       description: description,
       momentGroupId: momentGroupId,
       isPrivate: isPrivate,
+      audioPath: audioPath,
+      audioDuration: audioDuration,
+      musicData: musicData != null
+          ? MusicData.fromJson(jsonDecode(musicData!) as Map<String, dynamic>)
+          : null,
     );
   }
 }
@@ -1087,6 +1114,11 @@ extension MomentToCompanion on app_moment.Moment {
       description: Value(description),
       momentGroupId: Value(momentGroupId),
       isPrivate: Value(isPrivate),
+      audioPath: Value(audioPath),
+      audioDuration: Value(audioDuration),
+      musicData: Value(
+        musicData != null ? jsonEncode(musicData!.toJson()) : null,
+      ),
       // Use Value.absent() to preserve existing local paths during upsert
       localMediaPath: const Value.absent(),
       localThumbnailPath: const Value.absent(),

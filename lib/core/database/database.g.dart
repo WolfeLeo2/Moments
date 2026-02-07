@@ -2038,6 +2038,39 @@ class $MomentsTable extends Moments with TableInfo<$MomentsTable, MomentEntry> {
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _audioPathMeta = const VerificationMeta(
+    'audioPath',
+  );
+  @override
+  late final GeneratedColumn<String> audioPath = GeneratedColumn<String>(
+    'audio_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _audioDurationMeta = const VerificationMeta(
+    'audioDuration',
+  );
+  @override
+  late final GeneratedColumn<int> audioDuration = GeneratedColumn<int>(
+    'audio_duration',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _musicDataMeta = const VerificationMeta(
+    'musicData',
+  );
+  @override
+  late final GeneratedColumn<String> musicData = GeneratedColumn<String>(
+    'music_data',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2060,6 +2093,9 @@ class $MomentsTable extends Moments with TableInfo<$MomentsTable, MomentEntry> {
     localMediaPath,
     localThumbnailPath,
     syncedAt,
+    audioPath,
+    audioDuration,
+    musicData,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2221,6 +2257,27 @@ class $MomentsTable extends Moments with TableInfo<$MomentsTable, MomentEntry> {
     } else if (isInserting) {
       context.missing(_syncedAtMeta);
     }
+    if (data.containsKey('audio_path')) {
+      context.handle(
+        _audioPathMeta,
+        audioPath.isAcceptableOrUnknown(data['audio_path']!, _audioPathMeta),
+      );
+    }
+    if (data.containsKey('audio_duration')) {
+      context.handle(
+        _audioDurationMeta,
+        audioDuration.isAcceptableOrUnknown(
+          data['audio_duration']!,
+          _audioDurationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('music_data')) {
+      context.handle(
+        _musicDataMeta,
+        musicData.isAcceptableOrUnknown(data['music_data']!, _musicDataMeta),
+      );
+    }
     return context;
   }
 
@@ -2310,6 +2367,18 @@ class $MomentsTable extends Moments with TableInfo<$MomentsTable, MomentEntry> {
         DriftSqlType.int,
         data['${effectivePrefix}synced_at'],
       )!,
+      audioPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}audio_path'],
+      ),
+      audioDuration: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}audio_duration'],
+      ),
+      musicData: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}music_data'],
+      ),
     );
   }
 
@@ -2340,6 +2409,9 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
   final String? localMediaPath;
   final String? localThumbnailPath;
   final int syncedAt;
+  final String? audioPath;
+  final int? audioDuration;
+  final String? musicData;
   const MomentEntry({
     required this.id,
     required this.title,
@@ -2361,6 +2433,9 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
     this.localMediaPath,
     this.localThumbnailPath,
     required this.syncedAt,
+    this.audioPath,
+    this.audioDuration,
+    this.musicData,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2405,6 +2480,15 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
       map['local_thumbnail_path'] = Variable<String>(localThumbnailPath);
     }
     map['synced_at'] = Variable<int>(syncedAt);
+    if (!nullToAbsent || audioPath != null) {
+      map['audio_path'] = Variable<String>(audioPath);
+    }
+    if (!nullToAbsent || audioDuration != null) {
+      map['audio_duration'] = Variable<int>(audioDuration);
+    }
+    if (!nullToAbsent || musicData != null) {
+      map['music_data'] = Variable<String>(musicData);
+    }
     return map;
   }
 
@@ -2450,6 +2534,15 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
           ? const Value.absent()
           : Value(localThumbnailPath),
       syncedAt: Value(syncedAt),
+      audioPath: audioPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioPath),
+      audioDuration: audioDuration == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioDuration),
+      musicData: musicData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(musicData),
     );
   }
 
@@ -2481,6 +2574,9 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
         json['localThumbnailPath'],
       ),
       syncedAt: serializer.fromJson<int>(json['syncedAt']),
+      audioPath: serializer.fromJson<String?>(json['audioPath']),
+      audioDuration: serializer.fromJson<int?>(json['audioDuration']),
+      musicData: serializer.fromJson<String?>(json['musicData']),
     );
   }
   @override
@@ -2507,6 +2603,9 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
       'localMediaPath': serializer.toJson<String?>(localMediaPath),
       'localThumbnailPath': serializer.toJson<String?>(localThumbnailPath),
       'syncedAt': serializer.toJson<int>(syncedAt),
+      'audioPath': serializer.toJson<String?>(audioPath),
+      'audioDuration': serializer.toJson<int?>(audioDuration),
+      'musicData': serializer.toJson<String?>(musicData),
     };
   }
 
@@ -2531,6 +2630,9 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
     Value<String?> localMediaPath = const Value.absent(),
     Value<String?> localThumbnailPath = const Value.absent(),
     int? syncedAt,
+    Value<String?> audioPath = const Value.absent(),
+    Value<int?> audioDuration = const Value.absent(),
+    Value<String?> musicData = const Value.absent(),
   }) => MomentEntry(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -2560,6 +2662,11 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
         ? localThumbnailPath.value
         : this.localThumbnailPath,
     syncedAt: syncedAt ?? this.syncedAt,
+    audioPath: audioPath.present ? audioPath.value : this.audioPath,
+    audioDuration: audioDuration.present
+        ? audioDuration.value
+        : this.audioDuration,
+    musicData: musicData.present ? musicData.value : this.musicData,
   );
   MomentEntry copyWithCompanion(MomentsCompanion data) {
     return MomentEntry(
@@ -2593,6 +2700,11 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
           ? data.localThumbnailPath.value
           : this.localThumbnailPath,
       syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+      audioPath: data.audioPath.present ? data.audioPath.value : this.audioPath,
+      audioDuration: data.audioDuration.present
+          ? data.audioDuration.value
+          : this.audioDuration,
+      musicData: data.musicData.present ? data.musicData.value : this.musicData,
     );
   }
 
@@ -2618,13 +2730,16 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
           ..write('isPrivate: $isPrivate, ')
           ..write('localMediaPath: $localMediaPath, ')
           ..write('localThumbnailPath: $localThumbnailPath, ')
-          ..write('syncedAt: $syncedAt')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('audioPath: $audioPath, ')
+          ..write('audioDuration: $audioDuration, ')
+          ..write('musicData: $musicData')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     title,
     location,
@@ -2645,7 +2760,10 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
     localMediaPath,
     localThumbnailPath,
     syncedAt,
-  );
+    audioPath,
+    audioDuration,
+    musicData,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2669,7 +2787,10 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
           other.isPrivate == this.isPrivate &&
           other.localMediaPath == this.localMediaPath &&
           other.localThumbnailPath == this.localThumbnailPath &&
-          other.syncedAt == this.syncedAt);
+          other.syncedAt == this.syncedAt &&
+          other.audioPath == this.audioPath &&
+          other.audioDuration == this.audioDuration &&
+          other.musicData == this.musicData);
 }
 
 class MomentsCompanion extends UpdateCompanion<MomentEntry> {
@@ -2693,6 +2814,9 @@ class MomentsCompanion extends UpdateCompanion<MomentEntry> {
   final Value<String?> localMediaPath;
   final Value<String?> localThumbnailPath;
   final Value<int> syncedAt;
+  final Value<String?> audioPath;
+  final Value<int?> audioDuration;
+  final Value<String?> musicData;
   final Value<int> rowid;
   const MomentsCompanion({
     this.id = const Value.absent(),
@@ -2715,6 +2839,9 @@ class MomentsCompanion extends UpdateCompanion<MomentEntry> {
     this.localMediaPath = const Value.absent(),
     this.localThumbnailPath = const Value.absent(),
     this.syncedAt = const Value.absent(),
+    this.audioPath = const Value.absent(),
+    this.audioDuration = const Value.absent(),
+    this.musicData = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MomentsCompanion.insert({
@@ -2738,6 +2865,9 @@ class MomentsCompanion extends UpdateCompanion<MomentEntry> {
     this.localMediaPath = const Value.absent(),
     this.localThumbnailPath = const Value.absent(),
     required int syncedAt,
+    this.audioPath = const Value.absent(),
+    this.audioDuration = const Value.absent(),
+    this.musicData = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
@@ -2768,6 +2898,9 @@ class MomentsCompanion extends UpdateCompanion<MomentEntry> {
     Expression<String>? localMediaPath,
     Expression<String>? localThumbnailPath,
     Expression<int>? syncedAt,
+    Expression<String>? audioPath,
+    Expression<int>? audioDuration,
+    Expression<String>? musicData,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2792,6 +2925,9 @@ class MomentsCompanion extends UpdateCompanion<MomentEntry> {
       if (localThumbnailPath != null)
         'local_thumbnail_path': localThumbnailPath,
       if (syncedAt != null) 'synced_at': syncedAt,
+      if (audioPath != null) 'audio_path': audioPath,
+      if (audioDuration != null) 'audio_duration': audioDuration,
+      if (musicData != null) 'music_data': musicData,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2817,6 +2953,9 @@ class MomentsCompanion extends UpdateCompanion<MomentEntry> {
     Value<String?>? localMediaPath,
     Value<String?>? localThumbnailPath,
     Value<int>? syncedAt,
+    Value<String?>? audioPath,
+    Value<int?>? audioDuration,
+    Value<String?>? musicData,
     Value<int>? rowid,
   }) {
     return MomentsCompanion(
@@ -2840,6 +2979,9 @@ class MomentsCompanion extends UpdateCompanion<MomentEntry> {
       localMediaPath: localMediaPath ?? this.localMediaPath,
       localThumbnailPath: localThumbnailPath ?? this.localThumbnailPath,
       syncedAt: syncedAt ?? this.syncedAt,
+      audioPath: audioPath ?? this.audioPath,
+      audioDuration: audioDuration ?? this.audioDuration,
+      musicData: musicData ?? this.musicData,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2907,6 +3049,15 @@ class MomentsCompanion extends UpdateCompanion<MomentEntry> {
     if (syncedAt.present) {
       map['synced_at'] = Variable<int>(syncedAt.value);
     }
+    if (audioPath.present) {
+      map['audio_path'] = Variable<String>(audioPath.value);
+    }
+    if (audioDuration.present) {
+      map['audio_duration'] = Variable<int>(audioDuration.value);
+    }
+    if (musicData.present) {
+      map['music_data'] = Variable<String>(musicData.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2936,6 +3087,9 @@ class MomentsCompanion extends UpdateCompanion<MomentEntry> {
           ..write('localMediaPath: $localMediaPath, ')
           ..write('localThumbnailPath: $localThumbnailPath, ')
           ..write('syncedAt: $syncedAt, ')
+          ..write('audioPath: $audioPath, ')
+          ..write('audioDuration: $audioDuration, ')
+          ..write('musicData: $musicData, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5743,6 +5897,9 @@ typedef $$MomentsTableCreateCompanionBuilder =
       Value<String?> localMediaPath,
       Value<String?> localThumbnailPath,
       required int syncedAt,
+      Value<String?> audioPath,
+      Value<int?> audioDuration,
+      Value<String?> musicData,
       Value<int> rowid,
     });
 typedef $$MomentsTableUpdateCompanionBuilder =
@@ -5767,6 +5924,9 @@ typedef $$MomentsTableUpdateCompanionBuilder =
       Value<String?> localMediaPath,
       Value<String?> localThumbnailPath,
       Value<int> syncedAt,
+      Value<String?> audioPath,
+      Value<int?> audioDuration,
+      Value<String?> musicData,
       Value<int> rowid,
     });
 
@@ -5876,6 +6036,21 @@ class $$MomentsTableFilterComposer
 
   ColumnFilters<int> get syncedAt => $composableBuilder(
     column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get audioPath => $composableBuilder(
+    column: $table.audioPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get audioDuration => $composableBuilder(
+    column: $table.audioDuration,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get musicData => $composableBuilder(
+    column: $table.musicData,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5988,6 +6163,21 @@ class $$MomentsTableOrderingComposer
     column: $table.syncedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get audioPath => $composableBuilder(
+    column: $table.audioPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get audioDuration => $composableBuilder(
+    column: $table.audioDuration,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get musicData => $composableBuilder(
+    column: $table.musicData,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MomentsTableAnnotationComposer
@@ -6068,6 +6258,17 @@ class $$MomentsTableAnnotationComposer
 
   GeneratedColumn<int> get syncedAt =>
       $composableBuilder(column: $table.syncedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get audioPath =>
+      $composableBuilder(column: $table.audioPath, builder: (column) => column);
+
+  GeneratedColumn<int> get audioDuration => $composableBuilder(
+    column: $table.audioDuration,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get musicData =>
+      $composableBuilder(column: $table.musicData, builder: (column) => column);
 }
 
 class $$MomentsTableTableManager
@@ -6121,6 +6322,9 @@ class $$MomentsTableTableManager
                 Value<String?> localMediaPath = const Value.absent(),
                 Value<String?> localThumbnailPath = const Value.absent(),
                 Value<int> syncedAt = const Value.absent(),
+                Value<String?> audioPath = const Value.absent(),
+                Value<int?> audioDuration = const Value.absent(),
+                Value<String?> musicData = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MomentsCompanion(
                 id: id,
@@ -6143,6 +6347,9 @@ class $$MomentsTableTableManager
                 localMediaPath: localMediaPath,
                 localThumbnailPath: localThumbnailPath,
                 syncedAt: syncedAt,
+                audioPath: audioPath,
+                audioDuration: audioDuration,
+                musicData: musicData,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6167,6 +6374,9 @@ class $$MomentsTableTableManager
                 Value<String?> localMediaPath = const Value.absent(),
                 Value<String?> localThumbnailPath = const Value.absent(),
                 required int syncedAt,
+                Value<String?> audioPath = const Value.absent(),
+                Value<int?> audioDuration = const Value.absent(),
+                Value<String?> musicData = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MomentsCompanion.insert(
                 id: id,
@@ -6189,6 +6399,9 @@ class $$MomentsTableTableManager
                 localMediaPath: localMediaPath,
                 localThumbnailPath: localThumbnailPath,
                 syncedAt: syncedAt,
+                audioPath: audioPath,
+                audioDuration: audioDuration,
+                musicData: musicData,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

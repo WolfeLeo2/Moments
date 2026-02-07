@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:moments/core/services/auth_service.dart';
 import 'package:moments/core/services/avatar_cache_service.dart';
 import 'package:moments/core/services/app_logger.dart';
+import 'package:moments/core/services/ai_service.dart';
 import 'package:moments/core/services/moment_storage_service.dart';
 import 'package:moments/data/repositories/social_repository.dart';
 import 'package:moments/data/repositories/notification_repository.dart';
@@ -39,6 +40,14 @@ NotificationRepository notificationRepository(Ref ref) =>
 AvatarCacheService avatarCacheService(Ref ref) {
   final db = ref.watch(appDatabaseProvider);
   return AvatarCacheService(db);
+}
+
+/// AI service provider - singleton, uses Firebase AI (Gemini Developer API free tier)
+@Riverpod(keepAlive: true)
+AIService aiService(Ref ref) {
+  final service = AIService();
+  service.initialize();
+  return service;
 }
 
 // ============================================

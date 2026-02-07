@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:moments/core/theme/app_theme.dart';
+import 'package:moments/core/services/signed_url_cache.dart';
 import 'package:moments/data/models/moment.dart';
 import 'package:moments/core/providers/moments_providers.dart';
 import 'package:moments/features/feed/presentation/widgets/memory_card.dart';
 import 'package:moments/features/feed/presentation/widgets/chapter_header.dart';
 import 'package:moments/features/feed/presentation/widgets/timeline_connector.dart';
+import 'package:moments/features/feed/presentation/widgets/scrapbook_elements.dart';
+import 'package:moments/features/moments/presentation/moment_details_page.dart';
 import 'package:moments/widgets/blurred_app_bar.dart';
+import 'package:moments/widgets/offline_image.dart';
 import 'package:moments/core/providers/providers.dart';
 import 'package:moments/features/social/presentation/friends_page.dart';
 import 'package:moments/features/profile/profile_page.dart';
@@ -28,6 +33,9 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
     with AutomaticKeepAliveClientMixin {
   late ScrollController _scrollController;
 
+  /// Signed URLs resolved for anniversary mini-cards
+  final Map<String, String> _miniCardUrls = {};
+
   @override
   bool get wantKeepAlive => true;
 
@@ -46,21 +54,21 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
   }
 
   void _showFriendsPage() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const FriendsPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => const FriendsPage()));
   }
 
   void _showProfilePage() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const ProfilePage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => const ProfilePage()));
   }
 
   void _showNotificationsPage() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const NotificationsPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => const NotificationsPage()));
   }
 
   /// Groups moments into temporal chapters
@@ -170,8 +178,12 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
       final previous = sorted[i - 1];
 
       // Cluster if same momentGroupId, same location, or within 30 min
-      final timeDiff = previous.timestamp.difference(current.timestamp).inMinutes.abs();
-      final sameGroup = current.momentGroupId != null &&
+      final timeDiff = previous.timestamp
+          .difference(current.timestamp)
+          .inMinutes
+          .abs();
+      final sameGroup =
+          current.momentGroupId != null &&
           current.momentGroupId == previous.momentGroupId;
       final sameLocation = current.location == previous.location;
 
@@ -233,42 +245,57 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
     final chapters = _groupIntoChapters(moments);
     final chapterKeys = chapters.keys.toList();
 
-    return CustomScrollView(
-      controller: _scrollController,
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      slivers: [
-        // Anniversary memories at top (if any)
-        ..._buildAnniversarySection(moments),
-
-        // Timeline content
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final chapterName = chapterKeys[index];
-                final chapterMoments = chapters[chapterName]!;
-                final clusters = _clusterByLocation(chapterMoments);
-
-                return _buildChapterSection(chapterName, clusters, index == 0);
-              },
-              childCount: chapterKeys.length,
-            ),
+    return Stack(
+      children: [
+        // Subtle ruled-lines background for notebook feel
+        Positioned.fill(
+          child: RuledLinesBackground(
+            lineColor: AppTheme.textGray.withValues(alpha: 0.04),
+            lineSpacing: 28,
+            child: const SizedBox.expand(),
           ),
         ),
 
-        // Bottom padding
-        const SliverToBoxAdapter(
-          child: SizedBox(height: 120),
+        // Main scroll content
+        CustomScrollView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          slivers: [
+            // Anniversary memories at top (if any)
+            ..._buildAnniversarySection(moments),
+
+            // Timeline content
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final chapterName = chapterKeys[index];
+                  final chapterMoments = chapters[chapterName]!;
+                  final clusters = _clusterByLocation(chapterMoments);
+
+                  return _buildChapterSection(
+                    chapterName,
+                    clusters,
+                    index == 0,
+                  );
+                }, childCount: chapterKeys.length),
+              ),
+            ),
+
+            // Bottom padding
+            const SliverToBoxAdapter(child: SizedBox(height: 120)),
+          ],
         ),
       ],
     );
   }
 
   List<Widget> _buildAnniversarySection(List<Moment> moments) {
-    final anniversaries = moments.where((m) => AppTheme.isAnniversary(m.timestamp)).toList();
+    final anniversaries = moments
+        .where((m) => AppTheme.isAnniversary(m.timestamp))
+        .toList();
 
     if (anniversaries.isEmpty) return [];
 
@@ -276,67 +303,93 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
 
     return [
       SliverToBoxAdapter(
-        child: Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppTheme.dustyRose.withOpacity(0.15),
-                AppTheme.amberGold.withOpacity(0.1),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-            border: Border.all(
-              color: AppTheme.dustyRose.withOpacity(0.3),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.auto_awesome,
-                    color: AppTheme.amberGold,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    yearsAgo == 1 ? 'One year ago today' : '$yearsAgo years ago today',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: AppTheme.textDark,
-                          fontWeight: FontWeight.w600,
-                        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    offset: const Offset(2, 3),
+                    blurRadius: 10,
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 100,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: anniversaries.take(5).length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    final moment = anniversaries[index];
-                    return _buildMiniMemoryCard(moment);
-                  },
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.auto_awesome,
+                        color: AppTheme.sunsetOrange,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        yearsAgo == 1
+                            ? 'One year ago today'
+                            : '$yearsAgo years ago today',
+                        style: GoogleFonts.caveat(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 100,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: anniversaries.take(5).length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (context, index) {
+                        final moment = anniversaries[index];
+                        return _buildMiniMemoryCard(moment);
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            // Washi tape decoration on anniversary card
+            Positioned(
+              top: 8,
+              left: 26,
+              child: WashiTape(
+                color: AppTheme.sunsetOrange.withValues(alpha: 0.6),
+                width: 55,
+                angle: -0.1,
+              ),
+            ),
+          ],
         ),
       ),
     ];
   }
 
   Widget _buildMiniMemoryCard(Moment moment) {
+    // Resolve the image URL: prefer imageUrl, then signed URL from mediaPath
+    String? imageUrl = moment.imageUrl;
+    if (imageUrl == null &&
+        moment.mediaPath != null &&
+        moment.mediaPath!.isNotEmpty) {
+      imageUrl = _miniCardUrls[moment.mediaPath];
+      // If not yet resolved, kick off resolution
+      if (imageUrl == null) {
+        _resolveMiniCardUrl(moment.mediaPath!);
+      }
+    }
+
     return GestureDetector(
-      onTap: () => _openMemoryDetail(moment),
+      onTap: () => _openMemoryDetail([moment]),
       child: Container(
         width: 100,
         decoration: BoxDecoration(
@@ -345,11 +398,12 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: moment.imageUrl != null
-              ? Image.network(
-                  moment.imageUrl!,
+          child: imageUrl != null
+              ? OfflineImage(
+                  networkUrl: imageUrl,
+                  cacheKey: moment.mediaPath ?? moment.id,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  errorWidget: Container(
                     color: AppTheme.dustyRose.withOpacity(0.2),
                     child: const Icon(Icons.photo, color: AppTheme.dustyRose),
                   ),
@@ -363,6 +417,15 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
     );
   }
 
+  /// Resolve a signed URL for a mini card and trigger rebuild
+  Future<void> _resolveMiniCardUrl(String mediaPath) async {
+    if (_miniCardUrls.containsKey(mediaPath)) return;
+    final url = await SignedUrlCache.getSignedUrl(mediaPath);
+    if (url != null && mounted) {
+      setState(() => _miniCardUrls[mediaPath] = url);
+    }
+  }
+
   Widget _buildChapterSection(
     String chapterName,
     List<List<Moment>> clusters,
@@ -372,10 +435,7 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Chapter header
-        ChapterHeader(
-          title: chapterName,
-          isFirst: isFirst,
-        ),
+        ChapterHeader(title: chapterName, isFirst: isFirst),
 
         // Memory clusters with timeline
         ...clusters.asMap().entries.map((entry) {
@@ -386,7 +446,7 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
             isLast: isLast,
             child: MemoryCard(
               moments: cluster,
-              onTap: () => _openMemoryDetail(cluster.first),
+              onTap: () => _openMemoryDetail(cluster),
             ),
           );
         }),
@@ -396,14 +456,16 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
     );
   }
 
-  void _openMemoryDetail(Moment moment) {
+  void _openMemoryDetail(List<Moment> moments) {
+    if (moments.isEmpty) return;
     HapticFeedback.lightImpact();
-    // TODO: Navigate to full memory view / relive experience
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Opening memory: ${moment.title}'),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppTheme.twilightBlue,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MomentDetailsPage(
+          locationName: moments.first.location,
+          moments: moments,
+        ),
       ),
     );
   }
@@ -478,17 +540,17 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
             const SizedBox(height: 32),
             Text(
               'Your story begins here',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: AppTheme.textDark,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(color: AppTheme.textDark),
             ),
             const SizedBox(height: 12),
             Text(
               'Capture your first moment and\nstart building your memory lane',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppTheme.textGray,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: AppTheme.textGray),
             ),
             const SizedBox(height: 32),
             Container(
@@ -496,9 +558,7 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
               decoration: BoxDecoration(
                 color: AppTheme.sageGreen.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(50),
-                border: Border.all(
-                  color: AppTheme.sageGreen.withOpacity(0.3),
-                ),
+                border: Border.all(color: AppTheme.sageGreen.withOpacity(0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -511,9 +571,9 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
                   const SizedBox(width: 8),
                   Text(
                     'Capture a moment',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: AppTheme.sageGreen,
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleSmall?.copyWith(color: AppTheme.sageGreen),
                   ),
                 ],
               ),
@@ -531,25 +591,21 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.cloud_off_outlined,
-              size: 56,
-              color: AppTheme.dustyRose,
-            ),
+            Icon(Icons.cloud_off_outlined, size: 56, color: AppTheme.dustyRose),
             const SizedBox(height: 24),
             Text(
               'Couldn\'t load memories',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: AppTheme.textDark,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(color: AppTheme.textDark),
             ),
             const SizedBox(height: 8),
             Text(
               'Check your connection and try again',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textGray,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppTheme.textGray),
             ),
             const SizedBox(height: 24),
             TextButton.icon(

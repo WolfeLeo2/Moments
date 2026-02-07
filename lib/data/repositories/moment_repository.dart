@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase_flutter;
 import '../models/moment.dart';
+import '../models/music_data.dart';
 import '../models/moment_reaction.dart';
 import '../models/moment_group.dart';
 import '../models/moment_contributor.dart';
@@ -64,6 +65,9 @@ class MomentRepository {
     String? description,
     bool isVideo = false,
     int? videoDuration,
+    String? audioPath,
+    int? audioDuration,
+    MusicData? musicData,
   }) async {
     // Delegate to batch creation with single item
     final moments = await createMomentsBatch(
@@ -77,6 +81,9 @@ class MomentRepository {
       isGroupPrivate: isGroupPrivate,
       momentGroupId: momentGroupId,
       description: description,
+      audioPath: audioPath,
+      audioDuration: audioDuration,
+      musicData: musicData,
     );
 
     if (moments.isEmpty) {
@@ -113,6 +120,9 @@ class MomentRepository {
     bool isGroupPrivate = false,
     String? momentGroupId,
     String? description,
+    String? audioPath,
+    int? audioDuration,
+    MusicData? musicData,
   }) async {
     try {
       final userId = SupabaseConfig.client.auth.currentUser?.id;
@@ -167,6 +177,9 @@ class MomentRepository {
           'thumbnail_path': mediaData['thumbnail_path'],
           'duration': mediaData['duration'],
           'is_private': mediaData['is_private'],
+          if (audioPath != null) 'audio_path': audioPath,
+          if (audioDuration != null) 'audio_duration': audioDuration,
+          if (musicData != null) 'music_data': musicData.toJson(),
         };
       }).toList();
 

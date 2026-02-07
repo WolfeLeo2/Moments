@@ -7,6 +7,7 @@ import 'firebase_options.dart';
 import 'core/services/firebase_messaging_service.dart';
 import 'core/services/notification_navigator.dart';
 import 'core/services/chat_offline_service.dart';
+import 'core/services/ai_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/services/map_cache_service.dart';
 import 'data/sources/supabase_config.dart';
@@ -36,6 +37,9 @@ void main() async {
 
   // Initialize map tile caching (async, non-blocking)
   MapCacheService().initialize();
+
+  // Initialize Firebase AI (Gemini Developer API - free tier)
+  AIService().initialize();
 
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
