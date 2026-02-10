@@ -75,6 +75,7 @@ void main() {
             longitude: 0,
             createdAt: DateTime.now(),
             timestamp: DateTime.now(),
+            momentGroupId: 'group-1',
           ),
           Moment(
             id: 'moment-id-2',
@@ -84,6 +85,7 @@ void main() {
             longitude: 0,
             createdAt: DateTime.now(),
             timestamp: DateTime.now(),
+            momentGroupId: 'group-1',
           ),
         ],
       );

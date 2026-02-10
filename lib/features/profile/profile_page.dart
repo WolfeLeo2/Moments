@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +12,7 @@ import '../../data/repositories/social_repository.dart';
 import '../moments/presentation/year_in_review_page.dart';
 import 'package:moments/features/profile/collaborating_moments_page.dart';
 import 'notification_settings_page.dart';
+import 'storage_cache_page.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class ProfilePage extends ConsumerWidget {
@@ -29,12 +31,12 @@ class ProfilePage extends ConsumerWidget {
         backgroundColor: AppTheme.backgroundBeige,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(CupertinoIcons.chevron_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Profile',
-          style: TextStyle(
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
             color: Colors.black,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.5,
@@ -87,7 +89,10 @@ class ProfilePage extends ConsumerWidget {
             if (authService.currentUserEmail != null)
               Text(
                 authService.currentUserEmail!,
-                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontFamily: 'GoogleSansFlex',
+                  color: Colors.grey[600],
+                ),
               ),
 
             // Bio
@@ -99,8 +104,8 @@ class ProfilePage extends ConsumerWidget {
                     child: Text(
                       profile.bio!,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontFamily: 'GoogleSansFlex',
                         color: Colors.black87,
                       ),
                     ),
@@ -167,19 +172,24 @@ class ProfilePage extends ConsumerWidget {
                               children: [
                                 Text(
                                   '$currentYear WRAPPED',
-                                  style: GoogleFonts.bebasNeue(
-                                    fontSize: 28,
-                                    color: Colors.white,
-                                    letterSpacing: 2,
-                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineMedium
+                                      ?.copyWith(
+                                        fontFamily: 'GoogleSansFlex',
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 2,
+                                      ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   '${yearMoments.length} moments this year',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    color: Colors.white70,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        fontFamily: 'GoogleSansFlex',
+                                        color: Colors.white70,
+                                      ),
                                 ),
                                 const SizedBox(height: 12),
                                 Container(
@@ -193,11 +203,14 @@ class ProfilePage extends ConsumerWidget {
                                   ),
                                   child: Text(
                                     'View Your Year →',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF1DB954),
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          fontFamily: 'GoogleSansFlex',
+                                          fontWeight: FontWeight.w500,
+                                          color: AppTheme.vibrantGreen,
+                                        ),
                                   ),
                                 ),
                               ],
@@ -262,6 +275,19 @@ class ProfilePage extends ConsumerWidget {
             ),
             _buildSettingsTile(
               context: context,
+              icon: HugeIcons.strokeRoundedDatabase,
+              title: 'Storage & Cache',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const StorageCachePage(),
+                  ),
+                );
+              },
+            ),
+            _buildSettingsTile(
+              context: context,
               icon: HugeIcons.strokeRoundedHelpCircle,
               title: 'Help & Support',
               onTap: () {},
@@ -290,15 +316,22 @@ class ProfilePage extends ConsumerWidget {
               child: OutlinedButton.icon(
                 onPressed: () async {
                   await authService.signOut();
+
+                  // Navigate to LoginPage
                   if (context.mounted) {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/login',
+                      (route) => false,
+                    );
                   }
                 },
-                icon: const Icon(Icons.logout, color: Colors.red),
+                icon: const Icon(Icons.logout, color: AppTheme.emergencyRed),
                 label: Text(
                   'Sign Out',
-                  style: GoogleFonts.inter(
-                    color: Colors.red,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontFamily: 'GoogleSansFlex',
+                    color: AppTheme.emergencyRed,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -307,7 +340,7 @@ class ProfilePage extends ConsumerWidget {
                   shape: RoundedSuperellipseBorder(
                     borderRadius: BorderRadiusGeometry.all(Radius.circular(12)),
                   ),
-                  side: const BorderSide(color: Colors.red),
+                  side: const BorderSide(color: AppTheme.emergencyRed),
                 ),
               ),
             ),
@@ -378,8 +411,9 @@ class ProfilePage extends ConsumerWidget {
       alignment: Alignment.centerLeft,
       child: Text(
         title.toUpperCase(),
-        style: GoogleFonts.inter(
-          fontSize: 12.sp,
+        style: TextStyle(
+          fontSize: 14.sp,
+          fontFamily: 'GoogleSansFlex',
           fontWeight: FontWeight.w600,
           color: Colors.black87,
           letterSpacing: 1.5,
@@ -407,7 +441,11 @@ class ProfilePage extends ConsumerWidget {
         leading: HugeIcon(icon: icon, size: 22.sp, color: Colors.black87),
         title: Text(
           title,
-          style: GoogleFonts.rubik(fontSize: 16.sp, color: Colors.black),
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            fontFamily: 'GoogleSansFlex',
+            fontWeight: FontWeight.w500,
+            color: Colors.black87,
+          ),
         ),
 
         trailing: const Icon(Icons.chevron_right, color: Colors.grey),
@@ -486,7 +524,11 @@ class ProfilePage extends ConsumerWidget {
             else
               Text(
                 '$errorCount issues',
-                style: TextStyle(color: Colors.red, fontSize: 12.sp),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  fontFamily: 'GoogleSansFlex',
+                  fontWeight: FontWeight.w500,
+                  color: AppTheme.emergencyRed,
+                ),
               ),
             SizedBox(width: 8.w),
             const Icon(Icons.chevron_right, color: Colors.grey),
@@ -519,8 +561,8 @@ class ProfilePage extends ConsumerWidget {
                     SizedBox(height: 16.h),
                     Text(
                       'Everything is synced!',
-                      style: GoogleFonts.inter(
-                        fontSize: 16.sp,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontFamily: 'GoogleSansFlex',
                         color: Colors.black87,
                       ),
                     ),
@@ -536,12 +578,16 @@ class ProfilePage extends ConsumerWidget {
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(
                         Icons.error_outline,
-                        color: Colors.red,
+                        color: AppTheme.emergencyRed,
                       ),
                       title: Text(error.source.toUpperCase()),
                       subtitle: Text(
                         error.message,
-                        style: const TextStyle(fontSize: 12),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontFamily: 'GoogleSansFlex',
+                          fontWeight: FontWeight.w500,
+                          color: AppTheme.emergencyRed,
+                        ),
                       ),
                       trailing: Text(
                         _formatTimeAgo(error.timestamp),

@@ -29,10 +29,6 @@ import 'package:icon_button_m3e/icon_button_m3e.dart';
 import 'package:moments/core/services/firebase_messaging_service.dart';
 
 class ChatPage extends ConsumerStatefulWidget {
-  final String friendId;
-  final String friendName;
-  final String? friendAvatarUrl;
-
   const ChatPage({
     super.key,
     required this.friendId,
@@ -40,30 +36,44 @@ class ChatPage extends ConsumerStatefulWidget {
     this.friendAvatarUrl,
   });
 
+  final String? friendAvatarUrl;
+  final String friendId;
+  final String friendName;
+
   @override
   ConsumerState<ChatPage> createState() => _ChatPageState();
 }
 
 class _ChatPageState extends ConsumerState<ChatPage>
     with AutomaticKeepAliveClientMixin {
-  final TextEditingController _messageController = TextEditingController();
-  final TextEditingController _searchController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  Timer? _typingTimer;
-
-  bool _showScrollToBottomButton = false;
-  int _unreadCount = 0;
+  Message? _editingMessage;
   bool _isSearchMode = false;
-  String _searchQuery = '';
-
+  final TextEditingController _messageController = TextEditingController();
   // Reply/Edit state
   Message? _replyingToMessage;
-  Message? _editingMessage;
 
-  // Track messages being deleted (for poof animation)
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  bool _showScrollToBottomButton = false;
+  Timer? _typingTimer;
+  int _unreadCount = 0;
 
   @override
-  bool get wantKeepAlive => true;
+  void deactivate() {
+    FirebaseMessagingService.currentChatId = null;
+    super.deactivate();
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _searchController.dispose();
+    _scrollController.dispose();
+    _typingTimer?.cancel();
+    FirebaseMessagingService.currentChatId = null; // Clear static var
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -83,21 +93,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }, fireImmediately: true);
   }
 
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _searchController.dispose();
-    _scrollController.dispose();
-    _typingTimer?.cancel();
-    FirebaseMessagingService.currentChatId = null; // Clear static var
-    super.dispose();
-  }
+  // Track messages being deleted (for poof animation)
 
   @override
-  void deactivate() {
-    FirebaseMessagingService.currentChatId = null;
-    super.deactivate();
-  }
+  bool get wantKeepAlive => true;
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
@@ -289,6 +288,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     String path,
     int durationMs,
   ) async {
+    // Stop recording state FIRST to immediately remove the recorder widget
+    ref.read(isRecordingProvider(conversationId).notifier).stop();
+
     final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
     if (currentUserId == null) return;
 
@@ -301,7 +303,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
       durationMs: durationMs,
     );
 
-    ref.read(isRecordingProvider(conversationId).notifier).stop();
     _scrollToBottom();
   }
 
@@ -325,6 +326,101 @@ class _ChatPageState extends ConsumerState<ChatPage>
         }
       }
     });
+  }
+
+  Future<void> _pickMedia(String conversationId) async {
+    try {
+      final List<AssetEntity>? result = await AssetPicker.pickAssets(
+        context,
+        pickerConfig: const AssetPickerConfig(
+          maxAssets: 1,
+          requestType: RequestType.common, // Images and Videos
+        ),
+      );
+
+      if (result != null && result.isNotEmpty) {
+        final asset = result.first;
+        final file = await asset.file;
+        if (file == null) return;
+
+        if (asset.type == AssetType.video) {
+          await _sendVideoMessage(conversationId, file);
+        } else if (asset.type == AssetType.image) {
+          await _sendImageMessage(conversationId, file);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error picking media: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error picking media: $e')));
+      }
+    }
+  }
+
+  Future<void> _sendImageMessage(String conversationId, File file) async {
+    final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
+    if (currentUserId == null) return;
+
+    // Use offline-first service for optimistic image sending
+    final offlineService = ref.read(chatOfflineServiceProvider);
+    await offlineService.sendImageOptimistic(
+      conversationId: conversationId,
+      senderId: currentUserId,
+      localPath: file.path,
+    );
+    _scrollToBottom();
+  }
+
+  Future<void> _sendVideoMessage(String conversationId, File file) async {
+    final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
+    if (currentUserId == null) return;
+
+    // Use offline-first service for optimistic video sending
+    final offlineService = ref.read(chatOfflineServiceProvider);
+    await offlineService.sendVideoOptimistic(
+      conversationId: conversationId,
+      senderId: currentUserId,
+      localPath: file.path,
+    );
+    _scrollToBottom();
+  }
+
+  Future<void> _pickCameraImage(String conversationId) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.camera);
+
+      if (pickedFile != null) {
+        await _sendImageMessage(conversationId, File(pickedFile.path));
+      }
+    } catch (e) {
+      debugPrint('Error picking camera image: $e');
+    }
+  }
+
+  String _formatDateHeader(DateTime date) {
+    // Ensure we're working with local time
+    final localDate = date.toLocal();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final messageDate = DateTime(
+      localDate.year,
+      localDate.month,
+      localDate.day,
+    );
+
+    final timestring = DateFormat('h:mm a').format(localDate);
+
+    if (messageDate == today) {
+      return 'Today $timestring';
+    } else if (messageDate == yesterday) {
+      return 'Yesterday $timestring';
+    } else {
+      return '${DateFormat('d MMM').format(date)} $timestring';
+    }
   }
 
   // Removed duplicate dispose method
@@ -424,7 +520,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ),
         ],
       ),
-      extendBodyBehindAppBar: true,
       body: conversationAsync.when(
         loading: () => Center(
           child: Lottie.asset(
@@ -618,7 +713,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                               if (hasTypingIndicator && index == 0) {
                                 return const Padding(
                                   padding: EdgeInsets.symmetric(
-                                    vertical: 2,
+                                    vertical: 0,
                                     horizontal: 8,
                                   ),
                                   child: Align(
@@ -804,18 +899,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                       child: Center(
                                         child: Text(
                                           _formatDateHeader(message.createdAt),
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                          ),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color: Colors.grey[600],
+                                                fontWeight: FontWeight.w500,
+                                              ),
                                         ),
                                       ),
                                     ),
                                   // The message bubble
                                   Padding(
                                     padding: const EdgeInsets.symmetric(
-                                      vertical: 2,
+                                      vertical: 0,
                                       horizontal: 8,
                                     ),
                                     child: Align(
@@ -837,11 +934,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                         alignment: Alignment.centerRight,
                                         child: Text(
                                           message.isRead ? 'Read' : 'Delivered',
-                                          style: TextStyle(
-                                            color: Colors.grey[500],
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w500,
-                                          ),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelSmall
+                                              ?.copyWith(
+                                                color: Colors.grey[500],
+                                                fontWeight: FontWeight.w500,
+                                              ),
                                         ),
                                       ),
                                     ),
@@ -1174,100 +1273,5 @@ class _ChatPageState extends ConsumerState<ChatPage>
         },
       ),
     );
-  }
-
-  Future<void> _pickMedia(String conversationId) async {
-    try {
-      final List<AssetEntity>? result = await AssetPicker.pickAssets(
-        context,
-        pickerConfig: const AssetPickerConfig(
-          maxAssets: 1,
-          requestType: RequestType.common, // Images and Videos
-        ),
-      );
-
-      if (result != null && result.isNotEmpty) {
-        final asset = result.first;
-        final file = await asset.file;
-        if (file == null) return;
-
-        if (asset.type == AssetType.video) {
-          await _sendVideoMessage(conversationId, file);
-        } else if (asset.type == AssetType.image) {
-          await _sendImageMessage(conversationId, file);
-        }
-      }
-    } catch (e) {
-      debugPrint('Error picking media: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error picking media: $e')));
-      }
-    }
-  }
-
-  Future<void> _sendImageMessage(String conversationId, File file) async {
-    final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
-    if (currentUserId == null) return;
-
-    // Use offline-first service for optimistic image sending
-    final offlineService = ref.read(chatOfflineServiceProvider);
-    await offlineService.sendImageOptimistic(
-      conversationId: conversationId,
-      senderId: currentUserId,
-      localPath: file.path,
-    );
-    _scrollToBottom();
-  }
-
-  Future<void> _sendVideoMessage(String conversationId, File file) async {
-    final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
-    if (currentUserId == null) return;
-
-    // Use offline-first service for optimistic video sending
-    final offlineService = ref.read(chatOfflineServiceProvider);
-    await offlineService.sendVideoOptimistic(
-      conversationId: conversationId,
-      senderId: currentUserId,
-      localPath: file.path,
-    );
-    _scrollToBottom();
-  }
-
-  Future<void> _pickCameraImage(String conversationId) async {
-    try {
-      final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(source: ImageSource.camera);
-
-      if (pickedFile != null) {
-        await _sendImageMessage(conversationId, File(pickedFile.path));
-      }
-    } catch (e) {
-      debugPrint('Error picking camera image: $e');
-    }
-  }
-
-  String _formatDateHeader(DateTime date) {
-    // Ensure we're working with local time
-    final localDate = date.toLocal();
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final messageDate = DateTime(
-      localDate.year,
-      localDate.month,
-      localDate.day,
-    );
-
-    final timestring = DateFormat('h:mm a').format(localDate);
-
-    if (messageDate == today) {
-      return 'Today $timestring';
-    } else if (messageDate == yesterday) {
-      return 'Yesterday $timestring';
-    } else {
-      return '${DateFormat('d MMM').format(date)} $timestring';
-    }
   }
 }

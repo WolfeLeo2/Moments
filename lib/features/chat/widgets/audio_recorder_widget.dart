@@ -1,9 +1,10 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:moments/core/theme/app_theme.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:record/record.dart';
+import 'package:moments/core/services/audio_note_service.dart';
+import 'package:moments/widgets/audio_waveform_widget.dart';
 
 class AudioRecorderWidget extends StatefulWidget {
   final Function(String path, int durationMs) onRecordingComplete;
@@ -19,64 +20,109 @@ class AudioRecorderWidget extends StatefulWidget {
   State<AudioRecorderWidget> createState() => _AudioRecorderWidgetState();
 }
 
-
-class _AudioRecorderWidgetState extends State<AudioRecorderWidget> {
-  final _audioRecorder = AudioRecorder();
-  bool _isRecording = false;
-  Timer? _timer;
+class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
+    with SingleTickerProviderStateMixin {
+  final AudioNoteService _audioService = AudioNoteService();
   int _durationSeconds = 0;
-  String? _recordingPath;
+  List<double> _amplitudes = [];
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+  bool _isStopped = false;
+
+  final List<StreamSubscription> _subscriptions = [];
 
   @override
   void initState() {
     super.initState();
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+
+    _pulseAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
+    // Handle auto-stop at max duration (service stops internally at 180s)
+    _subscriptions.add(
+      _audioService.isRecordingStream.listen((recording) {
+        if (!recording && !_isStopped && mounted) {
+          // Recording stopped by the service (max duration reached)
+          _handleAutoStop();
+        }
+      }),
+    );
+    _subscriptions.add(
+      _audioService.recordingDurationStream.listen((seconds) {
+        if (mounted && !_isStopped) setState(() => _durationSeconds = seconds);
+      }),
+    );
+    _subscriptions.add(
+      _audioService.amplitudeStream.listen((amps) {
+        if (mounted && !_isStopped) setState(() => _amplitudes = amps);
+      }),
+    );
+
     _startRecording();
   }
 
   Future<void> _startRecording() async {
-    final status = await Permission.microphone.request();
-    if (status != PermissionStatus.granted) {
-      widget.onCancel();
-      return;
+    try {
+      final started = await _audioService.startRecording();
+      if (!started && mounted) {
+        widget.onCancel();
+      }
+    } catch (e) {
+      if (mounted) widget.onCancel();
+    }
+  }
+
+  Future<void> _handleAutoStop() async {
+    if (_isStopped) return;
+    _isStopped = true;
+
+    // Cancel subscriptions to prevent further setState calls
+    for (final sub in _subscriptions) {
+      sub.cancel();
     }
 
-    final dir = await getTemporaryDirectory();
-    _recordingPath =
-        '${dir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-
-    await _audioRecorder.start(
-      const RecordConfig(
-        encoder: AudioEncoder.aacLc,
-        bitRate: 128000,
-        sampleRate: 44100,
-      ),
-      path: _recordingPath!,
-    );
-
-    setState(() {
-      _isRecording = true;
-    });
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        _durationSeconds++;
-      });
-    });
+    final result = await _audioService.stopRecording();
+    if (result != null && mounted) {
+      widget.onRecordingComplete(result.path, result.durationSeconds * 1000);
+    } else if (mounted) {
+      widget.onCancel();
+    }
   }
 
   Future<void> _stopRecording() async {
-    _timer?.cancel();
-    await _audioRecorder.stop();
+    if (_isStopped) return;
+    _isStopped = true;
 
-    if (_recordingPath != null) {
-      widget.onRecordingComplete(_recordingPath!, _durationSeconds * 1000);
+    // Cancel subscriptions to prevent further setState calls
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
+
+    final result = await _audioService.stopRecording();
+    if (result != null && mounted) {
+      widget.onRecordingComplete(result.path, result.durationSeconds * 1000);
+    } else if (mounted) {
+      widget.onCancel();
     }
   }
 
   Future<void> _cancelRecording() async {
-    _timer?.cancel();
-    await _audioRecorder.stop();
-    widget.onCancel();
+    if (_isStopped) return;
+    _isStopped = true;
+
+    // Cancel subscriptions to prevent further setState calls
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
+
+    await _audioService.cancelRecording();
+    if (mounted) widget.onCancel();
   }
 
   String _formatDuration(int seconds) {
@@ -88,56 +134,110 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppTheme.primaryBlue.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(24),
+        color: AppTheme.primaryBlue.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppTheme.primaryBlue.withValues(alpha: 0.15),
+          width: 1,
+        ),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Cancel button
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: _cancelRecording,
-            color: Colors.red,
-          ),
-
-          const SizedBox(width: 8),
-
-          // Recording indicator
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: Colors.red,
-              shape: BoxShape.circle,
-              boxShadow: _isRecording
-                  ? [
-                      BoxShadow(
-                        color: Colors.red.withValues(alpha: 0.5),
-                        blurRadius: 8,
-                        spreadRadius: 2,
-                      ),
-                    ]
-                  : null,
+          // Live waveform
+          SizedBox(
+            height: 36,
+            child: AudioWaveformWidget(
+              amplitudes: _amplitudes,
+              mode: WaveformMode.recording,
+              activeColor: AppTheme.primaryBlue,
+              inactiveColor: AppTheme.primaryBlue.withValues(alpha: 0.2),
+              barWidth: 2.5,
+              barSpacing: 1.5,
+              height: 36,
             ),
           ),
-
-          const SizedBox(width: 12),
-
-          // Duration
-          Text(
-            _formatDuration(_durationSeconds),
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-          ),
-
-          const Spacer(),
-
-          // Send button
-          IconButton(
-            icon: const Icon(Icons.send),
-            onPressed: _stopRecording,
-            color: AppTheme.primaryBlue,
+          const SizedBox(height: 8),
+          // Controls row
+          Row(
+            children: [
+              // Cancel button
+              GestureDetector(
+                onTap: _cancelRecording,
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppTheme.emergencyRed.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppTheme.emergencyRed,
+                    size: 18,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // Pulse dot + duration
+              AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: AppTheme.emergencyRed.withValues(
+                            alpha: _pulseAnimation.value,
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatDuration(_durationSeconds),
+                        style: GoogleFonts.spaceMono(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textDark,
+                          fontFeatures: [const FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const Spacer(),
+              // Send button
+              GestureDetector(
+                onTap: _stopRecording,
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryBlue.withValues(alpha: 0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.send_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -146,8 +246,11 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget> {
 
   @override
   void dispose() {
-    _timer?.cancel();
-    _audioRecorder.dispose();
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
+    _pulseController.dispose();
+    _audioService.dispose();
     super.dispose();
   }
 }

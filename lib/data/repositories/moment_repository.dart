@@ -165,7 +165,9 @@ class MomentRepository {
       }
 
       // 2. Prepare payload for RPC with full media data (including per-photo privacy)
-      final momentsPayload = mediaDataList.map((mediaData) {
+      final momentsPayload = mediaDataList.asMap().entries.map((entry) {
+        final index = entry.key;
+        final mediaData = entry.value;
         return {
           'title': title,
           'location': locationName,
@@ -177,9 +179,11 @@ class MomentRepository {
           'thumbnail_path': mediaData['thumbnail_path'],
           'duration': mediaData['duration'],
           'is_private': mediaData['is_private'],
-          if (audioPath != null) 'audio_path': audioPath,
-          if (audioDuration != null) 'audio_duration': audioDuration,
-          if (musicData != null) 'music_data': musicData.toJson(),
+          // Only attach audio/music to first moment to avoid duplication
+          if (index == 0 && audioPath != null) 'audio_path': audioPath,
+          if (index == 0 && audioDuration != null)
+            'audio_duration': audioDuration,
+          if (index == 0 && musicData != null) 'music_data': musicData.toJson(),
         };
       }).toList();
 
@@ -241,18 +245,21 @@ class MomentRepository {
         await _deleteImage(moment.thumbnailPath!);
       }
 
-      // 4. Delete the moment from database
+      // 4. Delete audio note from storage
+      if (moment.audioPath != null) {
+        await _deleteAudio(moment.audioPath!);
+      }
+
+      // 5. Delete the moment from database
       await SupabaseConfig.momentsTable.delete().eq('id', id);
 
-      // 5. Check if group is empty and delete it if so
-      if (moment.momentGroupId != null) {
-        final groupMoments = await getMomentsByGroup(moment.momentGroupId!);
-        if (groupMoments.isEmpty) {
-          await SupabaseConfig.client
-              .from('moment_groups')
-              .delete()
-              .eq('id', moment.momentGroupId!);
-        }
+      // 6. Check if group is empty and delete it if so
+      final groupMoments = await getMomentsByGroup(moment.momentGroupId);
+      if (groupMoments.isEmpty) {
+        await SupabaseConfig.client
+            .from('moment_groups')
+            .delete()
+            .eq('id', moment.momentGroupId);
       }
     } catch (e) {
       _log.e('Failed to delete moment: $e');
@@ -403,6 +410,56 @@ class MomentRepository {
     } catch (e) {
       // Don't throw error if image deletion fails
       _log.e('Failed to delete image: $e');
+    }
+  }
+
+  // Delete audio note from Supabase storage (moment-audio bucket)
+  Future<void> _deleteAudio(String audioPath) async {
+    try {
+      await SupabaseConfig.client.storage.from('moment-audio').remove([
+        audioPath,
+      ]);
+      _log.i('Audio deleted from storage: $audioPath');
+    } catch (e) {
+      _log.e('Failed to delete audio: $e');
+    }
+  }
+
+  /// Delete an entire moment group and all its moments + storage files.
+  /// Only the group owner should call this.
+  Future<void> deleteGroup(String groupId) async {
+    try {
+      // 1. Fetch all moments in the group
+      final moments = await getMomentsByGroup(groupId);
+
+      // 2. Delete storage files for each moment
+      for (final moment in moments) {
+        if (moment.mediaPath != null) {
+          await _deleteImage(moment.mediaPath!);
+        }
+        if (moment.thumbnailPath != null) {
+          await _deleteImage(moment.thumbnailPath!);
+        }
+        if (moment.audioPath != null) {
+          await _deleteAudio(moment.audioPath!);
+        }
+      }
+
+      // 3. Delete all moment rows (this also cascades reactions via FK)
+      for (final moment in moments) {
+        await SupabaseConfig.momentsTable.delete().eq('id', moment.id);
+      }
+
+      // 4. Delete the group itself (cascades moment_contributors via FK)
+      await SupabaseConfig.client
+          .from('moment_groups')
+          .delete()
+          .eq('id', groupId);
+
+      _log.i('Group $groupId and ${moments.length} moments deleted');
+    } catch (e) {
+      _log.e('Failed to delete group: $e');
+      throw Exception('Failed to delete group: $e');
     }
   }
 

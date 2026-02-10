@@ -4,6 +4,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/services/haptic_service.dart';
+import 'package:moments/core/services/deezer_service.dart';
 import 'package:moments/data/models/music_data.dart';
 
 /// Compact pill indicator for cards (overlays on MemoryCard)
@@ -78,7 +79,12 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget>
 
   Future<void> _initPlayer() async {
     try {
-      final dur = await _player.setUrl(widget.musicData.url);
+      final url = await _resolveUrl();
+      if (url == null || !mounted) return;
+
+      // Use LockCachingAudioSource to cache audio locally after first fetch
+      final source = LockCachingAudioSource(Uri.parse(url));
+      final dur = await _player.setAudioSource(source);
       if (dur != null && mounted) setState(() => _duration = dur);
     } catch (_) {}
 
@@ -106,6 +112,19 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget>
     super.dispose();
   }
 
+  /// Resolve a playable URL. Deezer preview URLs expire, so re-fetch from API.
+  Future<String?> _resolveUrl() async {
+    final music = widget.musicData;
+    if (music.type == MusicType.deezer && music.trackId != null) {
+      // Always fetch fresh preview URL — stored ones expire
+      final deezer = DeezerService();
+      final freshUrl = await deezer.getPreviewUrl(music.trackId!);
+      deezer.dispose();
+      return freshUrl ?? music.url; // fallback to stored URL
+    }
+    return music.url;
+  }
+
   void _togglePlay() {
     HapticService.lightTap();
     if (_isPlaying) {
@@ -121,46 +140,88 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget>
   }
 
   Widget _buildCompact() {
+    final music = widget.musicData;
     return GestureDetector(
       onTap: _togglePlay,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: AppTheme.lavenderPop.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppTheme.lavenderPop.withValues(alpha: 0.3),
-          ),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.borderGray, width: 1),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Album art thumbnail
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: music.albumArt != null && music.albumArt!.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: music.albumArt!,
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => _compactAlbumPlaceholder(),
+                      errorWidget: (_, __, ___) => _compactAlbumPlaceholder(),
+                    )
+                  : _compactAlbumPlaceholder(),
+            ),
+            const SizedBox(width: 8),
+            // Song info
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    music.title,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textDark,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    music.artist,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w400,
+                      color: AppTheme.textGray,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Play/Pause icon
             Icon(
               _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              color: AppTheme.lavenderPop,
-              size: 18,
-            ),
-            const SizedBox(width: 6),
-            Icon(
-              Icons.music_note_rounded,
-              color: AppTheme.lavenderPop,
-              size: 14,
-            ),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                '${widget.musicData.title} · ${widget.musicData.artist}',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: AppTheme.lavenderPop,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              color: _isPlaying ? AppTheme.lavenderPop : AppTheme.textGray,
+              size: 20,
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _compactAlbumPlaceholder() {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: AppTheme.lavenderPop.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(
+        Icons.music_note_rounded,
+        color: AppTheme.lavenderPop,
+        size: 16,
       ),
     );
   }

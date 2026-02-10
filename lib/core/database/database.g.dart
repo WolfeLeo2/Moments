@@ -1986,9 +1986,9 @@ class $MomentsTable extends Moments with TableInfo<$MomentsTable, MomentEntry> {
   late final GeneratedColumn<String> momentGroupId = GeneratedColumn<String>(
     'moment_group_id',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.string,
-    requiredDuringInsert: false,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _isPrivateMeta = const VerificationMeta(
     'isPrivate',
@@ -2224,6 +2224,8 @@ class $MomentsTable extends Moments with TableInfo<$MomentsTable, MomentEntry> {
           _momentGroupIdMeta,
         ),
       );
+    } else if (isInserting) {
+      context.missing(_momentGroupIdMeta);
     }
     if (data.containsKey('is_private')) {
       context.handle(
@@ -2350,7 +2352,7 @@ class $MomentsTable extends Moments with TableInfo<$MomentsTable, MomentEntry> {
       momentGroupId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}moment_group_id'],
-      ),
+      )!,
       isPrivate: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_private'],
@@ -2404,7 +2406,7 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
   final int timestamp;
   final String? userId;
   final String? description;
-  final String? momentGroupId;
+  final String momentGroupId;
   final bool isPrivate;
   final String? localMediaPath;
   final String? localThumbnailPath;
@@ -2428,7 +2430,7 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
     required this.timestamp,
     this.userId,
     this.description,
-    this.momentGroupId,
+    required this.momentGroupId,
     required this.isPrivate,
     this.localMediaPath,
     this.localThumbnailPath,
@@ -2469,9 +2471,7 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
     if (!nullToAbsent || description != null) {
       map['description'] = Variable<String>(description);
     }
-    if (!nullToAbsent || momentGroupId != null) {
-      map['moment_group_id'] = Variable<String>(momentGroupId);
-    }
+    map['moment_group_id'] = Variable<String>(momentGroupId);
     map['is_private'] = Variable<bool>(isPrivate);
     if (!nullToAbsent || localMediaPath != null) {
       map['local_media_path'] = Variable<String>(localMediaPath);
@@ -2523,9 +2523,7 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
       description: description == null && nullToAbsent
           ? const Value.absent()
           : Value(description),
-      momentGroupId: momentGroupId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(momentGroupId),
+      momentGroupId: Value(momentGroupId),
       isPrivate: Value(isPrivate),
       localMediaPath: localMediaPath == null && nullToAbsent
           ? const Value.absent()
@@ -2567,7 +2565,7 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
       timestamp: serializer.fromJson<int>(json['timestamp']),
       userId: serializer.fromJson<String?>(json['userId']),
       description: serializer.fromJson<String?>(json['description']),
-      momentGroupId: serializer.fromJson<String?>(json['momentGroupId']),
+      momentGroupId: serializer.fromJson<String>(json['momentGroupId']),
       isPrivate: serializer.fromJson<bool>(json['isPrivate']),
       localMediaPath: serializer.fromJson<String?>(json['localMediaPath']),
       localThumbnailPath: serializer.fromJson<String?>(
@@ -2598,7 +2596,7 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
       'timestamp': serializer.toJson<int>(timestamp),
       'userId': serializer.toJson<String?>(userId),
       'description': serializer.toJson<String?>(description),
-      'momentGroupId': serializer.toJson<String?>(momentGroupId),
+      'momentGroupId': serializer.toJson<String>(momentGroupId),
       'isPrivate': serializer.toJson<bool>(isPrivate),
       'localMediaPath': serializer.toJson<String?>(localMediaPath),
       'localThumbnailPath': serializer.toJson<String?>(localThumbnailPath),
@@ -2625,7 +2623,7 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
     int? timestamp,
     Value<String?> userId = const Value.absent(),
     Value<String?> description = const Value.absent(),
-    Value<String?> momentGroupId = const Value.absent(),
+    String? momentGroupId,
     bool? isPrivate,
     Value<String?> localMediaPath = const Value.absent(),
     Value<String?> localThumbnailPath = const Value.absent(),
@@ -2651,9 +2649,7 @@ class MomentEntry extends DataClass implements Insertable<MomentEntry> {
     timestamp: timestamp ?? this.timestamp,
     userId: userId.present ? userId.value : this.userId,
     description: description.present ? description.value : this.description,
-    momentGroupId: momentGroupId.present
-        ? momentGroupId.value
-        : this.momentGroupId,
+    momentGroupId: momentGroupId ?? this.momentGroupId,
     isPrivate: isPrivate ?? this.isPrivate,
     localMediaPath: localMediaPath.present
         ? localMediaPath.value
@@ -2809,7 +2805,7 @@ class MomentsCompanion extends UpdateCompanion<MomentEntry> {
   final Value<int> timestamp;
   final Value<String?> userId;
   final Value<String?> description;
-  final Value<String?> momentGroupId;
+  final Value<String> momentGroupId;
   final Value<bool> isPrivate;
   final Value<String?> localMediaPath;
   final Value<String?> localThumbnailPath;
@@ -2860,7 +2856,7 @@ class MomentsCompanion extends UpdateCompanion<MomentEntry> {
     required int timestamp,
     this.userId = const Value.absent(),
     this.description = const Value.absent(),
-    this.momentGroupId = const Value.absent(),
+    required String momentGroupId,
     this.isPrivate = const Value.absent(),
     this.localMediaPath = const Value.absent(),
     this.localThumbnailPath = const Value.absent(),
@@ -2876,6 +2872,7 @@ class MomentsCompanion extends UpdateCompanion<MomentEntry> {
        longitude = Value(longitude),
        createdAt = Value(createdAt),
        timestamp = Value(timestamp),
+       momentGroupId = Value(momentGroupId),
        syncedAt = Value(syncedAt);
   static Insertable<MomentEntry> custom({
     Expression<String>? id,
@@ -2948,7 +2945,7 @@ class MomentsCompanion extends UpdateCompanion<MomentEntry> {
     Value<int>? timestamp,
     Value<String?>? userId,
     Value<String?>? description,
-    Value<String?>? momentGroupId,
+    Value<String>? momentGroupId,
     Value<bool>? isPrivate,
     Value<String?>? localMediaPath,
     Value<String?>? localThumbnailPath,
@@ -5892,7 +5889,7 @@ typedef $$MomentsTableCreateCompanionBuilder =
       required int timestamp,
       Value<String?> userId,
       Value<String?> description,
-      Value<String?> momentGroupId,
+      required String momentGroupId,
       Value<bool> isPrivate,
       Value<String?> localMediaPath,
       Value<String?> localThumbnailPath,
@@ -5919,7 +5916,7 @@ typedef $$MomentsTableUpdateCompanionBuilder =
       Value<int> timestamp,
       Value<String?> userId,
       Value<String?> description,
-      Value<String?> momentGroupId,
+      Value<String> momentGroupId,
       Value<bool> isPrivate,
       Value<String?> localMediaPath,
       Value<String?> localThumbnailPath,
@@ -6317,7 +6314,7 @@ class $$MomentsTableTableManager
                 Value<int> timestamp = const Value.absent(),
                 Value<String?> userId = const Value.absent(),
                 Value<String?> description = const Value.absent(),
-                Value<String?> momentGroupId = const Value.absent(),
+                Value<String> momentGroupId = const Value.absent(),
                 Value<bool> isPrivate = const Value.absent(),
                 Value<String?> localMediaPath = const Value.absent(),
                 Value<String?> localThumbnailPath = const Value.absent(),
@@ -6369,7 +6366,7 @@ class $$MomentsTableTableManager
                 required int timestamp,
                 Value<String?> userId = const Value.absent(),
                 Value<String?> description = const Value.absent(),
-                Value<String?> momentGroupId = const Value.absent(),
+                required String momentGroupId,
                 Value<bool> isPrivate = const Value.absent(),
                 Value<String?> localMediaPath = const Value.absent(),
                 Value<String?> localThumbnailPath = const Value.absent(),

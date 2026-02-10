@@ -1,9 +1,13 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:moments/features/moments/presentation/relive_experience_page.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:motor/motor.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+
+import '../../../data/sources/supabase_config.dart';
 
 import '../../../data/models/moment.dart';
 import '../../../data/models/moment_contributor.dart';
@@ -20,6 +24,7 @@ import '../../../widgets/contributors_list.dart';
 import '../../../widgets/invite_contributors_sheet.dart';
 import '../../../widgets/music_indicator.dart';
 import '../../../widgets/collaborative_audio_list.dart';
+import '../../../widgets/spring_button.dart';
 
 import 'dart:math' as math;
 import 'package:google_fonts/google_fonts.dart';
@@ -27,12 +32,14 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:image_picker/image_picker.dart' as picker;
+import 'package:wechat_assets_picker/wechat_assets_picker.dart'
+    hide LatLng, RequestType;
+import 'package:photo_manager/photo_manager.dart' as pm;
 import '../../../core/providers/moments_providers.dart';
 import '../../../core/providers/database_provider.dart';
-import 'dart:io';
+import 'add_moment_page.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 /// Details page showing moments in a carousel with spring animations
 class MomentDetailsPage extends ConsumerStatefulWidget {
@@ -55,7 +62,12 @@ class MomentDetailsPage extends ConsumerStatefulWidget {
 
 class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     with TickerProviderStateMixin {
+  bool _allSavedOffline = false;
+  // Collaborative moments state
+  List<MomentContributor> _contributors = [];
+
   int _currentPage = 0;
+  String? _groupId;
   double _headerOpacity = 0.0;
   late SingleMotionController _headerOpacityController;
   double _headerScale = 0.85; // Match carousel initial scale
@@ -63,38 +75,33 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   late SingleMotionController _headerScaleController;
 
   final Map<String, String> _imageUrls = {};
-  bool _isUploading = false;
+  bool _isGroupPrivate = false;
+  bool _isLikeAnimation = true; // true = like, false = dislike
+  bool _isOwner = false;
+  bool _isSavingOffline = false;
   final Map<String, String> _localPaths = {}; // Local cached paths for images
   final Map<String, String> _localVideoPaths =
       {}; // Local cached paths for videos
-  bool _isSavingOffline = false;
-  bool _allSavedOffline = false;
+
+  // Realtime moments list (starts with widget.moments, updates via stream)
+  late List<Moment> _moments;
 
   final List<double> _opacities = [];
   final List<SingleMotionController> _opacityControllers = [];
+  // Photo heart state (double-tap to like)
+  final Map<int, int> _photoHeartCounts = {}; // photo index -> heart count
+
   // Motor spring controllers for each card
   final List<SingleMotionController> _scaleControllers = [];
 
   final List<double> _scales = [];
+  int? _showingHeartAtIndex; // Index of photo showing heart animation
   final Map<String, String> _userAvatars = {}; // User ID -> avatar URL
+  MomentContributor? _userContribution;
+  final Map<int, bool> _userHeartedPhoto = {}; // photo index -> user hearted
+  final Map<String, String> _userNames = {}; // User ID -> display name
   // Video controller manager for hybrid prewarm approach
   late final VideoControllerManager _videoManager;
-
-  // Photo heart state (double-tap to like)
-  final Map<int, int> _photoHeartCounts = {}; // photo index -> heart count
-  final Map<int, bool> _userHeartedPhoto = {}; // photo index -> user hearted
-  int? _showingHeartAtIndex; // Index of photo showing heart animation
-  bool _isLikeAnimation = true; // true = like, false = dislike
-
-  // Collaborative moments state
-  List<MomentContributor> _contributors = [];
-  bool _isOwner = false;
-  bool _isGroupPrivate = false;
-  MomentContributor? _userContribution;
-
-  // Realtime moments list (starts with widget.moments, updates via stream)
-  late List<Moment> _moments;
-  String? _groupId;
 
   @override
   void dispose() {
@@ -108,6 +115,31 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       controller.dispose();
     }
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with widget moments, will be updated via stream
+    _moments = List.from(widget.moments);
+
+    // Only enable realtime updates if all moments belong to the same group
+    // If it's a cluster of multiple groups, we don't watch a single group stream
+    final uniqueGroupIds = widget.moments.map((m) => m.momentGroupId).toSet();
+
+    _groupId = uniqueGroupIds.length == 1 ? uniqueGroupIds.first : null;
+    _currentPage = widget.initialPage;
+    _videoManager = VideoControllerManager(
+      onControllerReady: () {
+        if (mounted) setState(() {});
+      },
+    );
+    _loadImageUrls();
+    _loadUserAvatars();
+    _loadAllPhotoHeartStatuses();
+    _loadContributors();
+    _setupHeaderAnimations();
+    _setupSpringAnimations();
   }
 
   /// Reinitialize animation controllers when moments list changes
@@ -127,34 +159,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     _opacities.clear();
 
     // Setup new controllers for new moment count
-    _setupSpringAnimations();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    // Initialize with widget moments, will be updated via stream
-    _moments = List.from(widget.moments);
-
-    // Only enable realtime updates if all moments belong to the same group
-    // If it's a cluster of multiple groups, we don't watch a single group stream
-    final uniqueGroupIds = widget.moments
-        .map((m) => m.momentGroupId)
-        .where((id) => id != null)
-        .toSet();
-
-    _groupId = uniqueGroupIds.length == 1 ? uniqueGroupIds.first : null;
-    _currentPage = widget.initialPage;
-    _videoManager = VideoControllerManager(
-      onControllerReady: () {
-        if (mounted) setState(() {});
-      },
-    );
-    _loadImageUrls();
-    _loadUserAvatars();
-    _loadAllPhotoHeartStatuses();
-    _loadContributors();
-    _setupHeaderAnimations();
     _setupSpringAnimations();
   }
 
@@ -212,7 +216,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   Future<void> _loadContributors() async {
     if (_moments.isEmpty) return;
     final groupId = _moments.first.momentGroupId;
-    if (groupId == null) return;
 
     try {
       final repository = ref.read(momentRepositoryProvider);
@@ -226,17 +229,54 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
           _contributors = contributors;
           _userContribution = userContribution;
           _isGroupPrivate = isPrivate;
-          // Fallback to moment ownership if group ownership is not explicitly defined
           _isOwner =
               (_userContribution?.isOwner ?? false) ||
               (_moments.isNotEmpty && _isOwnMoment(_moments.first));
+
+          // Populate user names from contributors
+          for (final c in contributors) {
+            _userNames[c.userId] = c.displayName ?? c.username ?? 'Unknown';
+          }
         });
 
         // Reload avatars now that contributors are available
         _loadUserAvatars();
+        // Load names for moment users not in contributors
+        _loadMissingUserNames();
       }
     } catch (e) {
       debugPrint('Failed to load contributors: $e');
+    }
+  }
+
+  /// Load display names for moment users who aren't in the contributors list
+  Future<void> _loadMissingUserNames() async {
+    final missingUserIds = _moments
+        .where((m) => m.userId != null && !_userNames.containsKey(m.userId!))
+        .map((m) => m.userId!)
+        .toSet()
+        .toList();
+
+    if (missingUserIds.isEmpty) return;
+
+    try {
+      final profiles = await SupabaseConfig.client
+          .from('profiles')
+          .select('id, username, display_name')
+          .inFilter('id', missingUserIds);
+
+      if (mounted && profiles.isNotEmpty) {
+        setState(() {
+          for (final p in profiles) {
+            _userNames[p['id'] as String] =
+                (p['display_name'] as String?) ??
+                (p['username'] as String?) ??
+                'Unknown';
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading user names: $e');
     }
   }
 
@@ -244,7 +284,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   void _showInviteSheet() {
     if (_moments.isEmpty) return;
     final groupId = _moments.first.momentGroupId;
-    if (groupId == null) return;
 
     HapticService.lightTap();
     showModalBottomSheet(
@@ -706,75 +745,13 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     // Owner can always add
     if (_isOwner) return true;
     // Accepted contributors can add
-    if (_userContribution != null && _userContribution!.hasAccepted)
+    if (_userContribution != null && _userContribution!.hasAccepted) {
       return true;
+    }
     // Check if user is the moment creator (fallback for moments without contributor records)
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (_moments.isNotEmpty && _moments.first.userId == userId) return true;
     return false;
-  }
-
-  Future<void> _handleAddPhotos() async {
-    if (_moments.isEmpty) return;
-
-    // Check permission
-    if (!_canAddPhotos) {
-      context.showErrorSnackBar(
-        'Only contributors can add photos to this moment.',
-      );
-      return;
-    }
-
-    final firstMoment = _moments.first;
-    final groupId = firstMoment.momentGroupId;
-
-    if (groupId == null) {
-      context.showErrorSnackBar('Cannot add photos to this moment (Legacy).');
-      return;
-    }
-
-    try {
-      final picker = ImagePicker();
-      final List<XFile> pickedFiles = await picker.pickMultiImage(
-        imageQuality: 85,
-      );
-
-      if (pickedFiles.isEmpty) return;
-
-      setState(() {
-        _isUploading = true;
-      });
-
-      final imageFiles = pickedFiles.map((xFile) => File(xFile.path)).toList();
-
-      await ref
-          .read(momentRepositoryProvider)
-          .createMomentsBatch(
-            imageFiles,
-            firstMoment.title,
-            '', // Caption optional for batch add
-            widget.locationName,
-            firstMoment.latitude,
-            firstMoment.longitude,
-            momentGroupId: groupId,
-          );
-
-      if (mounted) {
-        setState(() {
-          _isUploading = false;
-        });
-        HapticService.photoAdded();
-        context.showSuccessSnackBar('Photos added successfully!');
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isUploading = false;
-        });
-        HapticService.error();
-        context.showErrorSnackBar('Error picking photos: $e');
-      }
-    }
   }
 
   Future<void> _loadUserAvatars() async {
@@ -1143,8 +1120,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
           value: 'share',
           child: Row(
             children: [
-              FaIcon(
-                FontAwesomeIcons.share,
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedShare01,
                 size: 20,
                 color: AppTheme.textDark,
               ),
@@ -1152,7 +1129,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
               Text(
                 'Share',
                 style: GoogleFonts.inter(
-                  fontSize: 14,
+                  textStyle: Theme.of(context).textTheme.labelMedium,
                   fontWeight: FontWeight.w500,
                   color: AppTheme.textDark,
                 ),
@@ -1166,10 +1143,10 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             value: 'toggle_privacy',
             child: Row(
               children: [
-                FaIcon(
-                  moment.isPrivate
-                      ? FontAwesomeIcons.lock
-                      : FontAwesomeIcons.lockOpen,
+                HugeIcon(
+                  icon: moment.isPrivate
+                      ? HugeIcons.strokeRoundedSquareLock02
+                      : HugeIcons.strokeRoundedSquareUnlock02,
                   size: 20,
                   color: moment.isPrivate
                       ? AppTheme.vibrantGreen
@@ -1179,7 +1156,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                 Text(
                   moment.isPrivate ? 'Make Visible' : 'Make Private',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
+                    textStyle: Theme.of(context).textTheme.labelMedium,
                     fontWeight: FontWeight.w500,
                     color: moment.isPrivate
                         ? AppTheme.vibrantGreen
@@ -1194,12 +1171,16 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             value: 'delete',
             child: Row(
               children: [
-                FaIcon(FontAwesomeIcons.trashCan, size: 20, color: Colors.red),
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedDelete02,
+                  size: 20,
+                  color: Colors.red,
+                ),
                 const SizedBox(width: 12),
                 Text(
                   'Delete',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
+                    textStyle: Theme.of(context).textTheme.labelMedium,
                     fontWeight: FontWeight.w500,
                     color: Colors.red,
                   ),
@@ -1275,7 +1256,9 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
           ),
         ),
         content: Text(
-          hasMultipleOwnMoments
+          _isOwner && _moments.length > 1
+              ? 'Delete this moment, all your moments, or the entire group?'
+              : hasMultipleOwnMoments
               ? 'Delete this moment or all your moments at this location?'
               : 'Are you sure you want to delete this moment? This action cannot be undone.',
           style: GoogleFonts.inter(color: AppTheme.textGray),
@@ -1311,6 +1294,18 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                 style: GoogleFonts.inter(
                   fontWeight: FontWeight.w600,
                   color: Colors.red.shade700,
+                ),
+              ),
+            ),
+          if (_isOwner && _moments.length > 1)
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'delete_group'),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: Text(
+                'Delete Entire Group',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.red.shade900,
                 ),
               ),
             ),
@@ -1368,6 +1363,25 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             context.showSuccessSnackBar('${ownMoments.length} moments deleted');
           }
         }
+      } else if (result == 'delete_group') {
+        // Delete entire group — owner only
+        final groupId = moment.momentGroupId;
+
+        // Delete all moments from local DB first
+        for (final m in _moments) {
+          try {
+            await ref.read(appDatabaseProvider).deleteMoment(m.id);
+          } catch (_) {}
+        }
+
+        // Delete group and all its moments + storage from Supabase
+        await ref.read(momentRepositoryProvider).deleteGroup(groupId);
+
+        if (mounted) {
+          HapticService.success();
+          context.showSuccessSnackBar('Entire group deleted');
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -1414,8 +1428,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             children: [
               Row(
                 children: [
-                  FaIcon(
-                    FontAwesomeIcons.lock,
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedSquareLock02,
                     size: 18,
                     color: AppTheme.emergencyRed,
                   ),
@@ -1423,7 +1437,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                   Text(
                     'Private Photo',
                     style: GoogleFonts.inter(
-                      fontSize: 14,
+                      textStyle: Theme.of(context).textTheme.labelMedium,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textDark,
                     ),
@@ -1434,7 +1448,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
               Text(
                 'Only visible to you',
                 style: GoogleFonts.inter(
-                  fontSize: 12,
+                  textStyle: Theme.of(context).textTheme.labelSmall,
                   color: AppTheme.textGray,
                 ),
               ),
@@ -1446,16 +1460,16 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             value: 'make_public',
             child: Row(
               children: [
-                FaIcon(
-                  FontAwesomeIcons.lockOpen,
-                  size: 20,
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedSquareUnlock02,
+                  size: 18,
                   color: AppTheme.vibrantGreen,
                 ),
                 const SizedBox(width: 12),
                 Text(
                   'Make Visible',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
+                    textStyle: Theme.of(context).textTheme.labelMedium,
                     fontWeight: FontWeight.w500,
                     color: AppTheme.vibrantGreen,
                   ),
@@ -1469,7 +1483,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             child: Text(
               'Only the owner can change this',
               style: GoogleFonts.inter(
-                fontSize: 12,
+                textStyle: Theme.of(context).textTheme.labelMedium,
                 fontStyle: FontStyle.italic,
                 color: AppTheme.textGray,
               ),
@@ -1502,7 +1516,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     }
 
     // Check if group has contributors - cannot make shared groups private
-    if (groupId != null && isPrivate) {
+    if (isPrivate) {
       final nonOwnerContributors = _contributors
           .where((c) => !c.isOwner)
           .toList();
@@ -1517,62 +1531,37 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       final client = Supabase.instance.client;
       final userId = client.auth.currentUser?.id;
 
-      if (groupId != null) {
-        // 1. Update the Group Privacy
-        // (Only if I am the creator of the group or we decide any member can lock it?
-        // Safer to check group ownership or fall back to moment update if not owner)
-        // For this user script, we'll try to update the group.
-
-        // Optimistically update all local moments
-        setState(() {
-          for (int i = 0; i < _moments.length; i++) {
-            if (_moments[i].momentGroupId == groupId) {
-              _moments[i] = _moments[i].copyWith(isPrivate: isPrivate);
-            }
+      // Optimistically update all local moments
+      setState(() {
+        for (int i = 0; i < _moments.length; i++) {
+          if (_moments[i].momentGroupId == groupId) {
+            _moments[i] = _moments[i].copyWith(isPrivate: isPrivate);
           }
-          _isGroupPrivate = isPrivate;
-        });
-
-        // Update moment_groups (Policies will fail if not owner, which is fine, we catch error)
-        try {
-          await client
-              .from('moment_groups')
-              .update({'is_private': isPrivate})
-              .eq('id', groupId);
-        } catch (_) {
-          // Ignore if failed (e.g. not owner of group), continue to update my photos
         }
+        _isGroupPrivate = isPrivate;
+      });
 
-        // 2. Update all MY moments in this group
+      // Update moment_groups (Policies will fail if not owner, which is fine, we catch error)
+      try {
         await client
-            .from('moments')
+            .from('moment_groups')
             .update({'is_private': isPrivate})
-            .eq('moment_group_id', groupId)
-            .eq('user_id', userId!); // Only update my photos
-
-        // Sync to local storage
-        await ref
-            .read(appDatabaseProvider)
-            .updateGroupPrivacy(groupId, isPrivate);
-      } else {
-        // Fallback for single moment (Legacy)
-        await client
-            .from('moments')
-            .update({'is_private': isPrivate})
-            .eq('id', moment.id);
-
-        setState(() {
-          final index = _moments.indexWhere((m) => m.id == moment.id);
-          if (index != -1) {
-            _moments[index] = moment.copyWith(isPrivate: isPrivate);
-          }
-        });
-
-        // Also sync to local storage
-        await ref
-            .read(appDatabaseProvider)
-            .updateMomentPrivacy(moment.id, isPrivate);
+            .eq('id', groupId);
+      } catch (_) {
+        // Ignore if failed (e.g. not owner of group), continue to update my photos
       }
+
+      // Update all MY moments in this group
+      await client
+          .from('moments')
+          .update({'is_private': isPrivate})
+          .eq('moment_group_id', groupId)
+          .eq('user_id', userId!); // Only update my photos
+
+      // Sync to local storage
+      await ref
+          .read(appDatabaseProvider)
+          .updateGroupPrivacy(groupId, isPrivate);
 
       if (mounted) {
         HapticService.success();
@@ -1628,7 +1617,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
           child: Text(
             'Photo Privacy',
             style: GoogleFonts.inter(
-              fontSize: 12,
+              textStyle: Theme.of(context).textTheme.labelSmall,
               fontWeight: FontWeight.w600,
               color: AppTheme.textGray,
             ),
@@ -1638,10 +1627,10 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
           value: 'toggle',
           child: Row(
             children: [
-              FaIcon(
-                currentMoment.isPrivate
-                    ? FontAwesomeIcons.lockOpen
-                    : FontAwesomeIcons.lock,
+              HugeIcon(
+                icon: currentMoment.isPrivate
+                    ? HugeIcons.strokeRoundedSquareUnlock02
+                    : HugeIcons.strokeRoundedSquareLock02,
                 size: 20,
                 color: currentMoment.isPrivate
                     ? AppTheme.vibrantGreen
@@ -1651,7 +1640,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
               Text(
                 currentMoment.isPrivate ? 'Make Visible' : 'Make Private',
                 style: GoogleFonts.inter(
-                  fontSize: 14,
+                  textStyle: Theme.of(context).textTheme.labelMedium,
                   fontWeight: FontWeight.w500,
                   color: currentMoment.isPrivate
                       ? AppTheme.vibrantGreen
@@ -1669,87 +1658,114 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Listen for realtime updates
-    if (_groupId != null) {
-      ref.listen(momentsByGroupStreamProvider(_groupId!), (previous, next) {
-        next.whenData((updatedMoments) {
-          _handleMomentsStreamUpdate(updatedMoments);
-        });
-      });
-    }
-
-    final screenHeight = MediaQuery.of(context).size.height;
-    final availableHeight =
-        screenHeight -
-        MediaQuery.of(context).padding.top -
-        MediaQuery.of(context).padding.bottom;
-
-    // Calculate how much space bottom sections need
-    final hasAudioNotes = _moments.any((m) => m.audioPath != null);
-    final hasMusic = _moments.any((m) => m.musicData != null);
-    final bottomSectionHeight =
-        (hasAudioNotes ? 90.0 : 0.0) + (hasMusic ? 56.0 : 0.0);
-
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundBeige,
-      floatingActionButton: _buildFAB(),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: _buildCarousel(availableHeight, bottomSectionHeight),
-            ),
-            if (hasAudioNotes) _buildAudioNotesSection(),
-            if (hasMusic) _buildMusicSection(),
-            SizedBox(height: 8.h),
-          ],
-        ),
-      ),
-    );
-  }
-
   // ─── FAB ──────────────────────────────────────────────────────────
 
   Widget? _buildFAB() {
     if (!_canAddPhotos) return null;
 
-    return FloatingActionButton(
-      onPressed: _isUploading ? null : _handleAddPhotos,
-      backgroundColor: AppTheme.primaryBlue,
-      elevation: 4,
-      child: _isUploading
-          ? const SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(
-                color: Colors.white,
-                strokeWidth: 2.5,
-              ),
-            )
-          : const Icon(
-              Icons.add_photo_alternate_rounded,
-              color: Colors.white,
-              size: 26,
-            ),
+    return _MomentDetailsFAB(
+      onCameraTap: () => _pickFromCameraForMoment(mediaType: 'photo'),
+      onVideoTap: () => _pickFromCameraForMoment(mediaType: 'video'),
+      onGalleryTap: _pickFromGalleryForMoment,
     );
+  }
+
+  Future<void> _pickFromCameraForMoment({required String mediaType}) async {
+    final firstMoment = _moments.isNotEmpty ? _moments.first : null;
+    if (firstMoment == null) return;
+
+    try {
+      final imagePicker = picker.ImagePicker();
+      picker.XFile? file;
+
+      if (mediaType == 'photo') {
+        file = await imagePicker.pickImage(source: picker.ImageSource.camera);
+      } else {
+        file = await imagePicker.pickVideo(
+          source: picker.ImageSource.camera,
+          maxDuration: const Duration(seconds: 60),
+        );
+      }
+
+      if (file == null || !mounted) return;
+
+      final result = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => AddMomentPage(
+            mediaPath: file!.path,
+            isVideo: mediaType == 'video',
+            initialLatitude: firstMoment.latitude,
+            initialLongitude: firstMoment.longitude,
+          ),
+        ),
+      );
+
+      if (result == true && mounted) {
+        ref.invalidate(momentsStreamProvider);
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Error opening camera: $e');
+      }
+    }
+  }
+
+  Future<void> _pickFromGalleryForMoment() async {
+    final firstMoment = _moments.isNotEmpty ? _moments.first : null;
+    if (firstMoment == null) return;
+
+    try {
+      final List<AssetEntity>? assets = await AssetPicker.pickAssets(
+        context,
+        pickerConfig: AssetPickerConfig(
+          maxAssets: 10,
+          requestType: pm.RequestType.common,
+          specialPickerType: SpecialPickerType.noPreview,
+        ),
+      );
+
+      if (assets == null || assets.isEmpty || !mounted) return;
+
+      final List<String> mediaPaths = [];
+      bool hasVideo = false;
+      int? videoDuration;
+
+      for (final asset in assets) {
+        final file = await asset.file;
+        if (file != null) {
+          mediaPaths.add(file.path);
+          if (asset.type == AssetType.video) {
+            hasVideo = true;
+            videoDuration = asset.duration;
+          }
+        }
+      }
+
+      if (mediaPaths.isEmpty || !mounted) return;
+
+      final result = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => AddMomentPage(
+            mediaPaths: mediaPaths,
+            isVideo: hasVideo,
+            videoDuration: videoDuration ?? 0,
+            initialLatitude: firstMoment.latitude,
+            initialLongitude: firstMoment.longitude,
+          ),
+        ),
+      );
+
+      if (result == true && mounted) {
+        ref.invalidate(momentsStreamProvider);
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Error picking media: $e');
+      }
+    }
   }
 
   // ─── HEADER ───────────────────────────────────────────────────────
-
-  Widget _buildHeader() {
-    return Transform.scale(
-      scale: _headerScale.clamp(0.01, 1.0),
-      child: Opacity(
-        opacity: _headerOpacity.clamp(0.0, 1.0),
-        child: Column(
-          children: [_buildAppBar(), _buildMetaRow(), _buildContributorRow()],
-        ),
-      ),
-    );
-  }
 
   Widget _buildAppBar() {
     return Padding(
@@ -1789,8 +1805,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                           ),
                           child: Padding(
                             padding: const EdgeInsets.only(right: 6.0),
-                            child: FaIcon(
-                              FontAwesomeIcons.lock,
+                            child: HugeIcon(
+                              icon: HugeIcons.strokeRoundedSquareLock02,
                               size: 20,
                               color: AppTheme.emergencyRed,
                             ),
@@ -1802,7 +1818,9 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                               ? _moments.first.title.toUpperCase()
                               : 'MOMENT',
                           style: GoogleFonts.bebasNeue(
-                            fontSize: 28.sp,
+                            textStyle: Theme.of(
+                              context,
+                            ).textTheme.headlineMedium,
                             letterSpacing: 1.5.sp,
                             fontWeight: FontWeight.w600,
                             color: Colors.black,
@@ -1819,8 +1837,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      FaIcon(
-                        FontAwesomeIcons.locationDot,
+                      Icon(
+                        CupertinoIcons.placemark_fill,
                         size: 12,
                         color: AppTheme.primaryBlue,
                       ),
@@ -1828,7 +1846,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                       Text(
                         widget.locationName,
                         style: GoogleFonts.inter(
-                          fontSize: 12,
+                          textStyle: Theme.of(context).textTheme.bodyMedium,
                           fontWeight: FontWeight.w500,
                           color: AppTheme.primaryBlue,
                           letterSpacing: 1,
@@ -1852,10 +1870,10 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                       color: AppTheme.primaryBlue,
                     ),
                   )
-                : FaIcon(
-                    _allSavedOffline
-                        ? FontAwesomeIcons.arrowDown
-                        : FontAwesomeIcons.circleCheck,
+                : HugeIcon(
+                    icon: _allSavedOffline
+                        ? HugeIcons.strokeRoundedCheckmarkCircle02
+                        : HugeIcons.strokeRoundedDownloadCircle02,
                     size: 24.sp,
                     color: _allSavedOffline ? Colors.green : AppTheme.textDark,
                   ),
@@ -1871,9 +1889,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Text(
         '${_moments.length} ${_moments.length == 1 ? 'photo' : 'photos'}  •  ${_getDateRange()}',
-        style: const TextStyle(
-          fontSize: 14,
-          color: Colors.black54,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: AppTheme.textDark,
           letterSpacing: 0.3,
         ),
         textAlign: TextAlign.center,
@@ -1911,8 +1928,8 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    FaIcon(
-                      FontAwesomeIcons.userPlus,
+                    HugeIcon(
+                      icon: HugeIcons.strokeRoundedUserAdd01,
                       size: 16,
                       color: AppTheme.primaryBlue,
                     ),
@@ -1920,7 +1937,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                     Text(
                       'Invite friends',
                       style: GoogleFonts.inter(
-                        fontSize: 12,
+                        textStyle: Theme.of(context).textTheme.bodySmall,
                         fontWeight: FontWeight.w600,
                         color: AppTheme.primaryBlue,
                       ),
@@ -1930,7 +1947,11 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
               ),
             if (_contributors.length > 1) ...[
               const SizedBox(width: 8),
-              FaIcon(FontAwesomeIcons.arrowRight, size: 16, color: Colors.grey),
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedArrowRight02,
+                size: 16,
+                color: Colors.grey,
+              ),
             ],
           ],
         ),
@@ -2056,12 +2077,16 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                FaIcon(FontAwesomeIcons.lock, size: 14, color: Colors.white),
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedSquareLock02,
+                  size: 14,
+                  color: Colors.white,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   'Private',
                   style: GoogleFonts.inter(
-                    fontSize: 11,
+                    textStyle: Theme.of(context).textTheme.labelSmall,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
                   ),
@@ -2136,7 +2161,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
               Text(
                 '$count',
                 style: GoogleFonts.inter(
-                  fontSize: 12,
+                  textStyle: Theme.of(context).textTheme.labelSmall,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
                 ),
@@ -2157,7 +2182,11 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             color: Colors.black.withValues(alpha: 0.6),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.favorite, size: 14, color: Colors.red),
+          child: const Icon(
+            CupertinoIcons.heart_fill,
+            size: 14,
+            color: Colors.red,
+          ),
         ),
       );
     }
@@ -2175,27 +2204,13 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             Text(
               moment.caption!,
               style: GoogleFonts.spaceMono(
-                fontSize: 14.sp,
+                textStyle: Theme.of(context).textTheme.bodyMedium,
                 color: AppTheme.textDark,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
             ),
-          const SizedBox(height: 4),
-          Text(
-            _formatDate(moment.timestamp),
-            style: TextStyle(fontSize: 12.sp, color: AppTheme.textGray),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'Tap to relive  •  Double-tap to \u2764\uFE0F',
-            style: TextStyle(
-              fontSize: 10.sp,
-              color: AppTheme.textGray.withValues(alpha: 0.5),
-              fontStyle: FontStyle.italic,
-            ),
-          ),
         ],
       ),
     );
@@ -2207,10 +2222,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     return CollaborativeAudioList(
       moments: _moments,
       userAvatars: _userAvatars,
-      userNames: {
-        for (final c in _contributors)
-          c.userId: c.displayName ?? c.username ?? 'Unknown',
-      },
+      userNames: _userNames,
     );
   }
 
@@ -2221,19 +2233,317 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     if (momentsWithMusic.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: SizedBox(
-        height: 48,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: momentsWithMusic.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (context, index) {
-            final music = momentsWithMusic[index].musicData!;
-            return MusicPlayerWidget(musicData: music, compact: true);
-          },
+        height: 52,
+        child: Center(
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: momentsWithMusic.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final music = momentsWithMusic[index].musicData!;
+              return MusicPlayerWidget(musicData: music, compact: true);
+            },
+          ),
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Listen for realtime updates
+    if (_groupId != null) {
+      ref.listen(momentsByGroupStreamProvider(_groupId!), (previous, next) {
+        next.whenData((updatedMoments) {
+          _handleMomentsStreamUpdate(updatedMoments);
+        });
+      });
+    }
+
+    final screenHeight = MediaQuery.of(context).size.height;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
+    // Calculate how much space bottom sections need
+    final hasAudioNotes = _moments.any((m) => m.audioPath != null);
+    final hasMusic = _moments.any((m) => m.musicData != null);
+
+    // Carousel gets most of the screen height
+    final carouselHeight = screenHeight * 0.55;
+
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundBeige,
+      floatingActionButton: _buildFAB(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            // Pinned app bar – stays visible while scrolling
+            SliverAppBar(
+              pinned: true,
+              automaticallyImplyLeading: false,
+              backgroundColor: AppTheme.backgroundBeige,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              toolbarHeight: 76,
+              titleSpacing: 0,
+              title: Transform.scale(
+                scale: _headerScale.clamp(0.01, 1.0),
+                child: Opacity(
+                  opacity: _headerOpacity.clamp(0.0, 1.0),
+                  child: _buildAppBar(),
+                ),
+              ),
+            ),
+            // Scrollable meta and contributor info
+            SliverToBoxAdapter(
+              child: Transform.scale(
+                scale: _headerScale.clamp(0.01, 1.0),
+                child: Opacity(
+                  opacity: _headerOpacity.clamp(0.0, 1.0),
+                  child: Column(
+                    children: [_buildMetaRow(), _buildContributorRow()],
+                  ),
+                ),
+              ),
+            ),
+            // Music section above carousel
+            if (hasMusic) SliverToBoxAdapter(child: _buildMusicSection()),
+            // Carousel with fixed height
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: carouselHeight,
+                child: _buildCarousel(carouselHeight, 0),
+              ),
+            ),
+            // Date + hint text below carousel
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  children: [
+                    Text(
+                      _getDateRange(),
+                      style: GoogleFonts.inter(
+                        textStyle: Theme.of(context).textTheme.bodyMedium,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.textGray,
+                      ),
+                    ),
+                    Text(
+                      'Tap to relive  •  Double-tap to ♥',
+                      style: GoogleFonts.inter(
+                        textStyle: Theme.of(context).textTheme.bodySmall,
+                        fontWeight: FontWeight.w400,
+                        color: AppTheme.textGray.withValues(alpha: 0.8),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+            // Audio notes section at bottom
+            if (hasAudioNotes)
+              SliverToBoxAdapter(child: _buildAudioNotesSection()),
+            SliverToBoxAdapter(child: SizedBox(height: 80 + bottomPadding)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Moment Details FAB – 3-option speed dial (Camera, Video, Gallery)
+// =============================================================================
+
+class _MomentDetailsFAB extends StatefulWidget {
+  const _MomentDetailsFAB({
+    required this.onCameraTap,
+    required this.onVideoTap,
+    required this.onGalleryTap,
+  });
+
+  final VoidCallback onCameraTap;
+  final VoidCallback onGalleryTap;
+  final VoidCallback onVideoTap;
+
+  @override
+  State<_MomentDetailsFAB> createState() => _MomentDetailsFABState();
+}
+
+class _MomentDetailsFABState extends State<_MomentDetailsFAB>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _expandAnimation;
+  bool _isExpanded = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _expandAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOutCubicEmphasized,
+    );
+  }
+
+  void _toggle() {
+    HapticService.lightTap();
+    setState(() {
+      _isExpanded = !_isExpanded;
+      _isExpanded ? _controller.forward() : _controller.reverse();
+    });
+  }
+
+  void _handleAction(VoidCallback action) {
+    HapticService.mediumTap();
+    _toggle();
+    Future.delayed(const Duration(milliseconds: 200), action);
+  }
+
+  Widget _buildOption({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required Color textColor,
+    required VoidCallback onTap,
+  }) {
+    return SpringButton(
+      onTap: onTap,
+      scaleFactor: 0.9,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: color,
+          border: Border.all(color: Colors.black, width: 2),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: const [
+            BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: textColor),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // Expanded options (appear above the main button)
+        SizeTransition(
+          sizeFactor: _expandAnimation,
+          axisAlignment: -1,
+          child: FadeTransition(
+            opacity: _expandAnimation,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(0, 0, 2, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _buildOption(
+                      icon: CupertinoIcons.photo_on_rectangle,
+                      label: 'Gallery',
+                      color: AppTheme.brightYellow,
+                      textColor: Colors.black,
+                      onTap: () => _handleAction(widget.onGalleryTap),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _buildOption(
+                      icon: CupertinoIcons.video_camera_solid,
+                      label: 'Video',
+                      color: AppTheme.coralPink,
+                      textColor: Colors.white,
+                      onTap: () => _handleAction(widget.onVideoTap),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _buildOption(
+                      icon: CupertinoIcons.camera_fill,
+                      label: 'Camera',
+                      color: Colors.white,
+                      textColor: AppTheme.primaryBlue,
+                      onTap: () => _handleAction(widget.onCameraTap),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // Main FAB button
+        SpringButton(
+          onTap: _toggle,
+          scaleFactor: 0.9,
+          child: Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryBlue,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.black, width: 2.5),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black,
+                  offset: Offset(3, 3),
+                  blurRadius: 0,
+                ),
+              ],
+            ),
+            child: AnimatedRotation(
+              turns: _isExpanded ? 0.125 : 0,
+              duration: const Duration(milliseconds: 300),
+              child: const Icon(
+                Icons.add_rounded,
+                color: Colors.white,
+                size: 30,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

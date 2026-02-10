@@ -10,6 +10,7 @@ import 'core/services/chat_offline_service.dart';
 import 'core/services/ai_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/services/map_cache_service.dart';
+import 'core/services/garbage_collection_service.dart';
 import 'data/sources/supabase_config.dart';
 import 'core/providers/providers.dart';
 import 'core/providers/database_provider.dart';
@@ -37,6 +38,9 @@ void main() async {
 
   // Initialize map tile caching (async, non-blocking)
   MapCacheService().initialize();
+
+  // Run garbage collection on startup (async, non-blocking)
+  GarbageCollectionService().runGC();
 
   // Initialize Firebase AI (Gemini Developer API - free tier)
   AIService().initialize();

@@ -31,7 +31,7 @@ class MomentStorageService {
   Future<Directory> get mediaDirectory async {
     if (_mediaDirectory != null) return _mediaDirectory!;
     final appDir = await getApplicationDocumentsDirectory();
-    _mediaDirectory = Directory(p.join(appDir.path, 'moments_media'));
+    _mediaDirectory = Directory(p.join(appDir.path, 'moment_media'));
     if (!await _mediaDirectory!.exists()) {
       await _mediaDirectory!.create(recursive: true);
     }
@@ -80,28 +80,30 @@ class MomentStorageService {
       // Check if moment already exists to preserve local paths
       final existing = await _database.getMomentById(moment.id);
 
-      entries.add(MomentsCompanion.insert(
-        id: moment.id,
-        title: moment.title,
-        location: moment.location,
-        latitude: moment.latitude,
-        longitude: moment.longitude,
-        imageUrl: Value(moment.imageUrl),
-        mediaPath: Value(moment.mediaPath),
-        caption: Value(moment.caption),
-        mediaType: Value(moment.mediaType),
-        duration: Value(moment.duration),
-        thumbnailPath: Value(moment.thumbnailPath),
-        createdAt: moment.createdAt.millisecondsSinceEpoch,
-        timestamp: moment.timestamp.millisecondsSinceEpoch,
-        userId: Value(moment.userId),
-        description: Value(moment.description),
-        momentGroupId: Value(moment.momentGroupId),
-        isPrivate: Value(moment.isPrivate),
-        localMediaPath: Value(existing?.localMediaPath),
-        localThumbnailPath: Value(existing?.localThumbnailPath),
-        syncedAt: now,
-      ));
+      entries.add(
+        MomentsCompanion.insert(
+          id: moment.id,
+          title: moment.title,
+          location: moment.location,
+          latitude: moment.latitude,
+          longitude: moment.longitude,
+          imageUrl: Value(moment.imageUrl),
+          mediaPath: Value(moment.mediaPath),
+          caption: Value(moment.caption),
+          mediaType: Value(moment.mediaType),
+          duration: Value(moment.duration),
+          thumbnailPath: Value(moment.thumbnailPath),
+          createdAt: moment.createdAt.millisecondsSinceEpoch,
+          timestamp: moment.timestamp.millisecondsSinceEpoch,
+          userId: Value(moment.userId),
+          description: Value(moment.description),
+          momentGroupId: moment.momentGroupId,
+          isPrivate: Value(moment.isPrivate),
+          localMediaPath: Value(existing?.localMediaPath),
+          localThumbnailPath: Value(existing?.localThumbnailPath),
+          syncedAt: now,
+        ),
+      );
     }
 
     await _database.saveMoments(entries);
@@ -148,7 +150,11 @@ class MomentStorageService {
     // Try with retries
     for (int attempt = 0; attempt < _maxRetries; attempt++) {
       try {
-        return await _cacheMediaInternal(momentId, remoteUrl, isThumbnail: isThumbnail);
+        return await _cacheMediaInternal(
+          momentId,
+          remoteUrl,
+          isThumbnail: isThumbnail,
+        );
       } catch (e) {
         if (attempt == _maxRetries - 1) {
           debugPrint('❌ Failed to cache media after $_maxRetries attempts: $e');
@@ -156,7 +162,9 @@ class MomentStorageService {
         }
         // Exponential backoff
         final delay = _baseRetryDelay * (1 << attempt);
-        debugPrint('⚠️ Retry ${attempt + 1}/$_maxRetries for media download in ${delay.inSeconds}s');
+        debugPrint(
+          '⚠️ Retry ${attempt + 1}/$_maxRetries for media download in ${delay.inSeconds}s',
+        );
         await Future.delayed(delay);
       }
     }
@@ -186,8 +194,9 @@ class MomentStorageService {
     debugPrint(
       '⬇️ Downloading media: ${remoteUrl.substring(0, remoteUrl.length.clamp(0, 50))}...',
     );
-    
-    final response = await http.get(Uri.parse(remoteUrl))
+
+    final response = await http
+        .get(Uri.parse(remoteUrl))
         .timeout(const Duration(seconds: 30));
 
     if (response.statusCode != 200) {
@@ -208,8 +217,7 @@ class MomentStorageService {
     }
 
     // Save to local file
-    final fileName =
-        '${momentId}_${isThumbnail ? 'thumb' : 'media'}$extension';
+    final fileName = '${momentId}_${isThumbnail ? 'thumb' : 'media'}$extension';
     final localPath = p.join(dir.path, fileName);
     final file = File(localPath);
     await file.writeAsBytes(response.bodyBytes);
@@ -230,7 +238,9 @@ class MomentStorageService {
       MomentsCompanion(
         id: Value(momentId),
         localMediaPath: isThumbnail ? const Value.absent() : Value(localPath),
-        localThumbnailPath: isThumbnail ? Value(localPath) : const Value.absent(),
+        localThumbnailPath: isThumbnail
+            ? Value(localPath)
+            : const Value.absent(),
       ),
     ]);
 
@@ -313,16 +323,20 @@ class MomentStorageService {
 
   /// Save profiles to local storage
   Future<void> saveProfiles(List<Profile> profiles) async {
-    final entries = profiles.map((profile) => ProfilesCompanion.insert(
-          id: profile.id,
-          username: Value(profile.username),
-          displayName: Value(profile.displayName),
-          avatarUrl: Value(profile.avatarUrl),
-          bio: Value(profile.bio),
-          inviteCode: Value(profile.inviteCode),
-          createdAt: Value(profile.createdAt.millisecondsSinceEpoch),
-          updatedAt: Value(profile.updatedAt.millisecondsSinceEpoch),
-        )).toList();
+    final entries = profiles
+        .map(
+          (profile) => ProfilesCompanion.insert(
+            id: profile.id,
+            username: Value(profile.username),
+            displayName: Value(profile.displayName),
+            avatarUrl: Value(profile.avatarUrl),
+            bio: Value(profile.bio),
+            inviteCode: Value(profile.inviteCode),
+            createdAt: Value(profile.createdAt.millisecondsSinceEpoch),
+            updatedAt: Value(profile.updatedAt.millisecondsSinceEpoch),
+          ),
+        )
+        .toList();
 
     await _database.saveProfiles(entries);
   }
@@ -335,14 +349,18 @@ class MomentStorageService {
 
   /// Save friendships to local storage
   Future<void> saveFriendships(List<Friendship> friendships) async {
-    final entries = friendships.map((friendship) => FriendshipsCompanion.insert(
-          id: friendship.id,
-          userId1: friendship.userId,
-          userId2: friendship.friendId,
-          status: friendship.status.name,
-          createdAt: Value(friendship.requestedAt.millisecondsSinceEpoch),
-          updatedAt: Value(friendship.respondedAt?.millisecondsSinceEpoch),
-        )).toList();
+    final entries = friendships
+        .map(
+          (friendship) => FriendshipsCompanion.insert(
+            id: friendship.id,
+            userId1: friendship.userId,
+            userId2: friendship.friendId,
+            status: friendship.status.name,
+            createdAt: Value(friendship.requestedAt.millisecondsSinceEpoch),
+            updatedAt: Value(friendship.respondedAt?.millisecondsSinceEpoch),
+          ),
+        )
+        .toList();
 
     await _database.saveFriendships(entries);
   }
@@ -350,18 +368,22 @@ class MomentStorageService {
   /// Get friendships from local storage
   Future<List<Friendship>> getFriendships() async {
     final entries = await _database.getFriendships();
-    return entries.map((entry) => Friendship(
-          id: entry.id,
-          userId: entry.userId1,
-          friendId: entry.userId2,
-          status: FriendshipStatus.fromString(entry.status),
-          requestedAt: DateTime.fromMillisecondsSinceEpoch(
-            entry.createdAt ?? 0,
+    return entries
+        .map(
+          (entry) => Friendship(
+            id: entry.id,
+            userId: entry.userId1,
+            friendId: entry.userId2,
+            status: FriendshipStatus.fromString(entry.status),
+            requestedAt: DateTime.fromMillisecondsSinceEpoch(
+              entry.createdAt ?? 0,
+            ),
+            respondedAt: entry.updatedAt != null
+                ? DateTime.fromMillisecondsSinceEpoch(entry.updatedAt!)
+                : null,
           ),
-          respondedAt: entry.updatedAt != null
-              ? DateTime.fromMillisecondsSinceEpoch(entry.updatedAt!)
-              : null,
-        )).toList();
+        )
+        .toList();
   }
 
   // ============================================

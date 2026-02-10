@@ -50,6 +50,7 @@ dependencies:
   location: ^5.0.3
   geocoding: ^3.0.0
   mapbox_maps_flutter: ^2.18.0
+  supercluster: ^3.2.0
 
   # UI Components
   carousel_slider: ^5.0.0
@@ -72,6 +73,7 @@ dependencies:
   hugeicons: ^1.1.1
   flutter_svg: ^2.2.2
   font_awesome_flutter: ^10.12.0
+  fab_m3e: ^0.1.1
 
   # Navigation
   go_router: ^14.1.4
@@ -149,6 +151,7 @@ flutter:
     - assets/svg/
     - assets/icons/
     - assets/animations/
+    - assets/fonts/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -161,17 +164,10 @@ flutter:
   # "family" key with the font family name, and a "fonts" key with a
   # list giving the asset and other descriptors for the font. For
   # example:
-  # fonts:
-  #   - family: Schyler
-  #     fonts:
-  #       - asset: fonts/Schyler-Regular.ttf
-  #       - asset: fonts/Schyler-Italic.ttf
-  #         style: italic
-  #   - family: Trajan Pro
-  #     fonts:
-  #       - asset: fonts/TrajanPro.ttf
-  #       - asset: fonts/TrajanPro_Bold.ttf
-  #         weight: 700
+  fonts:
+    - family: GoogleSansFlex
+      fonts:
+        - asset: assets/fonts/GoogleSansFlex.ttf
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package

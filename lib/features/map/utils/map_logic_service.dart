@@ -9,19 +9,14 @@ class MapLogicService {
   ) {
     final groups = <Map<String, dynamic>>[];
 
-    // First, group by moment_group_id for moments that have one
+    // First, group by moment_group_id (all moments now have one)
     final groupedMoments = <String, List<Moment>>{};
-    final ungroupedMoments = <Moment>[];
 
     for (final moment in moments) {
-      if (moment.momentGroupId != null) {
-        if (groupedMoments.containsKey(moment.momentGroupId)) {
-          groupedMoments[moment.momentGroupId]!.add(moment);
-        } else {
-          groupedMoments[moment.momentGroupId!] = [moment];
-        }
+      if (groupedMoments.containsKey(moment.momentGroupId)) {
+        groupedMoments[moment.momentGroupId]!.add(moment);
       } else {
-        ungroupedMoments.add(moment);
+        groupedMoments[moment.momentGroupId] = [moment];
       }
     }
 
@@ -37,34 +32,6 @@ class MapLogicService {
         'lat': firstMoment.latitude,
         'lng': firstMoment.longitude,
         'groupId': entry.key,
-        'isCluster': false,
-        'clusterCount': 1,
-      });
-    }
-
-    // Add ungrouped moments - each as its own marker, but group by location for nearby ones
-    final locationGroups = <String, List<Moment>>{};
-    for (final moment in ungroupedMoments) {
-      final locationKey =
-          '${moment.latitude.toStringAsFixed(4)}_${moment.longitude.toStringAsFixed(4)}';
-      if (locationGroups.containsKey(locationKey)) {
-        locationGroups[locationKey]!.add(moment);
-      } else {
-        locationGroups[locationKey] = [moment];
-      }
-    }
-
-    for (final entry in locationGroups.entries) {
-      final locationMoments = entry.value;
-      final firstMoment = locationMoments.first;
-      final placeName = _extractPlaceName(firstMoment.location);
-
-      groups.add({
-        'placeName': placeName,
-        'moments': locationMoments,
-        'lat': firstMoment.latitude,
-        'lng': firstMoment.longitude,
-        'groupId': 'loc_${entry.key}',
         'isCluster': false,
         'clusterCount': 1,
       });

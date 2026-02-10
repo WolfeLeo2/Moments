@@ -81,6 +81,33 @@ class DeezerService {
     }
   }
 
+  /// Get a fresh preview URL for a track by ID.
+  /// Deezer preview URLs are time-limited signed URLs that expire.
+  /// Call this before playback to get a valid URL.
+  Future<String?> getPreviewUrl(String trackId) async {
+    try {
+      final uri = Uri.parse('$_baseUrl/track/$trackId');
+      final response = await _client.get(uri);
+
+      if (response.statusCode != 200) {
+        _log.e('Deezer track fetch failed: ${response.statusCode}');
+        return null;
+      }
+
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final preview = json['preview'] as String?;
+      if (preview == null || preview.isEmpty) {
+        _log.w('No preview URL for track $trackId');
+        return null;
+      }
+
+      return preview;
+    } catch (e) {
+      _log.e('Deezer preview fetch error: $e');
+      return null;
+    }
+  }
+
   void dispose() {
     _client.close();
   }

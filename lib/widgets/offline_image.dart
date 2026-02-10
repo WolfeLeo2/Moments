@@ -19,7 +19,9 @@ class _FileExistenceCache {
       for (final key in keysToRemove) {
         _cache.remove(key);
       }
-      debugPrint('🧹 OfflineImage cache cleaned: removed ${keysToRemove.length} entries');
+      debugPrint(
+        '🧹 OfflineImage cache cleaned: removed ${keysToRemove.length} entries',
+      );
     }
     _cache[path] = exists;
   }
@@ -31,7 +33,7 @@ class _FileExistenceCache {
   static void clear() {
     _cache.clear();
   }
-  
+
   static int get size => _cache.length;
 }
 

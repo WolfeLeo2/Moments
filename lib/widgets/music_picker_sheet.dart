@@ -31,11 +31,15 @@ class _MusicPickerSheetState extends State<_MusicPickerSheet>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _searchController = TextEditingController();
+  final _curatedSearchController = TextEditingController();
   final _deezerService = DeezerService();
   Timer? _debounce;
+  Timer? _curatedDebounce;
 
   // State
   List<MusicData> _curatedTracks = [];
+  List<MusicData> _curatedSearchResults = [];
+  bool _searchingCurated = false;
   List<DeezerTrack> _deezerResults = [];
   List<DeezerTrack> _deezerChart = [];
   bool _loadingCurated = true;
@@ -58,8 +62,10 @@ class _MusicPickerSheetState extends State<_MusicPickerSheet>
   void dispose() {
     _tabController.dispose();
     _searchController.dispose();
+    _curatedSearchController.dispose();
     _deezerService.dispose();
     _debounce?.cancel();
+    _curatedDebounce?.cancel();
     _previewPlayer?.dispose();
     super.dispose();
   }
@@ -93,6 +99,31 @@ class _MusicPickerSheetState extends State<_MusicPickerSheet>
     _debounce = Timer(const Duration(milliseconds: 400), () {
       _searchDeezer(query);
     });
+  }
+
+  void _onCuratedSearchChanged(String query) {
+    _curatedDebounce?.cancel();
+    if (query.trim().isEmpty) {
+      setState(() {
+        _curatedSearchResults = [];
+        _searchingCurated = false;
+      });
+      return;
+    }
+    setState(() => _searchingCurated = true);
+    _curatedDebounce = Timer(const Duration(milliseconds: 400), () {
+      _searchCurated(query);
+    });
+  }
+
+  Future<void> _searchCurated(String query) async {
+    final results = await CuratedAudioService.search(query);
+    if (mounted) {
+      setState(() {
+        _curatedSearchResults = results;
+        _searchingCurated = false;
+      });
+    }
   }
 
   Future<void> _searchDeezer(String query) async {
@@ -214,33 +245,88 @@ class _MusicPickerSheetState extends State<_MusicPickerSheet>
   }
 
   Widget _buildCuratedTab() {
-    if (_loadingCurated) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    return Column(
+      children: [
+        // Curated search bar
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: TextField(
+            controller: _curatedSearchController,
+            onChanged: _onCuratedSearchChanged,
+            style: GoogleFonts.inter(fontSize: 15, color: AppTheme.textDark),
+            decoration: InputDecoration(
+              hintText: 'Search your collection...',
+              hintStyle: TextStyle(color: AppTheme.textGray),
+              prefixIcon: const Icon(
+                Icons.search,
+                color: AppTheme.textGray,
+                size: 20,
+              ),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: AppTheme.borderGray),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: AppTheme.borderGray),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: AppTheme.lavenderPop,
+                  width: 1.5,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
 
-    if (_curatedTracks.isEmpty) {
+        // Results
+        Expanded(
+          child: _searchingCurated || _loadingCurated
+              ? const Center(child: CircularProgressIndicator())
+              : _curatedSearchController.text.isNotEmpty
+              ? _buildCuratedResults(_curatedSearchResults)
+              : _buildCuratedResults(_curatedTracks),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCuratedResults(List<MusicData> tracks) {
+    if (tracks.isEmpty) {
+      final isSearch = _curatedSearchController.text.isNotEmpty;
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.library_music_outlined,
+              isSearch ? Icons.search_off : Icons.library_music_outlined,
               size: 48,
               color: AppTheme.textGray,
             ),
             const SizedBox(height: 12),
             Text(
-              'No curated tracks yet',
+              isSearch ? 'No results found' : 'No curated tracks yet',
               style: GoogleFonts.inter(fontSize: 16, color: AppTheme.textGray),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Upload tracks to curated-audio bucket',
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: AppTheme.textGray.withValues(alpha: 0.6),
+            if (!isSearch) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Add tracks via the admin tools',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: AppTheme.textGray.withValues(alpha: 0.6),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       );
@@ -248,10 +334,9 @@ class _MusicPickerSheetState extends State<_MusicPickerSheet>
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: _curatedTracks.length,
+      itemCount: tracks.length,
       itemBuilder: (context, index) {
-        final track = _curatedTracks[index];
-        return _buildCuratedTrackTile(track);
+        return _buildCuratedTrackTile(tracks[index]);
       },
     );
   }

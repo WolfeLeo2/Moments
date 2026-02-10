@@ -184,14 +184,9 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
 
   /// Get moments that belong to the same group as the tapped moment
   List<Moment> _getMomentsInSameGroup(Moment moment, List<Moment> allMoments) {
-    // If the moment has a group ID, find all moments with the same group ID
-    if (moment.momentGroupId != null) {
-      return allMoments
-          .where((m) => m.momentGroupId == moment.momentGroupId)
-          .toList();
-    }
-    // If no group ID, return just this moment (ungrouped moments are standalone)
-    return [moment];
+    return allMoments
+        .where((m) => m.momentGroupId == moment.momentGroupId)
+        .toList();
   }
 
   void _navigateToDetails(
@@ -795,7 +790,7 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
     final aspectRatioIndex = hash.abs() % 3;
     final aspectRatio = switch (aspectRatioIndex) {
       0 => 0.75, // 3:4 - tall
-      1 => 1.0,  // 1:1 - square
+      1 => 1.0, // 1:1 - square
       _ => 1.33, // 4:3 - wide
     };
 
@@ -956,9 +951,7 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
                 setState(() => _viewMode = newSelection.first);
               },
               showSelectedIcon: false,
-              style: ButtonStyle(
-                visualDensity: VisualDensity.compact,
-              ),
+              style: ButtonStyle(visualDensity: VisualDensity.compact),
             ),
           ),
         ],

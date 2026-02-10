@@ -69,8 +69,15 @@ class _AudioMessageBubbleState extends ConsumerState<AudioMessageBubble>
       ) {
         if (mounted) {
           setState(() {
-            _isPlaying = state.playing;
+            _isPlaying =
+                state.playing &&
+                state.processingState != ProcessingState.completed;
           });
+          // Auto-reset when playback completes
+          if (state.processingState == ProcessingState.completed) {
+            _audioPlayer!.seek(Duration.zero);
+            _audioPlayer!.pause();
+          }
         }
       });
 

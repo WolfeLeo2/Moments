@@ -350,7 +350,7 @@ class AvatarCacheService {
 
   /// Clean up old avatar files that haven't been accessed recently
   /// Call this periodically (e.g., weekly) to prevent cache bloat
-  Future<void> cleanupOldAvatars({int daysOld = 10}) async {
+  Future<void> cleanupOldAvatars({int daysOld = 30}) async {
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final avatarDir = Directory(join(appDir.path, 'avatars'));
@@ -374,7 +374,9 @@ class AvatarCacheService {
       }
 
       if (deletedCount > 0) {
-        debugPrint('🧹 AvatarCacheService: Cleaned up $deletedCount old avatars');
+        debugPrint(
+          '🧹 AvatarCacheService: Cleaned up $deletedCount old avatars',
+        );
       }
     } catch (e) {
       debugPrint('AvatarCacheService: Error cleaning up old avatars: $e');

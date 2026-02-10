@@ -97,7 +97,7 @@ class Moments extends Table {
   IntColumn get timestamp => integer()();
   TextColumn get userId => text().nullable()();
   TextColumn get description => text().nullable()();
-  TextColumn get momentGroupId => text().nullable()();
+  TextColumn get momentGroupId => text()();
   BoolColumn get isPrivate => boolean().withDefault(const Constant(false))();
   TextColumn get localMediaPath => text().nullable()();
   TextColumn get localThumbnailPath => text().nullable()();
@@ -194,7 +194,7 @@ class AppDatabase extends _$AppDatabase {
 
   // Bump this when schema changes
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 8;
 
   // Migration strategy for future schema changes
   @override
@@ -245,6 +245,22 @@ class AppDatabase extends _$AppDatabase {
           try {
             await m.addColumn(moments, moments.musicData);
           } catch (_) {} // Column may already exist
+        }
+        if (from < 7) {
+          // v7: Add local_media_path column to messages table
+          try {
+            await m.addColumn(messages, messages.localMediaPath);
+          } catch (_) {} // Column may already exist
+        }
+        if (from < 8) {
+          // v8: Make momentGroupId non-nullable.
+          // Backfill any NULL values with the moment's own id as fallback,
+          // then the next sync will correct them.
+          try {
+            await customStatement(
+              "UPDATE moments SET moment_group_id = id WHERE moment_group_id IS NULL",
+            );
+          } catch (_) {}
         }
       },
       beforeOpen: (details) async {
@@ -1112,7 +1128,7 @@ extension MomentToCompanion on app_moment.Moment {
       timestamp: timestamp.millisecondsSinceEpoch,
       userId: Value(userId),
       description: Value(description),
-      momentGroupId: Value(momentGroupId),
+      momentGroupId: momentGroupId,
       isPrivate: Value(isPrivate),
       audioPath: Value(audioPath),
       audioDuration: Value(audioDuration),

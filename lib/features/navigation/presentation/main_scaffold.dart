@@ -1,12 +1,15 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart';
-import 'package:hugeicons/hugeicons.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/providers/providers.dart';
 import 'package:moments/features/map/presentation/map_page_flutter_map.dart';
+import 'package:moments/features/mapv2/presentation/map_page_v2.dart';
+import 'package:moments/features/mapv2/providers/map_v2_providers.dart';
 import 'package:moments/features/feed/presentation/memory_lane_page.dart';
 import 'package:moments/features/chat/presentation/chat_list_page.dart';
+import 'package:moments/features/discovery/presentation/discovery_page.dart';
 
 /// Main scaffold with floating bottom bar navigation
 class MainScaffold extends ConsumerStatefulWidget {
@@ -28,7 +31,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
     super.initState();
     _currentIndex = widget.initialIndex;
     _tabController = TabController(
-      length: 3,
+      length: 4,
       vsync: this,
       initialIndex: _currentIndex,
     );
@@ -69,10 +72,20 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
           controller: _tabController,
           physics: const NeverScrollableScrollPhysics(),
           children: [
-            // Only pass scroll controller to active tab to avoid "attached to multiple scroll views" error
+            // Map tab — use V2 (native Mapbox) when feature flag is on
             _KeepAlivePage(
-              child: MapPage(
-                scrollController: _currentIndex == 0 ? controller : null,
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final useV2 = ref.watch(useMapV2Provider);
+                  if (useV2) {
+                    return MapPageV2(
+                      scrollController: _currentIndex == 0 ? controller : null,
+                    );
+                  }
+                  return MapPage(
+                    scrollController: _currentIndex == 0 ? controller : null,
+                  );
+                },
               ),
             ),
             _KeepAlivePage(
@@ -81,8 +94,13 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
               ),
             ),
             _KeepAlivePage(
-              child: ChatListPage(
+              child: DiscoveryPage(
                 scrollController: _currentIndex == 2 ? controller : null,
+              ),
+            ),
+            _KeepAlivePage(
+              child: ChatListPage(
+                scrollController: _currentIndex == 3 ? controller : null,
               ),
             ),
           ],
@@ -104,19 +122,20 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
             overlayColor: WidgetStateProperty.all(Colors.transparent),
             tabs: [
               _buildTab(
-                hugeIcon: HugeIcons.strokeRoundedMapsLocation01,
-                label: 'Map',
+                icon: CupertinoIcons.map,
                 isSelected: _currentIndex == 0,
               ),
               _buildTab(
-                hugeIcon: HugeIcons.strokeRoundedDashboardSquare01,
-                label: 'Feed',
+                icon: CupertinoIcons.rectangle_stack,
                 isSelected: _currentIndex == 1,
               ),
               _buildTab(
-                hugeIcon: HugeIcons.strokeRoundedBubbleChat,
-                label: 'Messages',
+                icon: CupertinoIcons.compass,
                 isSelected: _currentIndex == 2,
+              ),
+              _buildTab(
+                icon: CupertinoIcons.chat_bubble_2,
+                isSelected: _currentIndex == 3,
                 badge: unreadChatCount,
               ),
             ],
@@ -127,9 +146,8 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
   }
 
   Widget _buildTab({
-    required dynamic hugeIcon,
+    required IconData icon,
     required bool isSelected,
-    required String label,
     int badge = 0,
   }) {
     return Tab(
@@ -147,19 +165,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
               ),
             ),
             backgroundColor: AppTheme.emergencyRed,
-            child: HugeIcon(
-              icon: hugeIcon,
+            child: Icon(
+              icon,
               color: isSelected ? AppTheme.primaryBlue : Colors.grey.shade500,
               size: 22,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: isSelected ? AppTheme.primaryBlue : Colors.grey.shade500,
             ),
           ),
         ],

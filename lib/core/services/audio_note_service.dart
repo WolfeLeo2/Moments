@@ -48,6 +48,11 @@ class AudioNoteService {
   final _totalDurationController = StreamController<Duration>.broadcast();
   final _amplitudeController = StreamController<List<double>>.broadcast();
 
+  // Playback stream subscriptions (prevents listener leaks on repeated play)
+  StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<Duration?>? _durationSubscription;
+  StreamSubscription<PlayerState>? _playerStateSubscription;
+
   Stream<bool> get isRecordingStream => _isRecordingController.stream;
   Stream<bool> get isPlayingStream => _isPlayingController.stream;
   Stream<int> get recordingDurationStream => _durationController.stream;
@@ -197,23 +202,32 @@ class AudioNoteService {
       await _player!.stop();
 
       if (isUrl) {
-        await _player!.setUrl(source);
+        // Use LockCachingAudioSource to cache network audio locally
+        final audioSource = LockCachingAudioSource(Uri.parse(source));
+        await _player!.setAudioSource(audioSource);
       } else {
         await _player!.setFilePath(source);
       }
 
+      // Cancel previous subscriptions to prevent listener leaks
+      _positionSubscription?.cancel();
+      _durationSubscription?.cancel();
+      _playerStateSubscription?.cancel();
+
       // Listen to streams
-      _player!.positionStream.listen((pos) {
+      _positionSubscription = _player!.positionStream.listen((pos) {
         _positionController.add(pos);
       });
 
-      _player!.durationStream.listen((dur) {
+      _durationSubscription = _player!.durationStream.listen((dur) {
         if (dur != null) _totalDurationController.add(dur);
       });
 
-      _player!.playerStateStream.listen((state) {
-        _isPlaying = state.playing;
-        _isPlayingController.add(state.playing);
+      _playerStateSubscription = _player!.playerStateStream.listen((state) {
+        final playing =
+            state.playing && state.processingState != ProcessingState.completed;
+        _isPlaying = playing;
+        _isPlayingController.add(playing);
 
         // Auto-reset when complete
         if (state.processingState == ProcessingState.completed) {
@@ -333,6 +347,9 @@ class AudioNoteService {
   void dispose() {
     _recordingTimer?.cancel();
     _amplitudeTimer?.cancel();
+    _positionSubscription?.cancel();
+    _durationSubscription?.cancel();
+    _playerStateSubscription?.cancel();
     _recorder?.dispose();
     _player?.dispose();
     _isRecordingController.close();

@@ -16,6 +16,7 @@ firebase.json
 firebase_options.dart
 .supabase/
 .sql
+/curated-tracks/
 # IntelliJ related
 *.iml
 *.ipr

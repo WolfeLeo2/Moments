@@ -18,7 +18,7 @@ class Moment extends Equatable {
   final DateTime timestamp;
   final String? userId;
   final String? description;
-  final String? momentGroupId; // Reference to moment group
+  final String momentGroupId; // Reference to moment group (always present)
   final bool isPrivate; // Completely private, only visible to owner
   final String? audioPath; // Storage path for audio note
   final int? audioDuration; // Duration of audio note in seconds
@@ -40,7 +40,7 @@ class Moment extends Equatable {
     required this.timestamp,
     this.userId,
     this.description,
-    this.momentGroupId,
+    required this.momentGroupId,
     this.isPrivate = false,
     this.audioPath,
     this.audioDuration,
@@ -64,7 +64,7 @@ class Moment extends Equatable {
       timestamp: DateTime.parse(json['timestamp'] as String).toLocal(),
       userId: json['user_id'] as String?,
       description: json['description'] as String?,
-      momentGroupId: json['moment_group_id'] as String?,
+      momentGroupId: json['moment_group_id'] as String,
       isPrivate: json['is_private'] as bool? ?? false,
       audioPath: json['audio_path'] as String?,
       audioDuration: json['audio_duration'] as int?,

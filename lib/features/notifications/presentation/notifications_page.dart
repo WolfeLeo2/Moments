@@ -896,16 +896,9 @@ class _NotificationCard extends ConsumerWidget {
       final moment = await repo.getMomentById(momentId);
 
       if (moment != null && context.mounted) {
-        List<Moment> moments;
-        int initialPage = 0;
-
-        if (moment.momentGroupId != null) {
-          moments = await repo.getMomentsByGroup(moment.momentGroupId!);
-          initialPage = moments.indexWhere((m) => m.id == momentId);
-          if (initialPage < 0) initialPage = 0;
-        } else {
-          moments = [moment];
-        }
+        final moments = await repo.getMomentsByGroup(moment.momentGroupId);
+        int initialPage = moments.indexWhere((m) => m.id == momentId);
+        if (initialPage < 0) initialPage = 0;
 
         if (context.mounted) {
           Navigator.push(

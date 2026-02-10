@@ -1,7 +1,7 @@
 import 'dart:io';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moments/core/utils/extensions.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/constants.dart';
@@ -94,10 +94,17 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
   }
 
   void _handleCreateMoment() async {
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
+      HapticService.error();
+      context.showErrorSnackBar('A title is required for your moment');
+      return;
+    }
+
     final success = await ref
         .read(addMomentProvider.notifier)
         .createMoment(
-          title: _titleController.text.trim(),
+          title: title,
           caption: _captionController.text.trim(),
           audioPath: _audioNotePath,
           audioDuration: _audioNoteDuration > 0 ? _audioNoteDuration : null,
@@ -324,8 +331,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                     ),
                     child: Row(
                       children: [
-                        FaIcon(
-                          FontAwesomeIcons.locationDot,
+                        Icon(
+                          CupertinoIcons.placemark_fill,
                           size: 16,
                           color: AppTheme.primaryBlue,
                         ),
@@ -483,8 +490,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      FaIcon(
-                                        FontAwesomeIcons.users,
+                                      Icon(
+                                        CupertinoIcons.person_2_fill,
                                         size: 18,
                                         color: !state.isGroupPrivate
                                             ? Colors.white
@@ -550,8 +557,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      FaIcon(
-                                        FontAwesomeIcons.lock,
+                                      Icon(
+                                        CupertinoIcons.lock_fill,
                                         size: 18,
                                         color: state.isGroupPrivate
                                             ? Colors.white
@@ -639,8 +646,8 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                         color: AppTheme.backgroundBeige,
                         shape: BoxShape.circle,
                       ),
-                      child: const FaIcon(
-                        FontAwesomeIcons.userPlus,
+                      child: const Icon(
+                        CupertinoIcons.person_crop_circle_badge_plus,
                         size: 32,
                         color: Colors.black,
                       ),
@@ -752,10 +759,10 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          FaIcon(
+                          Icon(
                             state.isPhotoPrivate(index)
-                                ? FontAwesomeIcons.lock
-                                : FontAwesomeIcons.earthAmericas,
+                                ? CupertinoIcons.lock_fill
+                                : CupertinoIcons.globe,
                             size: 14,
                             color: Colors.white,
                           ),
@@ -1376,7 +1383,7 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                   ),
                   child: Row(
                     children: [
-                      FaIcon(FontAwesomeIcons.camera, size: 24),
+                      Icon(CupertinoIcons.camera_fill, size: 24),
                       const SizedBox(width: 8),
                       Text(
                         'CAMERA',
@@ -1406,7 +1413,7 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                   ),
                   child: Row(
                     children: [
-                      FaIcon(FontAwesomeIcons.image, size: 24),
+                      Icon(CupertinoIcons.photo_on_rectangle, size: 24),
                       const SizedBox(width: 8),
                       Text(
                         'GALLERY',

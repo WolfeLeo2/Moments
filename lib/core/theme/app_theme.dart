@@ -1,47 +1,58 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+/// iOS/Cupertino-inspired theme for the Moments app.
+/// Uses system-like typography (Inter), soft iOS colors, and subtle shadows.
 class AppTheme {
   // ============================================
-  // CORE COLOR PALETTE (Playful & Bright)
+  // iOS SYSTEM COLORS
   // ============================================
-  static const Color primaryBlue = Color.fromARGB(
-    255,
-    32,
-    102,
-    243,
-  ); // Softer Royal Blue
-  static const Color backgroundBeige = Color.fromARGB(
-    255,
-    251,
-    244,
-    234,
-  ); // Clean Off-White
-  static const Color cardWhite = Color(0xFFFFFFFF);
-  static const Color textDark = Color(0xFF1A1A1A); // Softer Black
-  static const Color textGray = Color(0xFF718096);
-  static Color borderGray = Colors.grey[200]!; // Subtle border
 
-  // Accent Colors (Vivid & Playful)
-  static const Color neonPink = Color(0xFFFF4081);
-  static const Color brightYellow = Color(0xFFFFD740);
-  static const Color electricPurple = Color(0xFF9C27B0);
-  static const Color vibrantGreen = Color(0xFF00C853);
-  static const Color emergencyRed = Color(0xFFEF5350);
+  /// Primary blue - iOS system blue
+  static const Color primaryBlue = CupertinoColors.systemBlue;
+
+  /// Background - iOS system gray 6 (light mode)
+  static const Color backgroundBeige = CupertinoColors.lightBackgroundGray;
+
+  /// Card/Surface - Pure white
+  static const Color cardWhite = CupertinoColors.white;
+
+  /// Text colors
+  static const Color textDark = CupertinoColors.label;
+  static const Color textGray = CupertinoColors.secondaryLabel;
+  static const Color textSecondary = CupertinoColors.systemGrey;
+
+  /// Border/Separator
+  static Color borderGray = const Color(0xFFD1D1D6);
+
+  // ============================================
+  // iOS ACCENT COLORS
+  // ============================================
+  static const Color neonPink = CupertinoColors.systemPink; // iOS Pink
+  static const Color brightYellow = CupertinoColors.systemYellow; // iOS Yellow
+  static const Color electricPurple = CupertinoColors.systemPurple; // iOS Purple
+  static const Color vibrantGreen = CupertinoColors.systemGreen; // iOS Green
+  static const Color emergencyRed = CupertinoColors.destructiveRed; // iOS Red
+  static const Color tealBlue = CupertinoColors.systemTeal; // iOS Teal
+  static const Color orangeAccent = CupertinoColors.activeOrange; // iOS Orange
+
+  /// Removed - no more black borders in iOS stylea
   static const Color borderBlack = Colors.transparent;
 
   // ============================================
-  // EMOTIONAL / MEMORY LANE COLORS (Playful & Bright)
+  // EMOTIONAL / MEMORY LANE COLORS (Softened for iOS)
   // ============================================
-  static const Color warmCream = Color(0xFFFFF8E7); // Bright warm paper
-  static const Color softIvory = Color(0xFFFFFDF5); // Warm card background
-  static const Color coralPink = Color(0xFFFF6B6B); // Lively nostalgic pink
-  static const Color mintGreen = Color(0xFF51D88A); // Fresh nature green
-  static const Color skyBlue = Color(0xFF54B7F5); // Bright reflective blue
-  static const Color sunsetOrange = Color(0xFFFFAA5C); // Warm sunset glow
-  static const Color lavenderPop = Color(0xFFA78BFA); // Playful purple
-  // Legacy aliases for emotional references
+  static const Color warmCream = Color(0xFFFFFBF5);
+  static const Color softIvory = Color(0xFFFFFDF8);
+  static const Color coralPink = Colors.pink;
+  static const Color mintGreen = Colors.green;
+  static const Color skyBlue = Colors.blue;
+  static const Color sunsetOrange = Colors.orangeAccent;
+  static const Color lavenderPop = Colors.indigoAccent;
+
+  // Legacy aliases
   static const Color dustyRose = coralPink;
   static const Color sageGreen = mintGreen;
   static const Color twilightBlue = skyBlue;
@@ -59,74 +70,123 @@ class AppTheme {
   static const double spacing48 = 48.0;
   static const double spacing64 = 64.0;
 
-  // Border Radius (Soft style)
-  static double radiusSmall = 12.0.r;
-  static double radiusMedium = 20.0.r; // Increased roundness
-  static double radiusLarge = 28.0.r; // Very round for cards
+  // ============================================
+  // BORDER RADIUS (iOS Style - softer, consistent)
+  // ============================================
+  static double radiusSmall = 10.0.r;
+  static double radiusMedium = 14.0.r;
+  static double radiusLarge = 20.0.r;
   static double radiusCircle = 50.0.r;
-  static double radiusMomentCard = 16.0.r; // Rounded corners for photos
+  static double radiusMomentCard = 14.0.r;
 
-  // Border widths - Reduced or Removed
-  static double borderThin = 1.0.w;
+  /// iOS-style continuous corner radius for cards
+  static double radiusCard = 16.0.r;
+
+  // ============================================
+  // BORDER WIDTHS (Minimal in iOS style)
+  // ============================================
+  static double borderThin = 0.5.w;
   static double borderMedium = 1.0.w;
-  static double borderThick = 2.0.w;
+  static double borderThick = 1.5.w;
 
-  // Soft Shadows (diffuse blur)
-  static List<BoxShadow> get brutalShadow => [
-    BoxShadow(
-      color: Colors.black.withValues(alpha: 0.06),
-      offset: const Offset(0, 4),
-      blurRadius: 16,
-      spreadRadius: 2,
-    ),
-  ];
+  // ============================================
+  // SHADOWS (iOS Style - Soft, diffused)
+  // ============================================
 
-  static List<BoxShadow> get brutalShadowSmall => [
+  /// Standard card shadow - iOS-style soft elevation
+  static List<BoxShadow> get cardShadow => [
     BoxShadow(
       color: Colors.black.withValues(alpha: 0.04),
       offset: const Offset(0, 2),
       blurRadius: 8,
-      spreadRadius: 1,
+      spreadRadius: 0,
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.02),
+      offset: const Offset(0, 8),
+      blurRadius: 24,
+      spreadRadius: 0,
     ),
   ];
 
-  static List<BoxShadow> get cardShadow => brutalShadow;
-  static List<BoxShadow> get softShadow => brutalShadowSmall;
+  /// Subtle shadow for smaller elements
+  static List<BoxShadow> get softShadow => [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.04),
+      offset: const Offset(0, 1),
+      blurRadius: 4,
+      spreadRadius: 0,
+    ),
+  ];
+
+  /// Button shadow with primary color tint
   static List<BoxShadow> get buttonShadow => [
     BoxShadow(
-      color: primaryBlue.withValues(alpha: 0.25),
+      color: primaryBlue.withValues(alpha: 0.20),
       offset: const Offset(0, 4),
       blurRadius: 12,
+      spreadRadius: 0,
     ),
   ];
 
-  /// Subtle glow for interactive elements
+  /// Glow effect for interactive elements
   static List<BoxShadow> get glowShadow => [
     BoxShadow(
-      color: primaryBlue.withValues(alpha: 0.15),
+      color: primaryBlue.withValues(alpha: 0.12),
       offset: Offset.zero,
       blurRadius: 16,
       spreadRadius: 2,
     ),
   ];
 
+  /// Elevated shadow for modals/sheets
+  static List<BoxShadow> get elevatedShadow => [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.08),
+      offset: const Offset(0, 4),
+      blurRadius: 16,
+      spreadRadius: 0,
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.04),
+      offset: const Offset(0, 16),
+      blurRadius: 48,
+      spreadRadius: 0,
+    ),
+  ];
+
+  // Legacy alias
+  static List<BoxShadow> get brutalShadow => cardShadow;
+  static List<BoxShadow> get brutalShadowSmall => softShadow;
+
+  // ============================================
+  // THEME DATA
+  // ============================================
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: const ColorScheme.light(
         primary: primaryBlue,
+        onPrimary: Colors.white,
+        primaryContainer: Color(0xFFE3F2FD),
+        onPrimaryContainer: Color(0xFF001D36),
+        secondary: textGray,
+        onSecondary: Colors.white,
         surface: backgroundBeige,
         onSurface: textDark,
-        secondary: textGray,
+        error: emergencyRed,
+        onError: Colors.white,
       ),
       scaffoldBackgroundColor: backgroundBeige,
-      textTheme: _textTheme,
+      fontFamily: 'GoogleSansFlex',
+
+      // iOS-style elevated button
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryBlue,
           foregroundColor: Colors.white,
           elevation: 0,
-          shadowColor: primaryBlue.withValues(alpha: 0.25),
+          shadowColor: primaryBlue.withValues(alpha: 0.20),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radiusCircle),
           ),
@@ -134,135 +194,58 @@ class AppTheme {
             horizontal: spacing24,
             vertical: spacing16,
           ),
-          textStyle: GoogleFonts.inter(
+          textStyle: TextStyle(
+            fontFamily: 'GoogleSansFlex',
             fontWeight: FontWeight.w600,
-            fontSize: 16.sp,
+            
           ),
         ),
       ),
+
+      // iOS-style card
       cardTheme: CardThemeData(
         color: cardWhite,
         elevation: 0,
-        shadowColor: Colors.black.withValues(alpha: 0.08),
+        shadowColor: Colors.black.withValues(alpha: 0.06),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(radiusMedium),
+          borderRadius: BorderRadius.circular(radiusCard),
         ),
+        margin: EdgeInsets.zero,
       ),
+
+      // iOS-style app bar
       appBarTheme: AppBarTheme(
-        backgroundColor: backgroundBeige,
+        backgroundColor: backgroundBeige.withValues(alpha: 0.94),
         foregroundColor: textDark,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: TextStyle(
-          fontSize: 24,
+        titleTextStyle: GoogleFonts.openSansCondensed(
           fontWeight: FontWeight.w600,
           color: textDark,
-          letterSpacing: 1.2,
+          letterSpacing: -0.4,
         ),
       ),
+
+      // iOS-style divider
+      dividerTheme: DividerThemeData(
+        color: borderGray.withValues(alpha: 0.6),
+        thickness: 0.5,
+        space: 0,
+      ),
+
+      // iOS-style bottom sheet
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: cardWhite,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(radiusLarge),
+          ),
+        ),
+        elevation: 0,
+      ),
     );
   }
 
-  static TextTheme get _textTheme {
-    return TextTheme(
-      // Display styles (Bebas Neue for big headers)
-      displayLarge: GoogleFonts.bebasNeue(
-        fontSize: 57,
-        fontWeight: FontWeight.w700,
-        color: textDark,
-        letterSpacing: 2.0,
-      ),
-      displayMedium: GoogleFonts.bebasNeue(
-        fontSize: 45,
-        fontWeight: FontWeight.w700,
-        color: textDark,
-        letterSpacing: 1.8,
-      ),
-      displaySmall: GoogleFonts.bebasNeue(
-        fontSize: 36,
-        fontWeight: FontWeight.w700,
-        color: textDark,
-        letterSpacing: 1.5,
-      ),
-
-      // Headline styles (For sticker titles)
-      headlineLarge: GoogleFonts.rubik(
-        fontSize: 32,
-        fontWeight: FontWeight.w900,
-        color: textDark,
-        letterSpacing: 0.5,
-      ),
-      headlineMedium: GoogleFonts.rubik(
-        fontSize: 28,
-        fontWeight: FontWeight.w900,
-        color: textDark,
-        letterSpacing: 0.5,
-      ),
-      headlineSmall: GoogleFonts.rubik(
-        fontSize: 24,
-        fontWeight: FontWeight.w900,
-        color: textDark,
-        letterSpacing: 0.5,
-      ),
-
-      // Title styles (For buttons and labels)
-      titleLarge: GoogleFonts.inter(
-        fontSize: 22,
-        fontWeight: FontWeight.w700,
-        color: textDark,
-      ),
-      titleMedium: GoogleFonts.inter(
-        fontSize: 16,
-        fontWeight: FontWeight.w700,
-        color: textDark,
-      ),
-      titleSmall: GoogleFonts.inter(
-        fontSize: 14,
-        fontWeight: FontWeight.w700,
-        color: textDark,
-      ),
-
-      // Body styles (For content)
-      bodyLarge: GoogleFonts.inter(
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
-        color: textDark,
-        height: 1.5,
-      ),
-      bodyMedium: GoogleFonts.inter(
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-        color: textDark,
-        height: 1.5,
-      ),
-      bodySmall: GoogleFonts.inter(
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        color: textGray,
-        height: 1.5,
-      ),
-
-      // Label styles (For small text)
-      labelLarge: GoogleFonts.inter(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: textDark,
-        letterSpacing: 0.5,
-      ),
-      labelMedium: GoogleFonts.inter(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: textDark,
-        letterSpacing: 0.5,
-      ),
-      labelSmall: GoogleFonts.inter(
-        fontSize: 11,
-        fontWeight: FontWeight.w600,
-        color: textGray,
-        letterSpacing: 0.5,
-      ),
-    );
-  }
 
   // ============================================
   // HELPER METHODS
@@ -272,13 +255,13 @@ class AppTheme {
   static Color getTimeOfDayTint(DateTime timestamp) {
     final hour = timestamp.hour;
     if (hour >= 5 && hour < 11) {
-      return amberGold.withValues(alpha: 0.05); // Morning - warm amber
+      return amberGold.withValues(alpha: 0.03);
     } else if (hour >= 11 && hour < 17) {
-      return Colors.transparent; // Afternoon - neutral
+      return Colors.transparent;
     } else if (hour >= 17 && hour < 21) {
-      return dustyRose.withValues(alpha: 0.05); // Evening - dusty rose
+      return dustyRose.withValues(alpha: 0.03);
     } else {
-      return twilightBlue.withValues(alpha: 0.08); // Night - twilight blue
+      return twilightBlue.withValues(alpha: 0.05);
     }
   }
 
@@ -290,7 +273,7 @@ class AppTheme {
     if (age.inDays < 30) return 0.90;
     if (age.inDays < 365) return 0.85;
     if (age.inDays < 365 * 3) return 0.80;
-    return 0.75; // 3+ years - vintage
+    return 0.75;
   }
 
   /// Format timestamp as relative, emotional text

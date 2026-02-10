@@ -13,7 +13,8 @@
     <application
         android:label="Moments"
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon">
+        android:icon="@mipmap/launcher_icon"
+        android:networkSecurityConfig="@xml/network_security_config">
 
         <!-- FCM Default Notification Channel - HIGH importance for heads-up/pill notifications -->
         <meta-data
@@ -34,6 +35,11 @@
         <meta-data
             android:name="MAPBOX_ACCESS_TOKEN"
             android:value="pk.eyJ1Ijoid29sZmVsZW8iLCJhIjoiY21oYXRxMW82MW5nNjJqcGc4aDA0YndoeSJ9.gvLhQFM-46KlcUdAKFGMYg" />
+
+        <!-- Google Maps API Key -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyAOVYRIgupAurZup5y1PRh8Ismb1A3lLao" />
 
         <activity
             android:name=".MainActivity"

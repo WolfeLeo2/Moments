@@ -182,9 +182,7 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
           .difference(current.timestamp)
           .inMinutes
           .abs();
-      final sameGroup =
-          current.momentGroupId != null &&
-          current.momentGroupId == previous.momentGroupId;
+      final sameGroup = current.momentGroupId == previous.momentGroupId;
       final sameLocation = current.location == previous.location;
 
       if (sameGroup || (sameLocation && timeDiff < 30)) {

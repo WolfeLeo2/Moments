@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -51,6 +53,14 @@ class CollaborativeAudioList extends StatefulWidget {
 class _CollaborativeAudioListState extends State<CollaborativeAudioList> {
   final AudioNoteService _audioService = AudioNoteService();
   String? _playingMomentId;
+  bool _isLoading = false;
+  double _playbackProgress = 0.0;
+  Duration _currentPosition = Duration.zero;
+  Duration _totalDuration = Duration.zero;
+
+  StreamSubscription<bool>? _playingSubscription;
+  StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<Duration>? _durationSubscription;
 
   late List<_AudioEntry> _entries;
 
@@ -59,11 +69,43 @@ class _CollaborativeAudioListState extends State<CollaborativeAudioList> {
     super.initState();
     _buildEntries();
 
-    _audioService.isPlayingStream.listen((playing) {
+    _playingSubscription = _audioService.isPlayingStream.listen((playing) {
       if (!playing && mounted) {
-        setState(() => _playingMomentId = null);
+        setState(() {
+          _playingMomentId = null;
+          _playbackProgress = 0.0;
+          _currentPosition = Duration.zero;
+          _totalDuration = Duration.zero;
+        });
       }
     });
+
+    _positionSubscription =
+        _audioService.playbackPositionStream.listen((pos) {
+      if (mounted && _playingMomentId != null) {
+        _currentPosition = pos;
+        _updateProgress();
+      }
+    });
+
+    _durationSubscription =
+        _audioService.playbackDurationStream.listen((dur) {
+      if (mounted && _playingMomentId != null) {
+        _totalDuration = dur;
+        _updateProgress();
+      }
+    });
+  }
+
+  void _updateProgress() {
+    if (_totalDuration.inMilliseconds > 0) {
+      final progress = (_currentPosition.inMilliseconds /
+              _totalDuration.inMilliseconds)
+          .clamp(0.0, 1.0);
+      if ((progress - _playbackProgress).abs() > 0.005) {
+        setState(() => _playbackProgress = progress);
+      }
+    }
   }
 
   void _buildEntries() {
@@ -90,6 +132,9 @@ class _CollaborativeAudioListState extends State<CollaborativeAudioList> {
 
   @override
   void dispose() {
+    _playingSubscription?.cancel();
+    _positionSubscription?.cancel();
+    _durationSubscription?.cancel();
     _audioService.dispose();
     super.dispose();
   }
@@ -99,14 +144,31 @@ class _CollaborativeAudioListState extends State<CollaborativeAudioList> {
 
     if (_playingMomentId == entry.momentId) {
       _audioService.stop();
-      setState(() => _playingMomentId = null);
+      setState(() {
+        _playingMomentId = null;
+        _playbackProgress = 0.0;
+        _isLoading = false;
+      });
       return;
     }
 
+    setState(() {
+      _isLoading = true;
+      _playingMomentId = entry.momentId;
+      _playbackProgress = 0.0;
+      _currentPosition = Duration.zero;
+      _totalDuration = Duration.zero;
+    });
+
     final url = await AudioNoteService.getAudioUrl(entry.audioPath);
-    if (url != null) {
-      setState(() => _playingMomentId = entry.momentId);
-      _audioService.play(url, isUrl: true);
+    if (url != null && mounted) {
+      await _audioService.play(url, isUrl: true);
+      if (mounted) setState(() => _isLoading = false);
+    } else if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _playingMomentId = null;
+      });
     }
   }
 
@@ -115,55 +177,59 @@ class _CollaborativeAudioListState extends State<CollaborativeAudioList> {
     if (_entries.isEmpty) return const SizedBox.shrink();
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // Header
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Row(
-            children: [
-              Icon(Icons.mic_rounded, size: 16, color: AppTheme.coralPink),
-              const SizedBox(width: 6),
-              Text(
-                'AUDIO NOTES',
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.mic_rounded, size: 16, color: AppTheme.coralPink),
+            const SizedBox(width: 6),
+            Text(
+              'AUDIO NOTES',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textDark,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.coralPink.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '${_entries.length}',
                 style: GoogleFonts.inter(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textDark,
-                  letterSpacing: 1.0,
+                  color: AppTheme.coralPink,
                 ),
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppTheme.coralPink.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '${_entries.length}',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.coralPink,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
+
         ),
         const SizedBox(height: 10),
 
-        // Audio entries list
+        // Audio entries — centered, scrolls when overflow
         SizedBox(
           height: 64,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: _entries.length,
-            itemBuilder: (context, index) {
-              return _buildAudioTag(_entries[index]);
-            },
+          child: Center(
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: _entries.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                return _buildAudioTag(_entries[index]);
+              },
+            ),
           ),
         ),
       ],
@@ -173,15 +239,18 @@ class _CollaborativeAudioListState extends State<CollaborativeAudioList> {
   Widget _buildAudioTag(_AudioEntry entry) {
     final isPlaying = _playingMomentId == entry.momentId;
     final duration = entry.duration;
-    final minutes = duration ~/ 60;
-    final seconds = duration % 60;
+    // Show elapsed time during playback, total duration when idle
+    final displaySeconds = isPlaying && _currentPosition.inMilliseconds > 0
+        ? _currentPosition.inSeconds
+        : duration;
+    final minutes = displaySeconds ~/ 60;
+    final seconds = displaySeconds % 60;
     final timeStr =
         '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
 
     return GestureDetector(
       onTap: () => _togglePlay(entry),
       child: Container(
-        margin: const EdgeInsets.only(right: 10),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isPlaying
@@ -226,7 +295,10 @@ class _CollaborativeAudioListState extends State<CollaborativeAudioList> {
                         amplitudes: AudioNoteService.generateFakeWaveform(
                           duration,
                         ),
-                        mode: WaveformMode.compact,
+                        mode: isPlaying
+                            ? WaveformMode.playback
+                            : WaveformMode.compact,
+                        progress: isPlaying ? _playbackProgress : 0.0,
                         activeColor: isPlaying
                             ? AppTheme.coralPink
                             : AppTheme.textGray,
@@ -254,12 +326,22 @@ class _CollaborativeAudioListState extends State<CollaborativeAudioList> {
 
             const SizedBox(width: 8),
 
-            // Play/Stop icon
-            Icon(
-              isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
-              color: isPlaying ? AppTheme.coralPink : AppTheme.textGray,
-              size: 20,
-            ),
+            // Play/Stop icon or loading indicator
+            if (_isLoading && isPlaying)
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppTheme.coralPink,
+                ),
+              )
+            else
+              Icon(
+                isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                color: isPlaying ? AppTheme.coralPink : AppTheme.textGray,
+                size: 20,
+              ),
           ],
         ),
       ),

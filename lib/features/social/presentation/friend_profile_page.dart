@@ -719,12 +719,9 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
 
   /// Get moments that belong to the same group as the tapped moment
   List<Moment> _getMomentsInSameGroup(Moment moment, List<Moment> allMoments) {
-    if (moment.momentGroupId != null) {
-      return allMoments
-          .where((m) => m.momentGroupId == moment.momentGroupId)
-          .toList();
-    }
-    return [moment];
+    return allMoments
+        .where((m) => m.momentGroupId == moment.momentGroupId)
+        .toList();
   }
 
   Widget _buildMapTab(AsyncValue<List<Moment>> momentsAsync) {

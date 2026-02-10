@@ -44,6 +44,7 @@ void main() {
       mediaPath: 'path/to/image.jpg',
       imageUrl: 'https://example.com/image.jpg', // Fallback URL
       userId: 'user-1',
+      momentGroupId: 'group-1',
     );
 
     // Build the widget
