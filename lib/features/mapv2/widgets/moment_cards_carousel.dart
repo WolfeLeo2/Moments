@@ -392,12 +392,10 @@ class _MomentCardsCarouselState extends ConsumerState<MomentCardsCarousel> {
       ),
       child: ClipOval(
         child: avatarUrl != null
-            ? OfflineImage(
-                localPath: avatarCache.getLocalPath(avatarUrl),
-                networkUrl: avatarUrl,
-                cacheKey: 'avatar_$userId',
-                width: 28,
-                height: 28,
+            ? Image(
+                image:
+                    avatarCache.getAvatarImageProvider(avatarUrl) ??
+                    const AssetImage('assets/images/default_avatar.png'),
                 fit: BoxFit.cover,
               )
             : const SizedBox.shrink(),

@@ -205,11 +205,12 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
       ),
       clipBehavior: Clip.antiAlias,
       child: avatarUrl != null
-          ? OfflineImage(
-              localPath: avatarService.getLocalPath(avatarUrl),
-              networkUrl: avatarUrl,
+          ? Image(
+              image:
+                  avatarService.getAvatarImageProvider(avatarUrl) ??
+                  const AssetImage('assets/images/default_avatar.png'),
               fit: BoxFit.cover,
-              errorWidget: Icon(
+              errorBuilder: (_, __, ___) => Icon(
                 CupertinoIcons.person_fill,
                 color: AppTheme.primaryBlue,
                 size: 24,

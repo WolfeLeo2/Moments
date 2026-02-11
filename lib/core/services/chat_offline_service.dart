@@ -37,6 +37,7 @@ class ChatOfflineService {
   bool _isSyncing = false;
   int _retryAttempt = 0;
   static const int maxRetries = 5;
+  bool _started = false;
 
   ChatOfflineService({required this.db, required this.chatRepo});
 
@@ -46,6 +47,8 @@ class ChatOfflineService {
 
   /// Start the background sync processor
   void start() {
+    if (_started) return;
+    _started = true;
     _log.d('Starting chat offline service');
     _scheduleSync();
   }
@@ -55,6 +58,7 @@ class ChatOfflineService {
     _log.d('Stopping chat offline service');
     _syncTimer?.cancel();
     _syncTimer = null;
+    _started = false;
   }
 
   /// Schedule next sync with exponential backoff

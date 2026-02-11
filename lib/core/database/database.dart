@@ -203,7 +203,7 @@ class AppDatabase extends _$AppDatabase {
       onCreate: (Migrator m) async {
         await m.createAll();
         // Create indexes for fresh installs
-        await _createIndexes(m);
+        await _createIndexes();
       },
       onUpgrade: (Migrator m, int from, int to) async {
         // Handle migrations
@@ -309,7 +309,7 @@ class AppDatabase extends _$AppDatabase {
         }
         if (from < 10) {
           // v10: Add optimized indexes for chat performance
-          await _createIndexes(m);
+          await _createIndexes();
         }
       },
       beforeOpen: (details) async {
@@ -321,11 +321,13 @@ class AppDatabase extends _$AppDatabase {
         await customStatement('PRAGMA synchronous = NORMAL');
         // 8 MB page cache (default is ~2 MB)
         await customStatement('PRAGMA cache_size = -8000');
+        // Ensure indexes exist even for older installs or missed migrations
+        await _createIndexes();
       },
     );
   }
 
-  Future<void> _createIndexes(Migrator m) async {
+  Future<void> _createIndexes() async {
     // Enhanced index for messages: allows filtering by conversation AND deleted status, then sorting by date
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_messages_conversation_deleted_created '
@@ -335,6 +337,40 @@ class AppDatabase extends _$AppDatabase {
     // Index for ChatListCache to speed up loading the conversation list
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_chat_list_updated_at ON chat_list_cache (updated_at)',
+    );
+
+    // Moments indexes
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_moments_user_created '
+      'ON moments(user_id, created_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_moments_created '
+      'ON moments(created_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_moments_group '
+      'ON moments(moment_group_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_moments_timestamp '
+      'ON moments(timestamp)',
+    );
+
+    // Friendships indexes
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_friendships_user1 '
+      'ON friendships(user_id1)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_friendships_user2 '
+      'ON friendships(user_id2)',
+    );
+
+    // Media cache index
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_media_last_accessed '
+      'ON media_cache(last_accessed)',
     );
   }
 

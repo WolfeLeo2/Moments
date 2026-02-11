@@ -140,10 +140,17 @@ class _OfflineImageState extends State<OfflineImage> {
 
     // Show placeholder while checking local file (but only briefly)
     if (!_checkedLocal) {
-      // Use a minimal placeholder that won't flash
-      imageWidget = _buildNetworkImage();
+      // Avoid network calls until local path is confirmed missing
+      if (widget.localPath != null) {
+        imageWidget = _buildPlaceholder();
+      } else {
+        imageWidget = _buildNetworkImage();
+      }
     } else if (_localFileExists == true && widget.localPath != null) {
       // Use local file
+      debugPrint(
+        '✅ OfflineImage: Using local file for cacheKey=${widget.cacheKey}',
+      );
       imageWidget = Image.file(
         File(widget.localPath!),
         width: widget.width,
@@ -170,6 +177,11 @@ class _OfflineImageState extends State<OfflineImage> {
       return ClipRRect(borderRadius: widget.borderRadius!, child: imageWidget);
     }
     return imageWidget;
+  }
+
+  Widget _buildPlaceholder() {
+    final hash = widget.blurHash ?? OfflineImage.defaultBlurHash;
+    return widget.placeholder ?? BlurHash(hash: hash);
   }
 
   Widget _buildNetworkImage() {

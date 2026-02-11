@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/data/repositories/moment_repository.dart';
@@ -25,26 +27,19 @@ Stream<List<Moment>> momentsStream(Ref ref) async* {
   final db = ref.watch(appDatabaseProvider);
   final repo = ref.watch(momentRepositoryProvider);
 
-  // 1. Load cached moments immediately for instant UI
-  final cachedEntries = await db.getMoments();
-  if (cachedEntries.isNotEmpty) {
-    yield cachedEntries.map((e) => e.toModel()).toList();
-  }
+  final remoteSub = repo.streamAllMoments().listen(
+    (moments) {
+      unawaited(db.saveMoments(moments.map((m) => m.toCompanion()).toList()));
+    },
+    onError: (e, stack) {
+      _log.e('Error in moments stream', error: e, stackTrace: stack);
+    },
+  );
+  ref.onDispose(remoteSub.cancel);
 
-  // 2. Subscribe to Supabase realtime and save to Drift
-  try {
-    await for (final moments in repo.streamAllMoments()) {
-      // Save to Drift (handles upsert)
-      await db.saveMoments(moments.map((m) => m.toCompanion()).toList());
-      yield moments;
-    }
-  } catch (e, stack) {
-    _log.e('Error in moments stream', error: e, stackTrace: stack);
-    // Fallback: watch Drift for any cached data
-    await for (final entries in db.watchMoments()) {
-      yield entries.map((e) => e.toModel()).toList();
-    }
-  }
+  yield* db.watchMoments().map(
+    (entries) => entries.map((e) => e.toModel()).toList(),
+  );
 }
 
 /// Stream of shared moments (realtime - moments user is contributor to)

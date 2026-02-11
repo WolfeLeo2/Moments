@@ -31,6 +31,7 @@ class AvatarCacheService {
   /// Flag to track if initial load is complete
   bool _initialized = false;
   final Completer<void> _initCompleter = Completer<void>();
+  bool _initializing = false;
 
   /// Default avatar URL
   static const String defaultAvatarUrl =
@@ -42,7 +43,8 @@ class AvatarCacheService {
   /// Initialize the cache from Drift storage
   /// Call this early in app startup
   Future<void> initialize() async {
-    if (_initialized) return;
+    if (_initialized || _initializing) return;
+    _initializing = true;
 
     try {
       // Load all profiles from Drift and populate memory cache
@@ -58,6 +60,7 @@ class AvatarCacheService {
       await _loadLocalAvatarPaths();
 
       _initialized = true;
+      _initializing = false;
       if (!_initCompleter.isCompleted) {
         _initCompleter.complete();
       }
@@ -67,6 +70,7 @@ class AvatarCacheService {
     } catch (e) {
       debugPrint('AvatarCacheService: Error initializing cache: $e');
       _initialized = true;
+      _initializing = false;
       if (!_initCompleter.isCompleted) {
         _initCompleter.complete();
       }
@@ -101,6 +105,9 @@ class AvatarCacheService {
 
   /// Get avatar URL for a single user (sync - returns cached or null)
   String? getAvatarUrlSync(String userId) {
+    if (!_initialized && !_initializing) {
+      initialize();
+    }
     return _memoryCache[userId];
   }
 
@@ -321,7 +328,11 @@ class AvatarCacheService {
   /// Get local path for an avatar URL (if downloaded)
   String? getLocalPath(String url) {
     final urlHash = url.hashCode.toRadixString(16);
-    return _localPathCache[urlHash];
+    final cached = _localPathCache[urlHash];
+    if (cached == null) {
+      _downloadAvatarInBackground(url);
+    }
+    return cached;
   }
 
   /// Get the best available ImageProvider for an avatar
@@ -334,17 +345,22 @@ class AvatarCacheService {
     if (localPath != null) {
       final file = File(localPath);
       if (file.existsSync()) {
+        debugPrint('AvatarCacheService: Using local avatar for $avatarUrl');
         return FileImage(file);
       }
     }
 
     // Fall back to network with caching
+    debugPrint('AvatarCacheService: Using network avatar for $avatarUrl');
     return CachedNetworkImageProvider(avatarUrl);
   }
 
   /// Get ImageProvider for a user ID (fetches from cache or downloads)
   ImageProvider? getAvatarImageProviderForUser(String userId) {
     final url = getAvatarUrlSync(userId);
+    if (url == null) {
+      unawaited(getAvatarUrl(userId));
+    }
     return getAvatarImageProvider(url);
   }
 

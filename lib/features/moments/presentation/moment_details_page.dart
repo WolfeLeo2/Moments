@@ -590,22 +590,32 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       });
     }
 
-    // Collect paths to load - use thumbnails for videos, media_path for images
+    // Collect paths to load - skip items already cached locally
     final pathsToLoad = <String>[];
 
     for (var moment in _moments) {
       if (moment.mediaType == 'video') {
-        // For videos, load thumbnail for preview
-        if (moment.thumbnailPath != null && moment.thumbnailPath!.isNotEmpty) {
+        final hasLocalThumb = _localPaths.containsKey(moment.id);
+        final hasLocalVideo = _localVideoPaths.containsKey(moment.id);
+
+        // For videos, load thumbnail for preview if missing locally
+        if (!hasLocalThumb &&
+            moment.thumbnailPath != null &&
+            moment.thumbnailPath!.isNotEmpty) {
           pathsToLoad.add(moment.thumbnailPath!);
         }
-        // Also load the actual video URL for playback
-        if (moment.mediaPath != null && moment.mediaPath!.isNotEmpty) {
+        // Also load the actual video URL for playback if missing locally
+        if (!hasLocalVideo &&
+            moment.mediaPath != null &&
+            moment.mediaPath!.isNotEmpty) {
           pathsToLoad.add(moment.mediaPath!);
         }
       } else {
-        // For images, just load media path
-        if (moment.mediaPath != null && moment.mediaPath!.isNotEmpty) {
+        final hasLocalImage = _localPaths.containsKey(moment.id);
+        // For images, only load media path if missing locally
+        if (!hasLocalImage &&
+            moment.mediaPath != null &&
+            moment.mediaPath!.isNotEmpty) {
           pathsToLoad.add(moment.mediaPath!);
         }
       }
