@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../core/theme/app_theme.dart';
@@ -35,9 +36,10 @@ class ProfilePage extends ConsumerWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Profile',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+          'PROFILE',
+          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
             color: Colors.black,
+            fontFamily: 'GoogleSansFlex',
             fontWeight: FontWeight.w600,
             letterSpacing: -0.5,
           ),
@@ -104,7 +106,7 @@ class ProfilePage extends ConsumerWidget {
                     child: Text(
                       profile.bio!,
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         fontFamily: 'GoogleSansFlex',
                         color: Colors.black87,
                       ),
@@ -319,11 +321,7 @@ class ProfilePage extends ConsumerWidget {
 
                   // Navigate to LoginPage
                   if (context.mounted) {
-                    Navigator.pushNamedAndRemoveUntil(
-                      context,
-                      '/login',
-                      (route) => false,
-                    );
+                    context.go('/login');
                   }
                 },
                 icon: const Icon(Icons.logout, color: AppTheme.emergencyRed),
@@ -441,7 +439,7 @@ class ProfilePage extends ConsumerWidget {
         leading: HugeIcon(icon: icon, size: 22.sp, color: Colors.black87),
         title: Text(
           title,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
             fontFamily: 'GoogleSansFlex',
             fontWeight: FontWeight.w500,
             color: Colors.black87,
@@ -514,7 +512,11 @@ class ProfilePage extends ConsumerWidget {
         ),
         title: Text(
           'Sync Status',
-          style: GoogleFonts.rubik(fontSize: 16.sp, color: Colors.black),
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            fontFamily: 'GoogleSansFlex',
+            fontWeight: FontWeight.w500,
+            color: Colors.black,
+          ),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,

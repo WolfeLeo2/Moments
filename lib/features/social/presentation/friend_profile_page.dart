@@ -666,7 +666,6 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
                             networkUrl: moment.imageUrl,
                             cacheKey: moment.id,
                             fit: BoxFit.cover,
-                            placeholder: Container(color: Colors.grey[200]),
                             errorWidget: Center(
                               child: Icon(
                                 Icons.broken_image,

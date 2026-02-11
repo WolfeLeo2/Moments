@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -131,14 +132,15 @@ class _StorageCachePageState extends State<StorageCachePage> {
         backgroundColor: AppTheme.backgroundBeige,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.textDark),
+          icon: const Icon(CupertinoIcons.back, color: AppTheme.textDark),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Storage & Cache',
           style: GoogleFonts.bebasNeue(
-            fontSize: 22.sp,
-            color: AppTheme.textDark,
+            textStyle: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                  color: AppTheme.textDark,
+                ),
           ),
         ),
         centerTitle: true,

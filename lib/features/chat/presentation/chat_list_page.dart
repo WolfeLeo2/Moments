@@ -137,9 +137,19 @@ class _ChatListPageState extends ConsumerState<ChatListPage>
           ),
         ),
       ),
-      body: chatListAsync.when(
-        data: (conversations) {
-          if (conversations.isEmpty) {
+      body: Builder(
+        builder: (context) {
+          final conversations = chatListAsync.asData?.value;
+
+          if (chatListAsync.isLoading && conversations == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (chatListAsync.hasError && conversations == null) {
+            return Center(child: Text('Error: ${chatListAsync.error}'));
+          }
+
+          if (conversations == null || conversations.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -177,8 +187,6 @@ class _ChatListPageState extends ConsumerState<ChatListPage>
             },
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(child: Text('Error: $error')),
       ),
     );
   }

@@ -59,12 +59,15 @@ class _MemoryCardState extends State<MemoryCard> {
     _resolveSignedUrls();
   }
 
-  /// Resolve mediaPath → signed URL for all moments that need it
+  /// Resolve mediaPath → signed URL for moments that need it
   Future<void> _resolveSignedUrls() async {
     final pathsToResolve = <String>[];
     for (final moment in widget.moments) {
       // If imageUrl is already set, use it directly
       if (moment.imageUrl != null && moment.imageUrl!.isNotEmpty) continue;
+      // If we have a local file cached, skip signed URL generation
+      if (moment.localMediaPath != null && moment.localMediaPath!.isNotEmpty)
+        continue;
       // If mediaPath exists, we need a signed URL
       if (moment.mediaPath != null && moment.mediaPath!.isNotEmpty) {
         pathsToResolve.add(moment.mediaPath!);
@@ -396,18 +399,10 @@ class _MemoryCardState extends State<MemoryCard> {
       children: [
         if (imageUrl != null)
           OfflineImage(
+            localPath: moment.localMediaPath,
             networkUrl: imageUrl,
             cacheKey: moment.mediaPath ?? moment.id,
             fit: BoxFit.cover,
-            placeholder: Container(
-              color: AppTheme.coralPink.withValues(alpha: 0.08),
-              child: const Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppTheme.coralPink,
-                ),
-              ),
-            ),
             errorWidget: Container(
               color: AppTheme.coralPink.withValues(alpha: 0.08),
               child: Icon(

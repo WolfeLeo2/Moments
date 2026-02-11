@@ -194,7 +194,7 @@ class AppDatabase extends _$AppDatabase {
 
   // Bump this when schema changes
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 10;
 
   // Migration strategy for future schema changes
   @override
@@ -202,6 +202,8 @@ class AppDatabase extends _$AppDatabase {
     return MigrationStrategy(
       onCreate: (Migrator m) async {
         await m.createAll();
+        // Create indexes for fresh installs
+        await _createIndexes(m);
       },
       onUpgrade: (Migrator m, int from, int to) async {
         // Handle migrations
@@ -262,11 +264,77 @@ class AppDatabase extends _$AppDatabase {
             );
           } catch (_) {}
         }
+        if (from < 9) {
+          // v9: Add indexes on all frequently-queried columns
+          // Messages indexes
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_messages_conversation_created '
+            'ON messages(conversation_id, created_at)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_messages_send_status '
+            'ON messages(send_status, local_only)',
+          );
+          // Moments indexes
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_moments_user_created '
+            'ON moments(user_id, created_at)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_moments_created '
+            'ON moments(created_at)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_moments_group '
+            'ON moments(moment_group_id)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_moments_timestamp '
+            'ON moments(timestamp)',
+          );
+          // Friendships indexes
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_friendships_user1 '
+            'ON friendships(user_id1)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_friendships_user2 '
+            'ON friendships(user_id2)',
+          );
+          // MediaCache index
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_media_last_accessed '
+            'ON media_cache(last_accessed)',
+          );
+        }
+        if (from < 10) {
+          // v10: Add optimized indexes for chat performance
+          await _createIndexes(m);
+        }
       },
       beforeOpen: (details) async {
-        // Enable foreign keys if needed
+        // Enable foreign keys
         await customStatement('PRAGMA foreign_keys = ON');
+        // WAL mode: allows concurrent reads during writes
+        await customStatement('PRAGMA journal_mode = WAL');
+        // Sync mode NORMAL: safe with WAL, much faster than FULL
+        await customStatement('PRAGMA synchronous = NORMAL');
+        // 8 MB page cache (default is ~2 MB)
+        await customStatement('PRAGMA cache_size = -8000');
       },
+    );
+  }
+
+  Future<void> _createIndexes(Migrator m) async {
+    // Enhanced index for messages: allows filtering by conversation AND deleted status, then sorting by date
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_messages_conversation_deleted_created '
+      'ON messages(conversation_id, is_deleted, created_at)',
+    );
+
+    // Index for ChatListCache to speed up loading the conversation list
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_chat_list_updated_at ON chat_list_cache (updated_at)',
     );
   }
 
@@ -1105,6 +1173,8 @@ extension MomentEntryMapper on MomentEntry {
       musicData: musicData != null
           ? MusicData.fromJson(jsonDecode(musicData!) as Map<String, dynamic>)
           : null,
+      localMediaPath: localMediaPath,
+      localThumbnailPath: localThumbnailPath,
     );
   }
 }

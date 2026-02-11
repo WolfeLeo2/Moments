@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'dart:io';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -442,11 +443,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
           bottom: BorderSide(color: Colors.white70, width: 1.0),
         ),
         elevation: 0,
-        leadingWidth: 24,
+        centerTitle: false,
+        leadingWidth: 48,
         leading: IconButton(
           icon: Icon(
-            _isSearchMode ? Icons.close : Icons.arrow_back,
+            _isSearchMode ? CupertinoIcons.clear : CupertinoIcons.back,
             color: Colors.black,
+            size: 32,
           ),
           onPressed: () {
             if (_isSearchMode) {
@@ -590,8 +593,30 @@ class _ChatPageState extends ConsumerState<ChatPage>
                       messagesStreamProvider(conversationId),
                     );
 
-                    return messagesAsync.when(
-                      data: (messages) {
+                    return Builder(
+                      builder: (context) {
+                        final messagesNullable = messagesAsync.asData?.value;
+
+                        if (messagesAsync.isLoading &&
+                            messagesNullable == null) {
+                          return Center(
+                            child: Lottie.asset(
+                              'assets/animations/loading.json',
+                              width: 150,
+                              height: 150,
+                            ),
+                          );
+                        }
+                        if (messagesAsync.hasError &&
+                            messagesNullable == null) {
+                          return Center(
+                            child: Text(
+                              'Error loading messages: ${messagesAsync.error}',
+                            ),
+                          );
+                        }
+
+                        final messages = messagesNullable ?? [];
                         // Filter messages if search is active
                         final filteredMessages = _searchQuery.isEmpty
                             ? messages
@@ -950,15 +975,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
                           ),
                         );
                       },
-                      loading: () => Center(
-                        child: Lottie.asset(
-                          'assets/animations/loading.json',
-                          width: 150,
-                          height: 150,
-                        ),
-                      ),
-                      error: (error, stack) =>
-                          Center(child: Text('Error loading messages: $error')),
                     );
                   },
                 ),

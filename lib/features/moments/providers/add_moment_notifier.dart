@@ -1,5 +1,7 @@
 import 'package:moments/core/services/app_logger.dart';
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:location/location.dart';
 import 'package:image_picker/image_picker.dart';
@@ -271,6 +273,39 @@ class AddMoment extends _$AddMoment {
     state = state.copyWith(status: AddMomentStatus.loading, errorMessage: null);
 
     try {
+      // PERSISTENCE FIX: Copy cached files to app document directory
+      final appDir = await getApplicationDocumentsDirectory();
+      final mediaDir = Directory('${appDir.path}/media_uploads');
+      if (!await mediaDir.exists()) {
+        await mediaDir.create(recursive: true);
+      }
+
+      final persistedFiles = <File>[];
+      for (final file in state.imageFiles) {
+        if (await file.exists()) {
+          final fileName = p.basename(file.path);
+          // Check if already in our directory
+          if (file.path.startsWith(mediaDir.path)) {
+            persistedFiles.add(file);
+            continue;
+          }
+          final newPath =
+              '${mediaDir.path}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+          final newFile = await file.copy(newPath);
+          persistedFiles.add(newFile);
+        } else {
+          _log.w('File not found (likely undefined cache): ${file.path}');
+        }
+      }
+
+      if (persistedFiles.length != state.imageFiles.length) {
+        state = state.copyWith(
+          status: AddMomentStatus.error,
+          errorMessage: 'Media files unavailable. Please select again.',
+        );
+        return false;
+      }
+
       // Upload audio note if present
       String? uploadedAudioPath;
       if (audioPath != null) {
@@ -283,9 +318,9 @@ class AddMoment extends _$AddMoment {
       }
 
       // If single media (could be video or single image)
-      if (state.imageFiles.length == 1) {
+      if (persistedFiles.length == 1) {
         await _momentRepository.createMoment(
-          state.imageFiles.first,
+          persistedFiles.first,
           title,
           caption,
           state.locationName ?? 'Unknown Location',
@@ -308,7 +343,7 @@ class AddMoment extends _$AddMoment {
         );
 
         await _momentRepository.createMomentsBatch(
-          state.imageFiles,
+          persistedFiles,
           title,
           caption,
           state.locationName ?? 'Unknown Location',

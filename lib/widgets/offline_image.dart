@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_blurhash/flutter_blurhash.dart';
 
 /// Cache for file existence checks to avoid repeated async calls
 /// Has a max size to prevent unbounded memory growth
@@ -40,6 +41,9 @@ class _FileExistenceCache {
 /// Widget that displays either a local file image or a network image
 /// Prefers local file if available for offline support
 class OfflineImage extends StatefulWidget {
+  /// A generic soft-gradient BlurHash used as the default placeholder.
+  /// Produces a pleasant light blue-grey blur while images load.
+  static const String defaultBlurHash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
   final String? localPath;
   final String? networkUrl;
   final String? cacheKey;
@@ -52,10 +56,13 @@ class OfflineImage extends StatefulWidget {
   final int? memCacheWidth;
   final int? memCacheHeight;
 
+  final String? blurHash;
+
   const OfflineImage({
     super.key,
     this.localPath,
     this.networkUrl,
+    this.blurHash,
     this.cacheKey,
     this.width,
     this.height,
@@ -181,30 +188,17 @@ class _OfflineImageState extends State<OfflineImage> {
       fit: widget.fit,
       memCacheWidth: widget.memCacheWidth,
       memCacheHeight: widget.memCacheHeight,
-      fadeInDuration: Duration.zero, // No fade to prevent flash
-      fadeOutDuration: Duration.zero,
+      fadeInDuration: const Duration(milliseconds: 300), // Smooth fade in
+      fadeOutDuration: const Duration(milliseconds: 300),
       placeholderFadeInDuration: Duration.zero,
-      placeholder: (context, url) =>
-          widget.placeholder ?? _defaultPlaceholder(),
+      placeholder: (context, url) {
+        final hash = widget.blurHash ?? OfflineImage.defaultBlurHash;
+        return widget.placeholder ?? BlurHash(hash: hash);
+      },
       errorWidget: (context, url, error) {
         debugPrint('❌ OfflineImage: Network error for $url: $error');
         return widget.errorWidget ?? _defaultError();
       },
-    );
-  }
-
-  Widget _defaultPlaceholder() {
-    return Container(
-      width: widget.width,
-      height: widget.height,
-      color: Colors.grey[300],
-      child: const Center(
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      ),
     );
   }
 

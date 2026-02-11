@@ -43,6 +43,8 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
     final pathsToResolve = <String>{};
     for (final m in moments) {
       if (m.imageUrl != null && m.imageUrl!.isNotEmpty) continue;
+      // Skip if local file is available
+      if (m.localMediaPath != null && m.localMediaPath!.isNotEmpty) continue;
       final path = m.mediaType == 'video' ? m.thumbnailPath : m.mediaPath;
       if (path != null && path.isNotEmpty && !_signedUrls.containsKey(path)) {
         pathsToResolve.add(path);
@@ -191,6 +193,7 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
 
   Widget _buildUserAvatar() {
     final avatarUrl = _authService.currentUserPhotoUrl;
+    final avatarService = ref.watch(avatarCacheServiceProvider);
     return Container(
       width: 44,
       height: 44,
@@ -203,6 +206,7 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
       clipBehavior: Clip.antiAlias,
       child: avatarUrl != null
           ? OfflineImage(
+              localPath: avatarService.getLocalPath(avatarUrl),
               networkUrl: avatarUrl,
               fit: BoxFit.cover,
               errorWidget: Icon(
@@ -427,9 +431,13 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
                           backgroundColor: AppTheme.primaryBlue.withValues(
                             alpha: 0.15,
                           ),
-                        foregroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                        child: avatarUrl == null ? _avatarFallback(displayName) : null,
-                        )
+                          foregroundImage: avatarService.getAvatarImageProvider(
+                            avatarUrl,
+                          ),
+                          child: avatarUrl == null
+                              ? _avatarFallback(displayName)
+                              : null,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       // Name
@@ -698,11 +706,11 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
     if (imageUrl == null || imageUrl.isEmpty) return _imagePlaceholder();
 
     return OfflineImage(
+      localPath: moment.localMediaPath,
       networkUrl: imageUrl,
       cacheKey: cacheKey,
       fit: fit,
       width: width,
-      placeholder: Container(color: AppTheme.borderGray.withValues(alpha: 0.2)),
       errorWidget: _imagePlaceholder(),
     );
   }
@@ -862,7 +870,9 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
                 ),
                 slivers: [
                   // --Build greetings section--
-                  SliverToBoxAdapter(child: _buildGreetingHeader(firstName, allMoments)),
+                  SliverToBoxAdapter(
+                    child: _buildGreetingHeader(firstName, allMoments),
+                  ),
                   // ── Recent moments (horizontal) ──
                   SliverToBoxAdapter(child: _buildRecentSection(allMoments)),
 

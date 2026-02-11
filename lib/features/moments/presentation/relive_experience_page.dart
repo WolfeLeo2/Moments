@@ -136,13 +136,14 @@ class _ReliveExperiencePageState extends ConsumerState<ReliveExperiencePage>
       }
     }
 
-    // Batch-resolve mediaPaths → signed URLs
+    // Batch-resolve mediaPaths → signed URLs (skip moments with local files)
     final pathsToLoad = widget.moments
         .where(
           (m) =>
               m.mediaPath != null &&
               m.mediaPath!.isNotEmpty &&
-              !_imageUrls.containsKey(m.id),
+              !_imageUrls.containsKey(m.id) &&
+              (m.localMediaPath == null || m.localMediaPath!.isEmpty),
         )
         .map((m) => m.mediaPath!)
         .toList();

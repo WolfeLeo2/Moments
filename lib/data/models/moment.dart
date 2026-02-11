@@ -23,6 +23,8 @@ class Moment extends Equatable {
   final String? audioPath; // Storage path for audio note
   final int? audioDuration; // Duration of audio note in seconds
   final MusicData? musicData; // Attached music (Deezer preview or curated)
+  final String? localMediaPath; // Local cached file path for media
+  final String? localThumbnailPath; // Local cached file path for thumbnail
 
   const Moment({
     required this.id,
@@ -45,6 +47,8 @@ class Moment extends Equatable {
     this.audioPath,
     this.audioDuration,
     this.musicData,
+    this.localMediaPath,
+    this.localThumbnailPath,
   });
 
   factory Moment.fromJson(Map<String, dynamic> json) {
@@ -131,6 +135,8 @@ class Moment extends Equatable {
     String? audioPath,
     int? audioDuration,
     MusicData? musicData,
+    String? localMediaPath,
+    String? localThumbnailPath,
   }) {
     return Moment(
       id: id ?? this.id,
@@ -153,6 +159,8 @@ class Moment extends Equatable {
       audioPath: audioPath ?? this.audioPath,
       audioDuration: audioDuration ?? this.audioDuration,
       musicData: musicData ?? this.musicData,
+      localMediaPath: localMediaPath ?? this.localMediaPath,
+      localThumbnailPath: localThumbnailPath ?? this.localThumbnailPath,
     );
   }
 
@@ -178,6 +186,8 @@ class Moment extends Equatable {
     audioPath,
     audioDuration,
     musicData,
+    localMediaPath,
+    localThumbnailPath,
   ];
 
   @override

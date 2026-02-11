@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../widgets/offline_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -78,6 +77,11 @@ class _MomentCardsCarouselState extends ConsumerState<MomentCardsCarousel> {
       final moments = group['moments'] as List<Moment>;
       if (moments.isEmpty) continue;
       final front = moments.first;
+      // Skip if local file is available
+      final localPath = front.mediaType == 'video'
+          ? front.localThumbnailPath
+          : front.localMediaPath;
+      if (localPath != null && localPath.isNotEmpty) continue;
       final path = front.mediaType == 'video'
           ? front.thumbnailPath
           : front.mediaPath;
@@ -120,7 +124,7 @@ class _MomentCardsCarouselState extends ConsumerState<MomentCardsCarousel> {
           return AnimatedScale(
             scale: index == widget.selectedIndex ? 1.0 : 0.92,
             duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOutCubicEmphasized,
+            curve: Curves.easeInOutCirc,
             child: _buildCard(widget.groups[index]),
           );
         },
@@ -175,12 +179,10 @@ class _MomentCardsCarouselState extends ConsumerState<MomentCardsCarousel> {
             // ── Hero image (OfflineImage with local-first + network fallback) ──
             if (heroUrl != null)
               OfflineImage(
+                localPath: heroMoment.localMediaPath,
                 networkUrl: heroUrl,
                 cacheKey: heroMoment.mediaPath ?? heroMoment.id,
                 fit: BoxFit.cover,
-                placeholder: Container(
-                  color: AppTheme.borderGray.withValues(alpha: 0.3),
-                ),
                 errorWidget: Container(
                   color: AppTheme.borderGray.withValues(alpha: 0.3),
                   child: Icon(
@@ -377,9 +379,8 @@ class _MomentCardsCarouselState extends ConsumerState<MomentCardsCarousel> {
 
   Widget _buildMiniAvatar(String userId) {
     // Use avatar cache service for URL resolution
-    final avatarUrl = ref
-        .read(avatarCacheServiceProvider)
-        .getAvatarUrlSync(userId);
+    final avatarCache = ref.read(avatarCacheServiceProvider);
+    final avatarUrl = avatarCache.getAvatarUrlSync(userId);
 
     return Container(
       width: 28,
@@ -392,23 +393,14 @@ class _MomentCardsCarouselState extends ConsumerState<MomentCardsCarousel> {
       child: ClipOval(
         child: avatarUrl != null
             ? OfflineImage(
+                localPath: avatarCache.getLocalPath(avatarUrl),
                 networkUrl: avatarUrl,
                 cacheKey: 'avatar_$userId',
                 width: 28,
                 height: 28,
                 fit: BoxFit.cover,
-                errorWidget: _avatarPlaceholder(userId),
               )
-            : _avatarPlaceholder(userId),
-      ),
-    );
-  }
-
-  Widget _avatarPlaceholder(String userId) {
-    return Container(
-      color: AppTheme.primaryBlue.withValues(alpha: 0.3),
-      child: Center(
-        child: Icon(CupertinoIcons.person_fill, size: 14, color: Colors.white),
+            : const SizedBox.shrink(),
       ),
     );
   }
