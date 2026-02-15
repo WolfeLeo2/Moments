@@ -25,7 +25,7 @@ class AppTheme {
   static const Color textSecondary = CupertinoColors.systemGrey;
 
   /// Border/Separator
-  static Color borderGray = const Color(0xFFD1D1D6);
+  static Color borderGray = Colors.grey[300]!;
 
   // ============================================
   // iOS ACCENT COLORS

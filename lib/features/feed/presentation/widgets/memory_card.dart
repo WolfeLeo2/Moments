@@ -397,31 +397,22 @@ class _MemoryCardState extends State<MemoryCard> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (imageUrl != null)
-          OfflineImage(
-            localPath: moment.localMediaPath,
-            networkUrl: imageUrl,
-            cacheKey: moment.mediaPath ?? moment.id,
-            fit: BoxFit.cover,
-            errorWidget: Container(
-              color: AppTheme.coralPink.withValues(alpha: 0.08),
-              child: Icon(
-                Icons.broken_image_outlined,
-                color: AppTheme.coralPink.withValues(alpha: 0.4),
-                size: 48,
-              ),
-            ),
-          )
-        else
-          Container(
+        // Always render OfflineImage — it checks localPath first,
+        // so images load even without a network URL.
+        OfflineImage(
+          localPath: moment.localMediaPath,
+          networkUrl: imageUrl,
+          cacheKey: moment.mediaPath ?? moment.id,
+          fit: BoxFit.cover,
+          errorWidget: Container(
             color: AppTheme.coralPink.withValues(alpha: 0.08),
-            child: const Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppTheme.coralPink,
-              ),
+            child: Icon(
+              Icons.broken_image_outlined,
+              color: AppTheme.coralPink.withValues(alpha: 0.4),
+              size: 48,
             ),
           ),
+        ),
 
         // Time-of-day tint overlay
         if (tint != Colors.transparent) Container(color: tint),

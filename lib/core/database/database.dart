@@ -12,9 +12,11 @@ import 'package:moments/data/models/friendship.dart' as app_friendship;
 import 'package:moments/data/models/pending_action.dart' as app_action;
 import 'package:moments/data/models/reaction.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart';
+import 'package:moments/core/services/app_logger.dart';
 
 part 'database.g.dart';
+
+final _log = AppLogger('Database');
 
 // ============================================
 // TABLE DEFINITIONS
@@ -961,11 +963,11 @@ class AppDatabase extends _$AppDatabase {
                 : const Value.absent(),
           ),
         );
-        debugPrint('🔄 Updated path for moment $momentId: $newPath');
+        _log.d('🔄 Updated path for moment $momentId: $newPath');
         return newPath;
       }
     } catch (e) {
-      debugPrint('Error checking fallback path: $e');
+      _log.e('Error checking fallback path: $e');
     }
 
     return null;
@@ -1000,13 +1002,13 @@ class AppDatabase extends _$AppDatabase {
       }
 
       // Download the file
-      debugPrint(
+      _log.d(
         '⬇️ Downloading media: ${remoteUrl.substring(0, remoteUrl.length.clamp(0, 50))}...',
       );
       final response = await http.get(Uri.parse(remoteUrl));
 
       if (response.statusCode != 200) {
-        debugPrint('❌ Failed to download media: ${response.statusCode}');
+        _log.e('❌ Failed to download media: ${response.statusCode}');
         return null;
       }
 
@@ -1050,12 +1052,12 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
-      debugPrint(
+      _log.d(
         '✅ Cached media: $localPath (${(response.bodyBytes.length / 1024).toStringAsFixed(1)} KB)',
       );
       return localPath;
     } catch (e) {
-      debugPrint('❌ Error caching media: $e');
+      _log.e('❌ Error caching media: $e');
       return null;
     }
   }

@@ -5,6 +5,7 @@ import 'package:lottie/lottie.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/router/app_router.dart';
+import '../../../data/sources/supabase_config.dart';
 import '../../../widgets/spring_button.dart';
 
 class LoginPage extends StatefulWidget {
@@ -33,7 +34,7 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await _authService.signInWithGoogle();
       if (mounted) {
-        AppRouter.goToMap(context);
+        await _navigateAfterAuth();
       }
     } catch (e) {
       if (mounted) {
@@ -48,6 +49,37 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  /// Check if the user has a verified phone. If not, go to verify-phone page.
+  Future<void> _navigateAfterAuth() async {
+    try {
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) return;
+
+      // Check if phone is already set in auth metadata
+      final phone = user.phone;
+      if (phone != null && phone.isNotEmpty) {
+        AppRouter.goToMap(context);
+        return;
+      }
+
+      // Also check profiles table for phone_hash
+      final profile = await SupabaseConfig.client
+          .from('profiles')
+          .select('phone_hash')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (profile != null && profile['phone_hash'] != null) {
+        AppRouter.goToMap(context);
+      } else {
+        AppRouter.goToVerifyPhone(context);
+      }
+    } catch (_) {
+      // Fallback: go to map on any error
+      if (mounted) AppRouter.goToMap(context);
     }
   }
 
@@ -76,7 +108,7 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
       if (mounted) {
-        AppRouter.goToMap(context);
+        await _navigateAfterAuth();
       }
     } catch (e) {
       if (mounted) {

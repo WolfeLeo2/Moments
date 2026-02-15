@@ -1,6 +1,5 @@
 import 'package:moments/core/services/app_logger.dart';
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../sources/supabase_config.dart';
 
@@ -27,16 +26,16 @@ class NotificationRepository {
   Stream<int> streamUnreadCount() {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
-      debugPrint('NotificationRepository: No user, returning 0 count');
+      _log.d('NotificationRepository: No user, returning 0 count');
       return Stream.value(0);
     }
 
     final controller = StreamController<int>();
 
     void fetch() {
-      debugPrint('NotificationRepository: Fetching unread count for $userId');
+      _log.d('NotificationRepository: Fetching unread count for $userId');
       getUnreadCount().then((c) {
-        debugPrint('NotificationRepository: Unread count = $c');
+        _log.d('NotificationRepository: Unread count = $c');
         if (!controller.isClosed) controller.add(c);
       });
     }
@@ -46,7 +45,7 @@ class NotificationRepository {
 
     // Listen for ALL changes in notifications table (simpler, more reliable)
     // Filter is checked in callback to ensure it works with Supabase Realtime
-    debugPrint(
+    _log.d(
       'NotificationRepository: Setting up realtime channel for notifications',
     );
     final channel = _client.channel('notification-changes-$userId');
@@ -61,12 +60,12 @@ class NotificationRepository {
             final oldRecord = payload.oldRecord;
             final affectedUserId = newRecord['user_id'] ?? oldRecord['user_id'];
 
-            debugPrint(
+            _log.d(
               'NotificationRepository: Realtime change detected for user $affectedUserId',
             );
 
             if (affectedUserId == userId) {
-              debugPrint(
+              _log.d(
                 'NotificationRepository: Change is for current user, refetching count',
               );
               fetch();
@@ -74,11 +73,11 @@ class NotificationRepository {
           },
         )
         .subscribe((status, _) {
-          debugPrint('NotificationRepository: Channel status = $status');
+          _log.d('NotificationRepository: Channel status = $status');
         });
 
     controller.onCancel = () async {
-      debugPrint('NotificationRepository: Closing notification count stream');
+      _log.d('NotificationRepository: Closing notification count stream');
       await _client.removeChannel(channel);
       await controller.close();
     };
@@ -121,7 +120,7 @@ class NotificationRepository {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return [];
 
-    debugPrint(
+    _log.d(
       'NotificationRepository: Fetching notifications for $userId (limit: $limit, offset: $offset)',
     );
 
@@ -139,11 +138,11 @@ class NotificationRepository {
   Future<void> deleteNotification(String notificationId) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
-      debugPrint('NotificationRepository: Cannot delete, user not logged in');
+      _log.d('NotificationRepository: Cannot delete, user not logged in');
       return;
     }
 
-    debugPrint(
+    _log.d(
       'NotificationRepository: Deleting notification $notificationId for user $userId',
     );
 
@@ -153,9 +152,9 @@ class NotificationRepository {
           .delete()
           .eq('id', notificationId)
           .eq('user_id', userId);
-      debugPrint('NotificationRepository: Delete successful');
+      _log.d('NotificationRepository: Delete successful');
     } catch (e) {
-      debugPrint('NotificationRepository: Delete failed: $e');
+      _log.e('NotificationRepository: Delete failed: $e');
       rethrow;
     }
   }

@@ -12,7 +12,10 @@ import 'dart:math' as math;
 import '../../../data/models/moment.dart';
 import '../../../widgets/offline_image.dart';
 import '../providers/marker_image_cache_provider.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('StackedMarker');
 /// Stacked card marker showing up to 5 moments with unique rotations
 class StackedMomentMarker extends ConsumerStatefulWidget {
   final List<Moment> moments;
@@ -119,7 +122,7 @@ class _StackedMomentMarkerState extends ConsumerState<StackedMomentMarker>
         });
       }
     } catch (e) {
-      debugPrint('Error loading user avatars: $e');
+      _log.e('Error loading user avatars: $e');
     }
   }
 
@@ -143,7 +146,7 @@ class _StackedMomentMarkerState extends ConsumerState<StackedMomentMarker>
         });
       }
     } catch (e) {
-      debugPrint('Error loading reactions: $e');
+      _log.e('Error loading reactions: $e');
     }
   }
 
@@ -194,7 +197,7 @@ class _StackedMomentMarkerState extends ConsumerState<StackedMomentMarker>
         });
       }
     } catch (e) {
-      debugPrint('Error toggling heart: $e');
+      _log.e('Error toggling heart: $e');
     }
   }
 
@@ -388,7 +391,7 @@ class _StackedMomentMarkerState extends ConsumerState<StackedMomentMarker>
 
     // Log when image is missing (will show error icon)
     if (!hasImage) {
-      debugPrint(
+      _log.w(
         '⚠️ [Marker] Card ${moment.id.substring(0, 8)} has no image: localPath=$localPath, imageUrl=$imageUrl, mediaPath=${moment.mediaPath}',
       );
     }
@@ -494,8 +497,8 @@ class _StackedMomentMarkerState extends ConsumerState<StackedMomentMarker>
 
     // Only display first 3 avatars
     final displayAvatars = allContributorsWithAvatars.take(3).toList();
-    final overflowCount = allContributorsWithAvatars.length > 4
-        ? allContributorsWithAvatars.length - 4
+    final overflowCount = allContributorsWithAvatars.length > 3
+        ? allContributorsWithAvatars.length - 3
         : 0;
 
     // Calculate date range

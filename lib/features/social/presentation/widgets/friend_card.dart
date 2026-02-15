@@ -5,6 +5,7 @@ import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/data/models/profile.dart';
 import 'package:moments/features/social/presentation/friend_profile_page.dart';
+import 'package:moments/widgets/avatar_image.dart';
 
 /// Modern friend card widget with neubrutalism style
 class FriendCard extends ConsumerStatefulWidget {
@@ -75,19 +76,21 @@ class _FriendCardState extends ConsumerState<FriendCard>
                   children: [
                     // Avatar with multiple rings
                     // Avatar - Clean
-                    CircleAvatar(
-                      radius: 28,
+                    AvatarImage(
+                      avatarUrl: widget.friend.avatarUrl,
+                      size: 56,
+                      borderWidth: 0,
                       backgroundColor: Colors.grey[100],
-                      backgroundImage: ref
-                          .watch(avatarCacheServiceProvider)
-                          .getAvatarImageProvider(widget.friend.avatarUrl),
-                      child: widget.friend.avatarUrl == null
-                          ? HugeIcon(
-                              icon: HugeIcons.strokeRoundedUser,
-                              size: 28,
-                              color: Colors.grey[400],
-                            )
-                          : null,
+                      placeholder: HugeIcon(
+                        icon: HugeIcons.strokeRoundedUser,
+                        size: 28,
+                        color: Colors.grey[400],
+                      ),
+                      errorWidget: HugeIcon(
+                        icon: HugeIcons.strokeRoundedUser,
+                        size: 28,
+                        color: Colors.grey[400],
+                      ),
                     ),
                     const SizedBox(width: 16),
                     // Friend info

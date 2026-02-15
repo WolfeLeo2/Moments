@@ -124,13 +124,16 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
   // Track current annotation IDs on the map to enable diffing
   final Set<String> _currentAnnotationIds = {};
 
+  Timer? _locationPollTimer;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     MapboxOptions.setAccessToken(_mapboxAccessToken);
     _annotationClickListener = _AnnotationClickListener(_onAnnotationTapped);
-    _initializeLocation();
+    // Don't call _initializeLocation here — let Mapbox's puck handle the
+    // permission dialog in _onStyleLoaded to avoid duplicate system prompts.
   }
 
   @override
@@ -138,6 +141,7 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
     WidgetsBinding.instance.removeObserver(this);
     _annotationDebounce?.cancel();
     _geocodeDebounce?.cancel();
+    _locationPollTimer?.cancel();
     _annotationManager = null;
     super.dispose();
   }
@@ -146,45 +150,83 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
   // Location (one-shot for initial camera, not continuous)
   // ---------------------------------------------------------------------------
 
-  Future<void> _initializeLocation() async {
-    final location = Location();
+  /// Enable the Mapbox blue-dot puck. Called from [_onStyleLoaded] so that the
+  /// map is guaranteed to exist. Mapbox handles its own permission dialog on
+  /// iOS/Android — we no longer call `location.requestPermission()` to avoid
+  /// duplicate system dialogs and the puck failing to display.
+  Future<void> _enableLocationPuck() async {
+    if (_mapboxMap == null) return;
     try {
-      PermissionStatus permission = await location.hasPermission();
+      await _mapboxMap!.location.updateSettings(
+        LocationComponentSettings(
+          enabled: true,
+          pulsingEnabled: true,
+          pulsingColor: AppTheme.primaryBlue.toARGB32(),
+          showAccuracyRing: false,
+        ),
+      );
+      _log.i('Location puck enabled');
+    } catch (e) {
+      _log.w('Could not enable location puck: $e');
+    }
+  }
+
+  /// Fetch the device position once (for initial camera fly-to).
+  /// Only reads the permission status — never requests it. Mapbox's puck
+  /// in [_enableLocationPuck] handles the native permission dialog.
+  /// Uses [Location().hasPermission()] which does NOT show a dialog,
+  /// then [Location().getLocation()] only if already granted.
+  ///
+  /// Returns [true] if permission was granted (position obtained or obtainable),
+  /// [false] if explicitly denied (caller should stop polling).
+  Future<bool> _initializeLocation() async {
+    try {
+      final location = Location();
+      final permission = await location.hasPermission();
+
+      // Permanently denied — no point in polling further
       if (permission == PermissionStatus.deniedForever) {
-        _log.i('Location permanently denied – staying on World View');
-        return;
+        _log.i('Location permission permanently denied – stop polling');
+        return false;
       }
 
-      if (permission == PermissionStatus.denied) {
-        // Ask once on launch. If the user says no, respect it.
-        permission = await location.requestPermission();
-        if (permission != PermissionStatus.granted) {
-          _log.i('Location permission denied – staying on World View');
-          return;
-        }
-      }
-
-      // Enable the Mapbox blue dot only after we know permission is granted.
-      // This prevents Mapbox from showing its own permission dialog.
-      if (_mapboxMap != null) {
-        await _mapboxMap!.location.updateSettings(
-          LocationComponentSettings(
-            enabled: true,
-            pulsingEnabled: true,
-            pulsingColor: AppTheme.primaryBlue.toARGB32(),
-            showAccuracyRing: false,
-          ),
-        );
+      if (permission != PermissionStatus.granted &&
+          permission != PermissionStatus.grantedLimited) {
+        _log.i('Location permission not yet granted – waiting for puck dialog');
+        return true; // Still might be granted, keep polling
       }
 
       final loc = await location.getLocation();
-      if (mounted) {
+      if (mounted && loc.latitude != null && loc.longitude != null) {
         setState(() => _currentPosition = loc);
-        if (_isMapReady) _flyToUserLocation();
+        _flyToUserLocation();
       }
+      return true;
     } catch (e) {
       _log.e('Location init error: $e');
+      return true;
     }
+  }
+
+  /// Poll for location permission grant after Mapbox's puck dialog.
+  /// Checks every 2s up to 15 times (30s) for the user to accept.
+  /// Stops early if permission is permanently denied.
+  void _startLocationPolling() {
+    _locationPollTimer?.cancel();
+    if (_currentPosition != null) return;
+    int attempts = 0;
+    _locationPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+      attempts++;
+      if (_currentPosition != null || attempts > 15 || !mounted) {
+        timer.cancel();
+        return;
+      }
+      final shouldContinue = await _initializeLocation();
+      if (!shouldContinue) {
+        _log.i('Permission denied permanently, cancelling poll');
+        timer.cancel();
+      }
+    });
   }
 
   Future<void> _flyToUserLocation() async {
@@ -225,6 +267,20 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
     _log.i('Style loaded');
 
     if (_mapboxMap == null) return;
+
+    // Enable the blue-dot puck (Mapbox handles its own permission dialog)
+    await _enableLocationPuck();
+
+    // Try to read location (succeeds instantly if already granted).
+    // If not granted, start polling — the puck dialog will grant access.
+    if (_currentPosition == null) {
+      await _initializeLocation();
+      if (_currentPosition == null) {
+        _startLocationPolling();
+      }
+    } else {
+      _flyToUserLocation();
+    }
 
     _annotationManager = await _mapboxMap!.annotations
         .createPointAnnotationManager();
@@ -507,8 +563,10 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
         return element.handle(
           cluster: (cluster) async {
             final count = cluster.childPointCount;
-            // Limit to 3 for stability
+            // Collect 3 for display + total for overflow count
             final userIds = _collectClusterUserIds(cluster, limit: 3);
+            final allUserIds = _collectClusterUserIds(cluster, limit: 50);
+            final totalUniqueUsers = allUserIds.length;
             final lat = cluster.latitude;
             final lng = cluster.longitude;
 
@@ -516,13 +574,15 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
             final annotationId = 'c_${lat}_${lng}_$count';
 
             // Cache key involves user IDs to invalidate on avatar load
-            final cacheKey = 'cluster_stack_${userIds.join('_')}_$count';
+            final cacheKey = 'cluster_stack_${userIds.join('_')}_${count}_$totalUniqueUsers';
 
             final bitmap =
                 _bitmapCache[cacheKey] ??
                 await _renderClusterAvatarStack(
                   userIds: userIds,
                   avatarService: avatarService,
+                  clusterCount: count,
+                  totalUniqueUsers: totalUniqueUsers,
                 );
 
             if (bitmap != null) {
@@ -549,7 +609,11 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
 
             final bitmap =
                 _bitmapCache[cacheKey] ??
-                await _renderAvatarBitmap(avatarUrl, size: 100);
+                await _renderAvatarBitmap(
+                  avatarUrl,
+                  userId: mp.userId,
+                  size: 100,
+                );
 
             if (bitmap != null) {
               _bitmapCache[cacheKey] = bitmap;
@@ -683,23 +747,38 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
   // ---------------------------------------------------------------------------
 
   /// Render a single circle avatar bitmap from an avatar URL.
+  /// Uses a drop shadow + crisp white border for a premium look.
   Future<Uint8List?> _renderAvatarBitmap(
     String? avatarUrl, {
+    String? userId,
     double size = 100,
-    double borderWidth = 3,
+    double borderWidth = 3.5,
   }) async {
     try {
+      final totalSize = size + 8; // Extra space for shadow
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
+      final center = Offset(totalSize / 2, totalSize / 2 - 2);
 
+      // Drop shadow
       canvas.drawCircle(
-        Offset(size / 2, size / 2),
+        Offset(center.dx, center.dy + 3),
+        size / 2,
+        Paint()
+          ..color = Colors.black.withValues(alpha: 0.18)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+      );
+
+      // White fill
+      canvas.drawCircle(
+        center,
         size / 2,
         Paint()..color = Colors.white,
       );
 
+      // Blue accent border
       canvas.drawCircle(
-        Offset(size / 2, size / 2),
+        center,
         size / 2 - borderWidth / 2,
         Paint()
           ..color = AppTheme.primaryBlue
@@ -707,32 +786,50 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
           ..strokeWidth = borderWidth,
       );
 
-      final ui.Image? image = _loadAvatarImage(avatarUrl);
+      final ui.Image? image = _loadAvatarImage(avatarUrl, userId: userId);
       if (image != null) {
         final innerRadius = size / 2 - borderWidth - 1;
         canvas.save();
         canvas.clipPath(
           Path()..addOval(
-            Rect.fromCircle(
-              center: Offset(size / 2, size / 2),
-              radius: innerRadius,
-            ),
+            Rect.fromCircle(center: center, radius: innerRadius),
           ),
         );
         paintImage(
           canvas: canvas,
-          rect: Rect.fromCircle(
-            center: Offset(size / 2, size / 2),
-            radius: innerRadius,
-          ),
+          rect: Rect.fromCircle(center: center, radius: innerRadius),
           image: image,
           fit: BoxFit.cover,
         );
         canvas.restore();
+      } else {
+        // Fallback: solid colored circle with initial
+        final innerRadius = size / 2 - borderWidth - 1;
+        canvas.drawCircle(
+          center,
+          innerRadius,
+          Paint()..color = AppTheme.primaryBlue.withValues(alpha: 0.15),
+        );
+        // Draw a person icon placeholder
+        final iconPaint = Paint()
+          ..color = AppTheme.primaryBlue.withValues(alpha: 0.5);
+        canvas.drawCircle(
+          Offset(center.dx, center.dy - innerRadius * 0.1),
+          innerRadius * 0.3,
+          iconPaint,
+        );
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: Offset(center.dx, center.dy + innerRadius * 0.45),
+            width: innerRadius * 0.7,
+            height: innerRadius * 0.5,
+          ),
+          iconPaint,
+        );
       }
 
       final picture = recorder.endRecording();
-      final img = await picture.toImage(size.toInt(), size.toInt());
+      final img = await picture.toImage(totalSize.toInt(), totalSize.toInt());
       final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
       return byteData?.buffer.asUint8List();
     } catch (e) {
@@ -741,18 +838,31 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
     }
   }
 
-  ui.Image? _loadAvatarImage(String? avatarUrl) {
-    if (avatarUrl == null || avatarUrl.isEmpty) return null;
-    if (_loadedAvatars.containsKey(avatarUrl)) return _loadedAvatars[avatarUrl];
+  ui.Image? _loadAvatarImage(String? avatarUrl, {String? userId}) {
+    final avatarService = ref.read(avatarCacheServiceProvider);
+    var resolvedUrl = avatarUrl;
 
-    if (!_loadingAvatars.contains(avatarUrl)) {
-      _loadingAvatars.add(avatarUrl);
+    if ((resolvedUrl == null || resolvedUrl.isEmpty) && userId != null) {
+      resolvedUrl = avatarService.getAvatarUrlSync(userId);
+      if (resolvedUrl == null || resolvedUrl.isEmpty) {
+        unawaited(avatarService.getAvatarUrl(userId));
+        return null;
+      }
+    }
+
+    if (resolvedUrl == null || resolvedUrl.isEmpty) return null;
+    final url = resolvedUrl;
+    if (_loadedAvatars.containsKey(url)) {
+      return _loadedAvatars[url];
+    }
+
+    if (!_loadingAvatars.contains(url)) {
+      _loadingAvatars.add(url);
 
       // Use AvatarCacheService for local-first loading (FileImage if cached)
-      final avatarService = ref.read(avatarCacheServiceProvider);
-      final provider =
-          avatarService.getAvatarImageProvider(avatarUrl) ??
-          CachedNetworkImageProvider(avatarUrl);
+        final provider =
+          avatarService.getAvatarImageProvider(url) ??
+          CachedNetworkImageProvider(url);
 
       provider
           .resolve(ImageConfiguration.empty)
@@ -761,8 +871,8 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
               (info, _) {
                 if (mounted) {
                   setState(() {
-                    _loadedAvatars[avatarUrl] = info.image;
-                    _loadingAvatars.remove(avatarUrl);
+                    _loadedAvatars[url] = info.image;
+                    _loadingAvatars.remove(url);
 
                     // Invalidate all avatar and cluster bitmaps so they
                     // re-render with the now-loaded image.
@@ -781,7 +891,7 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
               },
               onError: (e, _) {
                 if (mounted) {
-                  _loadingAvatars.remove(avatarUrl);
+                  _loadingAvatars.remove(url);
                 }
               },
             ),
@@ -815,115 +925,198 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
     return userIds;
   }
 
+  /// Render a cluster marker as an overlapping vertical avatar stack with a
+  /// count badge — similar to story/group avatar stacks in the rest of the app.
   Future<Uint8List?> _renderClusterAvatarStack({
     required List<String> userIds,
     required AvatarCacheService avatarService,
+    int clusterCount = 0,
+    int totalUniqueUsers = 0,
   }) async {
-    const double size = 100;
-    const double borderWidth = 3;
-    const double miniRadius = 16;
+    const double avatarRadius = 50;
+    const double avatarDiameter = avatarRadius * 2; // 100
+    const double borderWidth = 3.5;
+    const double overlap = 30; // horizontal overlap between circles
+    const double badgeRadius = 16;
+
+    final count = userIds.length.clamp(1, 3);
+    final overflowUsers = totalUniqueUsers - count;
+    final hasOverflow = overflowUsers > 0;
+    // Total items: visible avatars + overflow circle (if any)
+    final totalItems = count + (hasOverflow ? 1 : 0);
+    // Total width: avatars + overflow circle + badge space
+    final totalWidth = avatarDiameter + (totalItems - 1) * (avatarDiameter - overlap) + 12;
+    const totalHeight = avatarDiameter + 12; // extra for shadow + badge
 
     try {
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
 
-      // Match the single-avatar ring and size
-      canvas.drawCircle(
-        Offset(size / 2, size / 2),
-        size / 2,
-        Paint()..color = Colors.white,
-      );
-
-      canvas.drawCircle(
-        Offset(size / 2, size / 2),
-        size / 2 - borderWidth / 2,
-        Paint()
-          ..color = AppTheme.primaryBlue
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = borderWidth,
-      );
-
-      final mainAvatarUrl = userIds.isNotEmpty
-          ? avatarService.getAvatarUrlSync(userIds.first)
-          : null;
-      final mainImage = _loadAvatarImage(mainAvatarUrl);
-
-      if (mainImage != null) {
-        final innerRadius = size / 2 - borderWidth - 1;
-        canvas.save();
-        canvas.clipPath(
-          Path()..addOval(
-            Rect.fromCircle(
-              center: Offset(size / 2, size / 2),
-              radius: innerRadius,
-            ),
-          ),
+      // Draw avatars right-to-left so the first one is on top
+      for (int i = count - 1; i >= 0; i--) {
+        final xOffset = i * (avatarDiameter - overlap);
+        final center = Offset(
+          xOffset + avatarRadius + 2,
+          avatarRadius + 4,
         );
-        paintImage(
-          canvas: canvas,
-          rect: Rect.fromCircle(
-            center: Offset(size / 2, size / 2),
-            radius: innerRadius,
-          ),
-          image: mainImage,
-          fit: BoxFit.cover,
+
+        // Drop shadow for each avatar
+        canvas.drawCircle(
+          Offset(center.dx, center.dy + 3),
+          avatarRadius,
+          Paint()
+            ..color = Colors.black.withValues(alpha: 0.16)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
         );
-        canvas.restore();
-      }
 
-      // Draw mini avatars (simplified, maybe skip for now if not critical, or replicate)
-      // I'll assume the original code had mini avatars logic following.
-      // But based on my view_file, I only saw up to line 800.
-      // The snippet ends abruptly.
-      // I will close the function here properly if I am replacing.
-      // Wait, I need to make sure I don't delete the rest of the file or functionality.
-      // The original code was truncated at line 800.
-      // I should assume there is logic for secondary avatars.
-
-      // Since I can't see the rest of the function, I should probably ASK to see it first.
-      // But I am replacing lines 604-850 (assuming file length).
-      // Actually, I should probably read the rest of the file first to be safe.
-
-      final miniOffsets = <Offset>[
-        Offset(size * 0.26, size * 0.74),
-        Offset(size * 0.74, size * 0.74),
-      ];
-
-      for (int i = 1; i < userIds.length && i - 1 < miniOffsets.length; i++) {
-        final avatarUrl = avatarService.getAvatarUrlSync(userIds[i]);
-        final image = _loadAvatarImage(avatarUrl);
-        final center = miniOffsets[i - 1];
-
+        // White border circle
         canvas.drawCircle(
           center,
-          miniRadius + 2,
+          avatarRadius,
           Paint()..color = Colors.white,
         );
 
-        if (image != null) {
-          canvas.save();
-          canvas.clipPath(
-            Path()
-              ..addOval(Rect.fromCircle(center: center, radius: miniRadius)),
-          );
-          paintImage(
-            canvas: canvas,
-            rect: Rect.fromCircle(center: center, radius: miniRadius),
-            image: image,
-            fit: BoxFit.cover,
-          );
-          canvas.restore();
-        } else {
-          canvas.drawCircle(
-            center,
-            miniRadius,
-            Paint()..color = AppTheme.primaryBlue.withValues(alpha: 0.15),
-          );
+        // Blue accent ring
+        canvas.drawCircle(
+          center,
+          avatarRadius - borderWidth / 2,
+          Paint()
+            ..color = i == 0
+                ? AppTheme.primaryBlue
+                : AppTheme.primaryBlue.withValues(alpha: 0.4)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = borderWidth,
+        );
+
+        // Avatar image
+        if (i < userIds.length) {
+          final avatarUrl = avatarService.getAvatarUrlSync(userIds[i]);
+          final image = _loadAvatarImage(avatarUrl, userId: userIds[i]);
+          final innerRadius = avatarRadius - borderWidth - 1;
+
+          if (image != null) {
+            canvas.save();
+            canvas.clipPath(
+              Path()..addOval(
+                Rect.fromCircle(center: center, radius: innerRadius),
+              ),
+            );
+            paintImage(
+              canvas: canvas,
+              rect: Rect.fromCircle(center: center, radius: innerRadius),
+              image: image,
+              fit: BoxFit.cover,
+            );
+            canvas.restore();
+          } else {
+            // Fallback circle
+            canvas.drawCircle(
+              center,
+              innerRadius,
+              Paint()..color = AppTheme.primaryBlue.withValues(alpha: 0.15),
+            );
+          }
         }
       }
 
+      // +N overflow circle for extra users
+      if (hasOverflow) {
+        final xOffset = count * (avatarDiameter - overlap);
+        final center = Offset(
+          xOffset + avatarRadius + 2,
+          avatarRadius + 4,
+        );
+
+        // Shadow
+        canvas.drawCircle(
+          Offset(center.dx, center.dy + 3),
+          avatarRadius,
+          Paint()
+            ..color = Colors.black.withValues(alpha: 0.16)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        );
+
+        // Grey fill
+        canvas.drawCircle(center, avatarRadius, Paint()..color = const Color(0xFF616161));
+
+        // White border
+        canvas.drawCircle(
+          center,
+          avatarRadius,
+          Paint()
+            ..color = Colors.white
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = borderWidth,
+        );
+
+        // "+N" text
+        final overflowText = TextPainter(
+          text: TextSpan(
+            text: '+$overflowUsers',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        overflowText.paint(
+          canvas,
+          Offset(
+            center.dx - overflowText.width / 2,
+            center.dy - overflowText.height / 2,
+          ),
+        );
+      }
+
+      // Count badge (top-right corner)
+      if (clusterCount > 1) {
+        final badgeCenter = Offset(
+          totalWidth - badgeRadius - 2,
+          badgeRadius + 1,
+        );
+
+        // Badge shadow
+        canvas.drawCircle(
+          Offset(badgeCenter.dx, badgeCenter.dy + 1),
+          badgeRadius,
+          Paint()
+            ..color = Colors.black.withValues(alpha: 0.15)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        );
+
+        // Badge fill
+        canvas.drawCircle(
+          badgeCenter,
+          badgeRadius,
+          Paint()..color = AppTheme.coralPink,
+        );
+
+        // Badge text
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: clusterCount > 99 ? '99+' : '$clusterCount',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        textPainter.paint(
+          canvas,
+          Offset(
+            badgeCenter.dx - textPainter.width / 2,
+            badgeCenter.dy - textPainter.height / 2,
+          ),
+        );
+      }
+
       final picture = recorder.endRecording();
-      final img = await picture.toImage(size.toInt(), size.toInt());
+      final img = await picture.toImage(
+        totalWidth.ceil(), totalHeight.ceil());
       final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
       return byteData?.buffer.asUint8List();
     } catch (e) {
@@ -1002,13 +1195,24 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
       );
     }
 
+    // Try reading — succeeds if permission already granted
     await _initializeLocation();
+    if (_currentPosition != null) return true;
 
-    if (_currentPosition == null && mounted) {
-      context.showErrorSnackBar('Unable to get current location');
-      return false;
+    // Re-enable puck which may re-trigger Mapbox's native prompt
+    await _enableLocationPuck();
+
+    // Wait and retry a few times
+    for (int i = 0; i < 5; i++) {
+      await Future.delayed(const Duration(seconds: 2));
+      await _initializeLocation();
+      if (_currentPosition != null) return true;
     }
-    return true;
+
+    if (mounted) {
+      context.showErrorSnackBar('Unable to get current location');
+    }
+    return false;
   }
 
   Future<void> _pickFromCamera({required String mediaType}) async {

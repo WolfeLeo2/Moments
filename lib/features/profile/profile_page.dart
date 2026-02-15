@@ -12,6 +12,9 @@ import '../../core/providers/sync_provider.dart';
 import '../../data/repositories/social_repository.dart';
 import '../moments/presentation/year_in_review_page.dart';
 import 'package:moments/features/profile/collaborating_moments_page.dart';
+import 'package:moments/widgets/avatar_image.dart';
+import 'package:moments/features/mapv2/presentation/map_style_picker_page.dart';
+import 'package:moments/core/services/chat_offline_service.dart';
 import 'notification_settings_page.dart';
 import 'storage_cache_page.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -60,9 +63,6 @@ class ProfilePage extends ConsumerWidget {
             CircleAvatar(
               radius: 50,
               backgroundColor: AppTheme.primaryBlue,
-              backgroundImage: ref
-                  .watch(avatarCacheServiceProvider)
-                  .getAvatarImageProvider(authService.currentUserPhotoUrl),
               child: authService.currentUserPhotoUrl == null
                   ? Text(
                       (authService.currentUserDisplayName ?? 'U')[0]
@@ -73,7 +73,13 @@ class ProfilePage extends ConsumerWidget {
                         color: Colors.white,
                       ),
                     )
-                  : null,
+                  : AvatarImage(
+                      avatarUrl: authService.currentUserPhotoUrl,
+                      size: 100,
+                      borderWidth: 0,
+                      backgroundColor: AppTheme.primaryBlue,
+                      placeholder: const SizedBox.shrink(),
+                    ),
             ),
             const SizedBox(height: 16),
 
@@ -244,6 +250,20 @@ class ProfilePage extends ConsumerWidget {
 
             _buildSettingsTile(
               context: context,
+              icon: HugeIcons.strokeRoundedMapsLocation01,
+              title: 'Map Style',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MapStylePickerPage(),
+                  ),
+                );
+              },
+            ),
+
+            _buildSettingsTile(
+              context: context,
               icon: HugeIcons.strokeRoundedUserGroup,
               title: 'Shared Moments',
               onTap: () {
@@ -317,6 +337,7 @@ class ProfilePage extends ConsumerWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () async {
+                  ref.read(chatOfflineServiceProvider).stop();
                   await authService.signOut();
 
                   // Navigate to LoginPage
@@ -351,10 +372,14 @@ class ProfilePage extends ConsumerWidget {
   void _showEditProfileDialog(BuildContext context, WidgetRef ref) {
     final userProfileAsync = ref.read(currentUserProfileProvider);
     final bioController = TextEditingController();
+    final phoneController = TextEditingController();
 
     userProfileAsync.whenData((profile) {
       if (profile?.bio != null) {
         bioController.text = profile!.bio!;
+      }
+      if (profile?.phoneNumber != null) {
+        phoneController.text = profile!.phoneNumber!;
       }
     });
 
@@ -375,6 +400,17 @@ class ProfilePage extends ConsumerWidget {
               maxLines: 3,
               maxLength: 150,
             ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: phoneController,
+              decoration: const InputDecoration(
+                labelText: 'Phone Number',
+                hintText: '+254 7XX XXX XXX',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(CupertinoIcons.phone),
+              ),
+              keyboardType: TextInputType.phone,
+            ),
           ],
         ),
         actions: [
@@ -386,7 +422,12 @@ class ProfilePage extends ConsumerWidget {
             onPressed: () async {
               try {
                 final repo = ref.read(socialRepositoryProvider);
-                await repo.updateCurrentUserProfile(bio: bioController.text);
+                await repo.updateCurrentUserProfile(
+                  bio: bioController.text,
+                  phoneNumber: phoneController.text.trim().isNotEmpty
+                      ? phoneController.text.trim()
+                      : null,
+                );
                 ref.invalidate(currentUserProfileProvider);
                 if (context.mounted) Navigator.pop(context);
               } catch (e) {

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:pull_down_button/pull_down_button.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/services/auth_service.dart';
@@ -10,8 +11,13 @@ import '../../../core/services/signed_url_cache.dart';
 import '../../../core/providers/moments_providers.dart';
 import '../../../core/providers/providers.dart';
 import '../../../data/models/moment.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../widgets/offline_image.dart';
 import '../../moments/presentation/moment_details_page.dart';
+import '../../notifications/presentation/notifications_page.dart';
+import 'all_moments_page.dart';
+import 'all_friends_page.dart';
+import 'all_locations_page.dart';
 
 /// Discovery page — browse all moments from the user and friends.
 ///
@@ -20,9 +26,16 @@ import '../../moments/presentation/moment_details_page.dart';
 /// - Recent moments horizontal strip
 /// - Location-based moment groups (2-column grid)
 class DiscoveryPage extends ConsumerStatefulWidget {
-  const DiscoveryPage({super.key, this.scrollController});
+  const DiscoveryPage({
+    super.key,
+    this.scrollController,
+    this.viewLabel,
+    this.pullDownMenuItems,
+  });
 
   final ScrollController? scrollController;
+  final String? viewLabel;
+  final List<PullDownMenuEntry> Function()? pullDownMenuItems;
 
   @override
   ConsumerState<DiscoveryPage> createState() => _DiscoveryPageState();
@@ -34,6 +47,10 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
 
   /// Resolved signed URLs: mediaPath → signedUrl
   final Map<String, String> _signedUrls = {};
+
+  /// Active filter tab index: 0 = All, 1 = Photos, 2 = Videos, 3 = Audio
+  int _activeFilter = 0;
+  static const _filterLabels = ['All', 'Photos', 'Videos', 'Audio'];
 
   @override
   bool get wantKeepAlive => true;
@@ -74,9 +91,13 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
     return null;
   }
 
-  // ─── Greeting ───────────────────────────────────────────────────
+  // ─── Greeting SliverAppBar ──────────────────────────────────────
 
-  Widget _buildGreetingHeader(String firstName, List<Moment> moments) {
+  Widget _buildGreetingSliverAppBar(
+    String firstName,
+    String? avatarUrl,
+    int notificationCount,
+  ) {
     final hour = DateTime.now().hour;
     String greeting;
     if (hour < 12) {
@@ -87,45 +108,111 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
       greeting = 'Good evening';
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$greeting,',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.textGray,
-                      ),
-                    ),
-                    Text(
-                      firstName,
-                      style: GoogleFonts.inter(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.textDark,
-                        letterSpacing: -0.5,
-                        height: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _buildUserAvatar(),
-            ],
+    return SliverAppBar(
+      pinned: false,
+      floating: false,
+      expandedHeight: 110,
+      backgroundColor: AppTheme.backgroundBeige,
+      surfaceTintColor: Colors.transparent,
+      automaticallyImplyLeading: false,
+      actions: [
+        Badge(
+          isLabelVisible: notificationCount > 0,
+          label: Text(
+            '$notificationCount',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          const SizedBox(height: 12),
-          _buildStatsRow(moments),
-        ],
+          backgroundColor: AppTheme.coralPink,
+          child: IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NotificationsPage()),
+            ),
+            icon: const HugeIcon(
+              icon: HugeIcons.strokeRoundedNotification01,
+              color: Colors.black87,
+              size: 24,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+      ],
+      flexibleSpace: FlexibleSpaceBar(
+        background: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  '$greeting, $firstName',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontFamily: 'GoogleSansFlex',
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textDark.withValues(alpha: 0.8),
+                    letterSpacing: -0.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                widget.pullDownMenuItems != null
+                    ? PullDownButton(
+                        itemBuilder: (context) => widget.pullDownMenuItems!(),
+                        buttonBuilder: (context, showMenu) => GestureDetector(
+                          onTap: showMenu,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                widget.viewLabel ?? 'DISCOVER',
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      fontFamily: 'GoogleSansFlex',
+                                      fontVariations: const [
+                                        FontVariation('wght', 900),
+                                        FontVariation('opsz', 12),
+                                      ],
+                                      color: AppTheme.textDark,
+                                      letterSpacing: -0.8,
+                                      height: 1.1,
+                                    ),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(
+                                CupertinoIcons.chevron_down,
+                                size: 18,
+                                color: AppTheme.textDark,
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : Text(
+                        'DISCOVER',
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'GoogleSansFlex',
+                              color: AppTheme.textDark,
+                              letterSpacing: -0.8,
+                              height: 1.1,
+                            ),
+                      ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        ),
       ),
+      title: null,
     );
   }
 
@@ -191,75 +278,874 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
     );
   }
 
-  Widget _buildUserAvatar() {
-    final avatarUrl = _authService.currentUserPhotoUrl;
-    final avatarService = ref.watch(avatarCacheServiceProvider);
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: ShapeDecoration(
-        shape: const RoundedSuperellipseBorder(
-          borderRadius: BorderRadius.all(Radius.circular(14)),
+  // ─── Weekly Recap Card ──────────────────────────────────────────
+
+  Widget _buildWeeklyRecapCard(List<Moment> moments) {
+    final now = DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+    final thisWeekMoments = moments
+        .where((m) => m.createdAt.isAfter(weekStart))
+        .toList();
+    final weekLocations = thisWeekMoments
+        .map((m) => m.location.split(',').first.trim())
+        .toSet();
+
+    if (thisWeekMoments.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppTheme.primaryBlue.withValues(alpha: 0.08),
+              AppTheme.dustyRose.withValues(alpha: 0.06),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+          ),
         ),
-        color: AppTheme.primaryBlue.withValues(alpha: 0.15),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: avatarUrl != null
-          ? Image(
-              image:
-                  avatarService.getAvatarImageProvider(avatarUrl) ??
-                  const AssetImage('assets/images/default_avatar.png'),
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Icon(
-                CupertinoIcons.person_fill,
-                color: AppTheme.primaryBlue,
-                size: 24,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'THIS WEEK',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.5,
+                color: AppTheme.primaryBlue.withValues(alpha: 0.6),
               ),
-            )
-          : Icon(
-              CupertinoIcons.person_fill,
-              color: AppTheme.primaryBlue,
-              size: 24,
             ),
+            const SizedBox(height: 8),
+            RichText(
+              text: TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'You captured ',
+                    style: GoogleFonts.inter(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w400,
+                      color: AppTheme.textDark,
+                      height: 1.2,
+                    ),
+                  ),
+                  TextSpan(
+                    text: '${thisWeekMoments.length}',
+                    style: GoogleFonts.inter(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: AppTheme.primaryBlue,
+                      height: 1.2,
+                    ),
+                  ),
+                  TextSpan(
+                    text: thisWeekMoments.length == 1 ? ' moment' : ' moments',
+                    style: GoogleFonts.inter(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w400,
+                      color: AppTheme.textDark,
+                      height: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (weekLocations.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.location_solid,
+                    size: 12,
+                    color: AppTheme.textGray,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Across ${weekLocations.length} '
+                      '${weekLocations.length == 1 ? 'place' : 'places'}',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.textGray,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            // Mini preview strip of this week's moments
+            if (thisWeekMoments.length > 1) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 52,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: thisWeekMoments.take(6).length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 6),
+                  itemBuilder: (context, index) {
+                    final m = thisWeekMoments[index];
+                    return GestureDetector(
+                      onTap: () => _openMomentGroup(m),
+                      child: Container(
+                        width: 52,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: _buildMomentImage(m, fit: BoxFit.cover),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
-  // ─── Recent moments ─────────────────────────────────────────────
+  // ─── Filter Tabs ────────────────────────────────────────────────
 
-  Widget _buildRecentSection(List<Moment> moments) {
-    final recent = moments.take(10).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-          child: Row(
-            children: [
-              Text(
-                'Recent Moments',
-                style: GoogleFonts.inter(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textDark,
+  Widget _buildFilterTabs() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: SizedBox(
+        height: 36,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: _filterLabels.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final isActive = index == _activeFilter;
+            return GestureDetector(
+              onTap: () {
+                HapticService.lightTap();
+                setState(() => _activeFilter = index);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isActive ? AppTheme.primaryBlue : AppTheme.cardWhite,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isActive
+                        ? Colors.transparent
+                        : AppTheme.borderGray.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Text(
+                  _filterLabels[index],
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isActive ? Colors.white : AppTheme.textGray,
+                  ),
                 ),
               ),
-              const Spacer(),
-              Icon(
-                CupertinoIcons.chevron_right,
-                size: 16,
-                color: AppTheme.textGray,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Apply the current filter to a list of moments
+  List<Moment> _applyFilter(List<Moment> moments) {
+    switch (_activeFilter) {
+      case 1: // Photos
+        return moments.where((m) => m.mediaType != 'video').toList();
+      case 2: // Videos
+        return moments.where((m) => m.mediaType == 'video').toList();
+      case 3: // Audio
+        return moments.where((m) => m.audioPath != null).toList();
+      default: // All
+        return moments;
+    }
+  }
+
+  // ─── Throwback Card ──────────────────────────────────────────────
+
+  Widget _buildThrowbackCard(List<Moment> moments) {
+    // Find moments from more than 7 days ago
+    final now = DateTime.now();
+    final oldMoments = moments
+        .where((m) => now.difference(m.createdAt).inDays >= 7)
+        .toList();
+    if (oldMoments.isEmpty) return const SizedBox.shrink();
+
+    // Rotate daily: pick a different throwback each day using day-of-year
+    // as a seed into the old moments list. This gives variety without
+    // needing server state.
+    oldMoments.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final dayOfYear = now.difference(DateTime(now.year)).inDays;
+    final throwback = oldMoments[dayOfYear % oldMoments.length];
+    final daysAgo = now.difference(throwback.createdAt).inDays;
+    final location = throwback.location.split(',').first.trim();
+    final timeLabel = daysAgo >= 365
+        ? '${(daysAgo / 365).floor()} year${(daysAgo / 365).floor() > 1 ? 's' : ''} ago'
+        : daysAgo >= 30
+        ? '${(daysAgo / 30).floor()} month${(daysAgo / 30).floor() > 1 ? 's' : ''} ago'
+        : '$daysAgo days ago';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+      child: GestureDetector(
+        onTap: () => _openMomentGroup(throwback),
+        child: Container(
+          height: 120,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Row(
+            children: [
+              // Thumbnail
+              SizedBox(
+                width: 120,
+                child: _buildMomentImage(throwback, fit: BoxFit.cover),
+              ),
+              // Text content
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppTheme.sunsetOrange.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '✨ THROWBACK',
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.0,
+                            color: AppTheme.sunsetOrange,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        throwback.title,
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textDark,
+                          height: 1.2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            CupertinoIcons.time,
+                            size: 11,
+                            color: AppTheme.textGray,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            timeLabel,
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.textGray,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            CupertinoIcons.location_solid,
+                            size: 10,
+                            color: AppTheme.textGray,
+                          ),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(
+                              location,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: AppTheme.textGray,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ─── Top Destinations Strip ─────────────────────────────────────
+
+  Widget _buildTopDestinations(List<Moment> moments) {
+    // Group by location and sort by count
+    final locationMap = <String, List<Moment>>{};
+    for (final m in moments) {
+      final loc = m.location.split(',').first.trim();
+      locationMap.putIfAbsent(loc, () => []).add(m);
+    }
+    final sortedLocations = locationMap.entries.toList()
+      ..sort((a, b) => b.value.length.compareTo(a.value.length));
+
+    // Take top 5 locations
+    final topLocations = sortedLocations.take(5).toList();
+    if (topLocations.length < 2) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader('Top Destinations'),
+        const SizedBox(height: 10),
         SizedBox(
-          height: 200,
+          height: 160,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: topLocations.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final entry = topLocations[index];
+              final locName = entry.key;
+              final locMoments = entry.value;
+              locMoments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+              final cover = locMoments.first;
+              final count = locMoments.length;
+
+              return GestureDetector(
+                onTap: () => _onMomentGroupTapped(locMoments),
+                child: Container(
+                  width: 130,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(22),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _buildMomentImage(cover, fit: BoxFit.cover),
+                      // Scrim
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              stops: const [0.4, 1.0],
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.7),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Rank badge
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: index == 0
+                                ? AppTheme.sunsetOrange
+                                : Colors.white.withValues(alpha: 0.85),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${index + 1}',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: index == 0
+                                    ? Colors.white
+                                    : AppTheme.textDark,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Info
+                      Positioned(
+                        left: 10,
+                        right: 10,
+                        bottom: 10,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              locName,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                height: 1.2,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '$count moment${count == 1 ? '' : 's'}',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Moments Together (Collaborative) ───────────────────────────
+
+  Widget _buildMomentsTogetherSection(List<Moment> moments) {
+    // Find moments that have contributors (collaborative)
+    final userMap = <String, List<Moment>>{};
+    final currentUserId = _authService.currentUser?.id;
+    for (final m in moments) {
+      final uid = m.userId ?? 'unknown';
+      if (uid != currentUserId) {
+        userMap.putIfAbsent(uid, () => []).add(m);
+      }
+    }
+
+    if (userMap.isEmpty) return const SizedBox.shrink();
+
+    final friends = ref.watch(friendsListProvider).value ?? [];
+    final avatarService = ref.watch(avatarCacheServiceProvider);
+
+    // Get friend entries with their moments — up to 4 friends
+    final friendEntries = userMap.entries.take(4).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader('Moments Together'),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Avatar stack row
+                Row(
+                  children: [
+                    // Overlapping avatar stack
+                    SizedBox(
+                      height: 40,
+                      width: 24.0 * friendEntries.length + 16,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: friendEntries.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final userId = entry.value.key;
+                          final avatarUrl = avatarService.getAvatarUrlSync(
+                            userId,
+                          );
+                          final friend = friends
+                              .where((f) => f.id == userId)
+                              .firstOrNull;
+                          final name =
+                              friend?.displayName ?? friend?.username ?? '?';
+
+                          return Positioned(
+                            left: idx * 24.0,
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.08),
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: CircleAvatar(
+                                radius: 20,
+                                backgroundColor: AppTheme.primaryBlue
+                                    .withValues(alpha: 0.15),
+                                foregroundImage: avatarService
+                                    .getAvatarImageProvider(avatarUrl),
+                                child: avatarUrl == null
+                                    ? _avatarFallback(name)
+                                    : null,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${userMap.values.fold<int>(0, (sum, list) => sum + list.length)} shared moments',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textDark,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'with ${userMap.length} '
+                            '${userMap.length == 1 ? 'friend' : 'friends'}',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.textGray,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      CupertinoIcons.chevron_right,
+                      size: 16,
+                      color: AppTheme.textGray.withValues(alpha: 0.4),
+                    ),
+                  ],
+                ),
+                // Mini thumbnails row
+                const SizedBox(height: 14),
+                SizedBox(
+                  height: 72,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: userMap.values
+                        .expand((list) => list)
+                        .take(8)
+                        .length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final allFriendMoments =
+                          userMap.values.expand((list) => list).toList()..sort(
+                            (a, b) => b.createdAt.compareTo(a.createdAt),
+                          );
+                      final m = allFriendMoments[index];
+                      return GestureDetector(
+                        onTap: () => _openMomentGroup(m),
+                        child: Container(
+                          width: 72,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: _buildMomentImage(m, fit: BoxFit.cover),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(
+    String title, {
+    bool showChevron = false,
+    VoidCallback? onTap,
+  }) {
+    final content = Padding(
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 0.5,
+            color: AppTheme.borderGray.withValues(alpha: 0.4),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Text(
+                title.toUpperCase(),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                  color: AppTheme.textGray,
+                ),
+              ),
+              if (showChevron) ...[
+                const Spacer(),
+                Text(
+                  'See all',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryBlue,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  CupertinoIcons.chevron_right,
+                  size: 12,
+                  color: AppTheme.primaryBlue.withValues(alpha: 0.7),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (onTap != null) {
+      return GestureDetector(onTap: onTap, child: content);
+    }
+    return content;
+  }
+
+  // ─── Featured hero card ─────────────────────────────────────────
+
+  Widget _buildFeaturedCard(Moment moment) {
+    final location = moment.location.split(',').first.trim();
+    final timeAgo = _formatTimeAgo(moment.createdAt);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: GestureDetector(
+        onTap: () => _openMomentGroup(moment),
+        child: Container(
+          height: 320,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _buildMomentImage(moment, fit: BoxFit.cover),
+              // Gradient scrim
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      stops: const [0.4, 1.0],
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.65),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Editorial text overlay
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 20,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'LATEST',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.2,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      moment.title,
+                      style: GoogleFonts.inter(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                        height: 1.15,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          CupertinoIcons.location_solid,
+                          size: 11,
+                          color: Colors.white.withValues(alpha: 0.8),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          location,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white.withValues(alpha: 0.8),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          timeAgo,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatTimeAgo(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}w ago';
+    return '${(diff.inDays / 30).floor()}mo ago';
+  }
+
+  Widget _buildRecentSection(
+    List<Moment> moments, {
+    required List<Moment> allMoments,
+  }) {
+    // Skip the first one (used in featured card)
+    final recent = moments.skip(1).take(10).toList();
+    if (recent.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(
+          'Recent',
+          showChevron: true,
+          onTap: () => _navigateToAllMoments('Recent', allMoments),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 210,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
             itemCount: recent.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
             itemBuilder: (context, index) => _buildRecentCard(recent[index]),
           ),
         ),
@@ -273,17 +1159,15 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
     return GestureDetector(
       onTap: () => _openMomentGroup(moment),
       child: Container(
-        width: 155,
-        decoration: ShapeDecoration(
-          shape: const RoundedSuperellipseBorder(
-            borderRadius: BorderRadius.all(Radius.circular(18)),
-          ),
+        width: 160,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
           color: Colors.white,
-          shadows: [
+          boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -292,34 +1176,40 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: _buildMomentImage(
-                moment,
-                fit: BoxFit.cover,
-                width: double.infinity,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(22),
+                ),
+                child: _buildMomentImage(
+                  moment,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     moment.title,
                     style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                       color: AppTheme.textDark,
+                      height: 1.2,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       Icon(
                         CupertinoIcons.location_solid,
                         size: 10,
-                        color: AppTheme.primaryBlue,
+                        color: AppTheme.textGray,
                       ),
                       const SizedBox(width: 3),
                       Expanded(
@@ -372,16 +1262,10 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-          child: Text(
-            'By Friends',
-            style: GoogleFonts.inter(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textDark,
-            ),
-          ),
+        _buildSectionHeader(
+          'By Friends',
+          showChevron: true,
+          onTap: () => _navigateToAllFriends(moments),
         ),
         SizedBox(
           height: 180,
@@ -514,17 +1398,11 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
 
   // ─── Location groups ────────────────────────────────────────────
 
-  Widget _buildLocationGroupsHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
-      child: Text(
-        'By Location',
-        style: GoogleFonts.inter(
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
-          color: AppTheme.textDark,
-        ),
-      ),
+  Widget _buildLocationGroupsHeader(List<Moment> moments) {
+    return _buildSectionHeader(
+      'By Location',
+      showChevron: true,
+      onTap: () => _navigateToAllLocations(moments),
     );
   }
 
@@ -555,9 +1433,9 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
       sliver: SliverGrid(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          mainAxisSpacing: 14,
-          crossAxisSpacing: 14,
-          childAspectRatio: 0.78,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 0.75,
         ),
         delegate: SliverChildBuilderDelegate((context, index) {
           final entry = sortedLocations[index];
@@ -568,7 +1446,6 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
   }
 
   Widget _buildLocationGroupCard(String locationName, List<Moment> moments) {
-    // Sort newest first, pick the cover
     moments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final cover = moments.first;
     final count = moments.length;
@@ -576,16 +1453,14 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
     return GestureDetector(
       onTap: () => _onMomentGroupTapped(moments),
       child: Container(
-        decoration: ShapeDecoration(
-          shape: const RoundedSuperellipseBorder(
-            borderRadius: BorderRadius.all(Radius.circular(18)),
-          ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
           color: Colors.white,
-          shadows: [
+          boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -594,13 +1469,12 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
           fit: StackFit.expand,
           children: [
             _buildMomentImage(cover, fit: BoxFit.cover),
-
             // Bottom scrim
             Positioned(
               left: 0,
               right: 0,
               bottom: 0,
-              height: 70,
+              height: 80,
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -608,28 +1482,25 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withValues(alpha: 0.55),
+                      Colors.black.withValues(alpha: 0.6),
                     ],
                   ),
                 ),
               ),
             ),
-
             // Count badge
             if (count > 1)
               Positioned(
-                top: 8,
-                right: 8,
+                top: 10,
+                right: 10,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 3,
+                    horizontal: 8,
+                    vertical: 4,
                   ),
-                  decoration: ShapeDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    shape: const RoundedSuperellipseBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(8)),
-                    ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     '$count',
@@ -641,12 +1512,11 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
                   ),
                 ),
               ),
-
-            // Location name
+            // Title + location
             Positioned(
-              left: 10,
-              right: 10,
-              bottom: 10,
+              left: 12,
+              right: 12,
+              bottom: 12,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -654,7 +1524,7 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
                   Text(
                     cover.title,
                     style: GoogleFonts.inter(
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
                       height: 1.2,
@@ -662,13 +1532,13 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Row(
                     children: [
                       Icon(
                         CupertinoIcons.location_solid,
                         size: 10,
-                        color: Colors.white.withValues(alpha: 0.85),
+                        color: Colors.white.withValues(alpha: 0.8),
                       ),
                       const SizedBox(width: 3),
                       Expanded(
@@ -677,7 +1547,7 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
-                            color: Colors.white.withValues(alpha: 0.85),
+                            color: Colors.white.withValues(alpha: 0.8),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -703,8 +1573,6 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
   }) {
     final imageUrl = _getImageUrl(moment);
     final cacheKey = moment.mediaPath ?? moment.id;
-
-    if (imageUrl == null || imageUrl.isEmpty) return _imagePlaceholder();
 
     return OfflineImage(
       localPath: moment.localMediaPath,
@@ -752,6 +1620,29 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
           child: child,
         ),
       ),
+    );
+  }
+
+  void _navigateToAllMoments(String title, List<Moment> moments) {
+    HapticService.mediumTap();
+    Navigator.of(context).push(
+      CupertinoPageRoute(
+        builder: (_) => AllMomentsPage(title: title, moments: moments),
+      ),
+    );
+  }
+
+  void _navigateToAllFriends(List<Moment> moments) {
+    HapticService.mediumTap();
+    Navigator.of(context).push(
+      CupertinoPageRoute(builder: (_) => AllFriendsPage(moments: moments)),
+    );
+  }
+
+  void _navigateToAllLocations(List<Moment> moments) {
+    HapticService.mediumTap();
+    Navigator.of(context).push(
+      CupertinoPageRoute(builder: (_) => AllLocationsPage(moments: moments)),
     );
   }
 
@@ -838,6 +1729,7 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
 
     final momentsAsync = ref.watch(momentsStreamProvider);
     final userProfile = ref.watch(currentUserProfileProvider).value;
+    final notificationCount = ref.watch(notificationCountProvider).value ?? 0;
     final displayName =
         userProfile?.displayName ?? _authService.currentUser?.email ?? 'You';
     final firstName = displayName.split(' ').first;
@@ -845,17 +1737,18 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
     return Scaffold(
       backgroundColor: AppTheme.backgroundBeige,
       body: SafeArea(
+        top: true,
         child: momentsAsync.when(
           data: (moments) {
-            // All visible moments (user's own + friends' public).
-            // momentsStreamProvider already respects RLS.
             final allMoments = List<Moment>.from(moments)
               ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
             if (allMoments.isEmpty) return _buildEmptyState(firstName);
 
-            // Resolve signed URLs for moments without imageUrl
             _resolveSignedUrls(allMoments);
+
+            // Apply filter for Recent + Location grid sections
+            final filteredMoments = _applyFilter(allMoments);
 
             return RefreshIndicator.adaptive(
               onRefresh: () async {
@@ -870,22 +1763,63 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
                   parent: BouncingScrollPhysics(),
                 ),
                 slivers: [
-                  // --Build greetings section--
-                  SliverToBoxAdapter(
-                    child: _buildGreetingHeader(firstName, allMoments),
+                  // ── Greeting SliverAppBar ──
+                  _buildGreetingSliverAppBar(
+                    firstName,
+                    userProfile?.avatarUrl,
+                    notificationCount,
                   ),
+
+                  // ── Featured hero card ──
+                  SliverToBoxAdapter(
+                    child: _buildFeaturedCard(allMoments.first),
+                  ),
+
+                  // ── Weekly recap card ──
+                  SliverToBoxAdapter(child: _buildWeeklyRecapCard(allMoments)),
+
+                  // ── Filter tabs ──
+                  SliverToBoxAdapter(child: _buildFilterTabs()),
+
+                  // ── Stats row ──
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                      child: _buildStatsRow(filteredMoments),
+                    ),
+                  ),
+
                   // ── Recent moments (horizontal) ──
-                  SliverToBoxAdapter(child: _buildRecentSection(allMoments)),
+                  SliverToBoxAdapter(
+                    child: _buildRecentSection(
+                      filteredMoments,
+                      allMoments: allMoments,
+                    ),
+                  ),
+
+                  // ── Moments Together (collaborative) ──
+                  SliverToBoxAdapter(
+                    child: _buildMomentsTogetherSection(allMoments),
+                  ),
+
+                  // ── Throwback card ──
+                  SliverToBoxAdapter(child: _buildThrowbackCard(allMoments)),
+
+                  // ── Top Destinations ──
+                  SliverToBoxAdapter(child: _buildTopDestinations(allMoments)),
 
                   // ── By Friends (horizontal) ──
-                  SliverToBoxAdapter(child: _buildFriendsSection(allMoments)),
+                  SliverToBoxAdapter(
+                    child: _buildFriendsSection(filteredMoments),
+                  ),
 
                   // ── Location groups header ──
-                  SliverToBoxAdapter(child: _buildLocationGroupsHeader()),
+                  SliverToBoxAdapter(
+                    child: _buildLocationGroupsHeader(filteredMoments),
+                  ),
 
                   // ── Location groups grid ──
-                  _buildLocationGroups(allMoments),
-
+                  _buildLocationGroups(filteredMoments),
                   // Bottom spacing for floating bar
                   const SliverToBoxAdapter(child: SizedBox(height: 120)),
                 ],

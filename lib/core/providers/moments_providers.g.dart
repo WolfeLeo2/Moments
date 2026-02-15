@@ -110,7 +110,7 @@ final class MomentsStreamProvider
   }
 }
 
-String _$momentsStreamHash() => r'161326aa0dd5175b013d663f4c911b2dd15e373e';
+String _$momentsStreamHash() => r'5f3ea0cc4b67dc8b6293f69d2e617ffa1bd24214';
 
 /// Stream of shared moments (realtime - moments user is contributor to)
 

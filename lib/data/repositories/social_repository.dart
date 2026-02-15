@@ -1,4 +1,5 @@
 import 'package:moments/core/services/app_logger.dart';
+import 'package:moments/core/services/phone_hash_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/profile.dart';
 import '../models/friendship.dart';
@@ -86,6 +87,7 @@ class SocialRepository {
     String? displayName,
     String? avatarUrl,
     String? bio,
+    String? phoneNumber,
   }) async {
     try {
       final userId = _client.auth.currentUser?.id;
@@ -96,6 +98,10 @@ class SocialRepository {
       if (displayName != null) updates['display_name'] = displayName;
       if (avatarUrl != null) updates['avatar_url'] = avatarUrl;
       if (bio != null) updates['bio'] = bio;
+      if (phoneNumber != null) {
+        updates['phone_number'] = phoneNumber;
+        updates['phone_hash'] = PhoneHashService.hashNumber(phoneNumber);
+      }
       updates['updated_at'] = DateTime.now().toIso8601String();
 
       final response = await _client
@@ -248,10 +254,16 @@ class SocialRepository {
     }
   }
 
-  /// Remove friend (delete friendship)
-  Future<void> removeFriend(String friendshipId) async {
+  /// Remove friend (delete friendship in either direction)
+  Future<void> removeFriend(String friendUserId) async {
     try {
-      await _client.from('friendships').delete().eq('id', friendshipId);
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) throw Exception('User not authenticated');
+
+      await _client
+          .from('friendships')
+          .delete()
+          .or('and(user_id.eq.$userId,friend_id.eq.$friendUserId),and(user_id.eq.$friendUserId,friend_id.eq.$userId)');
     } catch (e) {
       throw Exception('Failed to remove friend: $e');
     }
@@ -288,6 +300,27 @@ class SocialRepository {
           .toList();
     } catch (e) {
       throw Exception('Failed to fetch pending requests: $e');
+    }
+  }
+
+  /// Get sent friend requests (outgoing, not yet accepted)
+  Future<List<Friendship>> getSentRequests() async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) return [];
+
+      final response = await _client
+          .from('friendships')
+          .select()
+          .eq('user_id', userId)
+          .eq('status', 'pending')
+          .order('requested_at', ascending: false);
+
+      return (response as List)
+          .map((json) => Friendship.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch sent requests: $e');
     }
   }
 
@@ -348,39 +381,18 @@ class SocialRepository {
   }
 
   /// Get mutual friends count between current user and another user
-  /// Mutual friends = users who are friends with BOTH the current user AND the target user
+  /// Uses a SECURITY DEFINER RPC to bypass RLS limitations.
   Future<int> getMutualFriendsCount(String friendId) async {
     try {
       final userId = _client.auth.currentUser?.id;
       if (userId == null) return 0;
 
-      // Get current user's friend IDs
-      final myFriendIds = await getFriendIds();
-      if (myFriendIds.isEmpty) return 0;
+      final result = await _client.rpc(
+        'get_mutual_friends_count',
+        params: {'user_a': userId, 'user_b': friendId},
+      );
 
-      // Get the target user's friend IDs
-      final theirFriendships = await _client
-          .from('friendships')
-          .select()
-          .eq('status', 'accepted')
-          .or('user_id.eq.$friendId,friend_id.eq.$friendId');
-
-      final theirFriendIds = (theirFriendships as List).map((f) {
-        final friendship = f as Map<String, dynamic>;
-        final uId = friendship['user_id'] as String;
-        final fId = friendship['friend_id'] as String;
-        return uId == friendId ? fId : uId;
-      }).toSet();
-
-      // Count mutual: intersection of both friend lists (excluding each other)
-      final mutualCount = myFriendIds
-          .where(
-            (id) =>
-                theirFriendIds.contains(id) && id != friendId && id != userId,
-          )
-          .length;
-
-      return mutualCount;
+      return (result as int?) ?? 0;
     } catch (e) {
       _log.e('Error getting mutual friends count: $e');
       return 0;
@@ -451,5 +463,137 @@ class SocialRepository {
           _log.e('Pending requests stream error: $e');
           return <Friendship>[];
         });
+  }
+
+  // ============================================
+  // FRIEND DISCOVERY
+  // ============================================
+
+  /// Search profiles by username, display_name, or phone number
+  Future<List<Profile>> searchProfiles(String query) async {
+    try {
+      if (query.trim().length < 2) return [];
+      final response = await _client.rpc(
+        'search_profiles',
+        params: {'query': query.trim()},
+      );
+      return (response as List)
+          .map((json) => Profile.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      _log.e('Search profiles error: $e');
+      return [];
+    }
+  }
+
+  /// Find profiles by list of phone hashes (blind matching).
+  /// Phone numbers are hashed client-side before being sent.
+  Future<List<Profile>> findProfilesByPhone(List<String> phoneHashes) async {
+    try {
+      if (phoneHashes.isEmpty) return [];
+      final response = await _client.rpc(
+        'find_profiles_by_phone',
+        params: {'phone_hashes': phoneHashes},
+      );
+      return (response as List)
+          .map((json) => Profile.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      _log.e('Find by phone hash error: $e');
+      return [];
+    }
+  }
+
+  /// Find nearby users based on location
+  Future<List<Map<String, dynamic>>> findNearbyUsers({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 10,
+  }) async {
+    try {
+      final response = await _client.rpc(
+        'find_nearby_users',
+        params: {
+          'user_lat': latitude,
+          'user_lng': longitude,
+          'radius_km': radiusKm,
+        },
+      );
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      _log.e('Find nearby users error: $e');
+      return [];
+    }
+  }
+
+  /// Update current user's phone number (stores both raw + hash)
+  Future<void> updatePhoneNumber(String phoneNumber) async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) return;
+      await _client.from('profiles').update({
+        'phone_number': phoneNumber,
+        'phone_hash': PhoneHashService.hashNumber(phoneNumber),
+      }).eq('id', userId);
+    } catch (e) {
+      _log.e('Update phone number error: $e');
+    }
+  }
+
+  /// Check friendship status with a specific user
+  Future<String?> getFriendshipStatus(String otherUserId) async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) return null;
+
+      final response = await _client
+          .from('friendships')
+          .select('status')
+          .or('and(user_id.eq.$userId,friend_id.eq.$otherUserId),and(user_id.eq.$otherUserId,friend_id.eq.$userId)')
+          .maybeSingle();
+
+      return response?['status'] as String?;
+    } catch (e) {
+      _log.e('Get friendship status error: $e');
+      return null;
+    }
+  }
+
+  /// Send friend request by user ID (instead of invite code)
+  Future<void> sendFriendRequestById(String friendId) async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) throw Exception('Not authenticated');
+
+      if (userId == friendId) {
+        throw Exception('Cannot send friend request to yourself');
+      }
+
+      // Check for existing friendship
+      final existing = await _client
+          .from('friendships')
+          .select()
+          .or('and(user_id.eq.$userId,friend_id.eq.$friendId),and(user_id.eq.$friendId,friend_id.eq.$userId)')
+          .maybeSingle();
+
+      if (existing != null) {
+        final status = existing['status'];
+        if (status == 'accepted') throw Exception('Already friends');
+        if (status == 'pending') throw Exception('Request already pending');
+        if (status == 'blocked') throw Exception('Unable to send request');
+      }
+
+      await _client.from('friendships').insert({
+        'user_id': userId,
+        'friend_id': friendId,
+        'status': 'pending',
+        'requested_at': DateTime.now().toIso8601String(),
+      });
+
+      _log.i('Sent friend request to $friendId');
+    } catch (e) {
+      _log.e('Send friend request by ID error: $e');
+      rethrow;
+    }
   }
 }

@@ -1,9 +1,10 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/theme/app_theme.dart';
+import 'package:moments/widgets/avatar_image.dart';
 import 'package:moments/features/chat/presentation/chat_page.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class NewChatSheet extends ConsumerWidget {
   const NewChatSheet({super.key});
@@ -74,8 +75,8 @@ class NewChatSheet extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  FaIcon(
-                    FontAwesomeIcons.magnifyingGlass,
+                  Icon(
+                    CupertinoIcons.search,
                     color: Colors.grey[400]!,
                     size: 24,
                   ),
@@ -103,10 +104,10 @@ class NewChatSheet extends ConsumerWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        FaIcon(
-                          FontAwesomeIcons.userGroup,
+                        Icon(
+                          CupertinoIcons.person_3,
                           size: 48,
-                          color: Colors.grey[300]!,
+                          color: AppTheme.borderGray,
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -147,12 +148,24 @@ class NewChatSheet extends ConsumerWidget {
                         child: CircleAvatar(
                           radius: 20,
                           backgroundColor: Colors.grey[200],
-                          backgroundImage: ref
-                              .watch(avatarCacheServiceProvider)
-                              .getAvatarImageProvider(friend.avatarUrl),
                           child: friend.avatarUrl == null
-                              ? const Icon(Icons.person, color: Colors.grey)
-                              : null,
+                              ? Text(
+                                  friend.displayName
+                                          ?.substring(0, 1)
+                                          .toUpperCase() ??
+                                      '?',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                )
+                              : AvatarImage(
+                                  avatarUrl: friend.avatarUrl,
+                                  size: 48,
+                                  borderWidth: 0,
+                                  backgroundColor: Colors.grey[200],
+                                  placeholder: const SizedBox.shrink(),
+                                ),
                         ),
                       ),
                       title: Text(

@@ -1,14 +1,22 @@
 import 'dart:ui';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_m3shapes_extended/flutter_m3shapes_extended.dart';
-import '../../../core/theme/app_theme.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 
-/// Modern glassmorphic app bar with avatar popup menu and notification bell
-/// Simplified version: Friends, Title, Notifications, Profile
-class BlurredAppBar extends StatefulWidget implements PreferredSizeWidget {
+import '../core/theme/app_theme.dart';
+
+/// Unified transparent app bar used across all main tabs (Map, Memory Lane,
+/// Discover, Chat).
+///
+/// Uses [AppBar.forceMaterialTransparency] so the body renders behind it —
+/// pair with `Scaffold(extendBodyBehindAppBar: true)` on map pages.
+///
+/// The glassmorphic blur lives in [flexibleSpace]; set [transparent] = true
+/// to skip the blur on pages with a solid background colour.
+class BlurredAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final VoidCallback? onMenuPressed;
   final VoidCallback? onSearchPressed;
@@ -17,6 +25,10 @@ class BlurredAppBar extends StatefulWidget implements PreferredSizeWidget {
   final VoidCallback? onNotificationsPressed;
   final String? profileImageUrl;
   final int notificationCount;
+
+  /// When true the app bar is fully transparent with no blur — useful for
+  /// pages where the background is a solid colour.
+  final bool transparent;
 
   const BlurredAppBar({
     super.key,
@@ -28,149 +40,137 @@ class BlurredAppBar extends StatefulWidget implements PreferredSizeWidget {
     this.onNotificationsPressed,
     this.profileImageUrl,
     this.notificationCount = 0,
+    this.transparent = false,
   });
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
-  @override
-  State<BlurredAppBar> createState() => _BlurredAppBarState();
-}
+  // ── helpers ──────────────────────────────────────────────────────────
 
-class _BlurredAppBarState extends State<BlurredAppBar> {
-  Widget _buildBadge(int count) {
-    if (count <= 0) return const SizedBox.shrink();
-    return Positioned(
-      right: 6,
-      top: 6,
-      child: Badge(
-        padding: const EdgeInsets.all(4),
-        child: Text(
-          count > 9 ? '9+' : '$count',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 9,
-            fontWeight: FontWeight.w700,
-          ),
-          textAlign: TextAlign.center,
+  Widget _notificationIcon(int count) {
+    return Badge(
+      isLabelVisible: count > 0,
+      label: Text(
+        '$count',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      backgroundColor: AppTheme.coralPink,
+      child: IconButton(
+        onPressed: onNotificationsPressed,
+        icon: const HugeIcon(
+          icon: HugeIcons.strokeRoundedNotification01,
+          color: Colors.black87,
+          size: 24,
         ),
       ),
     );
   }
 
+  Widget _avatar() {
+    final placeholder = Container(
+      color: Colors.grey[300],
+      child: HugeIcon(
+        icon: HugeIcons.strokeRoundedUser02,
+        size: 18,
+        color: Colors.grey[600],
+      ),
+    );
+
+    return GestureDetector(
+      onTap: onProfilePressed,
+      child: M3Container.l8LeafClover(
+        width: 38,
+        height: 38,
+        border: BorderSide(
+          color: Colors.black.withValues(alpha: 0.8),
+          width: 1,
+        ),
+        child: profileImageUrl != null
+            ? M3Container.l8LeafClover(
+                child: CachedNetworkImage(
+                  imageUrl: profileImageUrl!,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => placeholder,
+                  errorWidget: (_, __, ___) => placeholder,
+                ),
+              )
+            : M3Container.l8LeafClover(
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedUser02,
+                  size: 22,
+                  color: Colors.grey[600],
+                ),
+              ),
+      ),
+    );
+  }
+
+  // ── build ────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                AppTheme.backgroundBeige.withValues(alpha: 0.85),
-                AppTheme.backgroundBeige.withValues(alpha: 0.45),
-              ],
-            ),
-            border: Border(
-              bottom: BorderSide(
-                color: Colors.black.withValues(alpha: 0.05),
-                width: 0.5,
-              ),
-            ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  // Add Friends Button
-                  IconButton(
-                    onPressed: widget.onFriendsPressed,
-                    icon: const HugeIcon(
-                      icon: HugeIcons.strokeRoundedAddTeam,
-                      color: Colors.black,
-                      size: 28,
-                    ),
-                    tooltip: 'Add Friends',
-                  ),
+    return AppBar(
+      forceMaterialTransparency: true,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      automaticallyImplyLeading: false,
 
-                  // Title (CENTERED)
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        widget.title.toUpperCase(),
-                        style: GoogleFonts.rubikDoodleShadow(
-                          textStyle: Theme.of(context).textTheme.headlineLarge,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.black87,
-                          letterSpacing: 0.5,
-                        ),
+      // ── blur layer ──
+      flexibleSpace: transparent
+          ? null
+          : ClipRRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppTheme.backgroundBeige.withValues(alpha: 0.72),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        width: 0.5,
                       ),
                     ),
                   ),
-
-                  // Notifications Button
-                  Stack(
-                    children: [
-                      IconButton(
-                        onPressed: widget.onNotificationsPressed,
-                        icon: const HugeIcon(
-                          icon: HugeIcons.strokeRoundedNotification01,
-                          color: Colors.black87,
-                          size: 26,
-                        ),
-                      ),
-                      _buildBadge(widget.notificationCount),
-                    ],
-                  ),
-
-                  // Avatar (RIGHT)
-                  GestureDetector(
-                    onTap: widget.onProfilePressed,
-                    child: M3Container.l8LeafClover(
-                      width: 40,
-                      height: 40,
-                      border: BorderSide(color: Colors.black, width: 1),
-                      child: widget.profileImageUrl != null
-                          ? M3Container.l8LeafClover(
-                              child: CachedNetworkImage(
-                                imageUrl: widget.profileImageUrl!,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  color: Colors.grey[300],
-                                  child: HugeIcon(
-                                    icon: HugeIcons.strokeRoundedUser02,
-                                    size: 20,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                errorWidget: (context, url, error) => Container(
-                                  color: Colors.grey[300],
-                                  child: HugeIcon(
-                                    icon: HugeIcons.strokeRoundedUser02,
-                                    size: 20,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ),
-                            )
-                          : M3Container.l8LeafClover(
-                              child: HugeIcon(
-                                icon: HugeIcons.strokeRoundedUser02,
-                                size: 24,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
+
+      // ── leading: Add Friends ──
+      leading: IconButton(
+        onPressed: onFriendsPressed,
+        icon: const HugeIcon(
+          icon: HugeIcons.strokeRoundedAddTeam,
+          color: Colors.black87,
+          size: 26,
+        ),
+        tooltip: 'Add Friends',
+      ),
+
+      // ── title ──
+      centerTitle: true,
+      title: Text(
+        title.toUpperCase(),
+        style: GoogleFonts.rubikDoodleShadow(
+          textStyle: Theme.of(context).textTheme.headlineLarge,
+          fontWeight: FontWeight.w900,
+          color: Colors.black87,
+          letterSpacing: 0.5,
         ),
       ),
+
+      // ── actions: Notifications + Avatar ──
+      actions: [
+        _notificationIcon(notificationCount),
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: _avatar(),
+        ),
+      ],
     );
   }
 }

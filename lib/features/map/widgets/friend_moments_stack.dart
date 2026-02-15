@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/data/models/moment.dart';
+import 'package:moments/widgets/avatar_image.dart';
 
 /// Vertical overlapping avatar stack showing friends with moments in visible map area.
 /// Displays up to 4 avatars stacked on top of each other with the 4th slightly blurred.
@@ -25,7 +26,7 @@ class FriendMomentsStack extends ConsumerWidget {
     if (friendGroups.isEmpty) return const SizedBox.shrink();
 
     final avatarCacheService = ref.watch(avatarCacheServiceProvider);
-    final displayGroups = friendGroups.take(4).toList();
+    final displayGroups = friendGroups.take(44).toList();
     final hasMore = friendGroups.length > 4;
 
     // Calculate total height: first avatar full + overlapping portions
@@ -107,18 +108,13 @@ class FriendMomentsStack extends ConsumerWidget {
           ),
         ],
       ),
-      child: ClipOval(
-        child: group.avatarUrl != null
-            ? Image(
-                image:
-                    avatarCacheService.getAvatarImageProvider(
-                      group.avatarUrl,
-                    ) ??
-                    const AssetImage('assets/images/default_avatar.png'),
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _buildPlaceholder(group),
-              )
-            : _buildPlaceholder(group),
+      child: AvatarImage(
+        avatarUrl: group.avatarUrl,
+        size: _avatarSize,
+        borderWidth: 0,
+        backgroundColor: AppTheme.electricPurple.withValues(alpha: 0.3),
+        placeholder: _buildPlaceholder(group),
+        errorWidget: _buildPlaceholder(group),
       ),
     );
 

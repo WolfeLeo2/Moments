@@ -236,10 +236,21 @@ class NotificationsList extends _$NotificationsList {
   /// Mark all notifications as read (called on page open - Instagram style)
   /// With proper error handling to revert optimistic state on failure
   Future<void> markAllAsRead() async {
-    // Get all unread notification IDs from current state
-    if (!state.hasValue) return;
-    final notifications = state.value!;
+    final repo = ref.read(notificationRepositoryProvider);
 
+    // Always mark all as read in DB, even if local state isn't loaded yet
+    // This ensures the badge count updates via the realtime stream
+    if (!state.hasValue) {
+      try {
+        await repo.markAllAsRead();
+        _log.d('Marked all as read in DB (list not yet loaded)');
+      } catch (e, stack) {
+        _log.e('Error marking all as read', error: e, stackTrace: stack);
+      }
+      return;
+    }
+
+    final notifications = state.value!;
     final hasUnread = notifications.any((n) => n['is_read'] != true);
     if (!hasUnread) return;
 
@@ -254,9 +265,7 @@ class NotificationsList extends _$NotificationsList {
     });
 
     try {
-      // Mark all as read in DB using batch update
       _log.d('Batch marking all as read');
-      final repo = ref.read(notificationRepositoryProvider);
       await repo.markAllAsRead();
       _log.d('Successfully marked all as read in DB');
     } catch (e, stack) {
@@ -265,7 +274,6 @@ class NotificationsList extends _$NotificationsList {
         error: e,
         stackTrace: stack,
       );
-      // Rollback to original state on failure
       state = AsyncValue.data(originalState);
     }
   }
@@ -341,6 +349,13 @@ Stream<List<Profile>> friendsList(Ref ref) async* {
 Future<List<Friendship>> pendingRequests(Ref ref) async {
   final socialRepo = ref.watch(socialRepositoryProvider);
   return socialRepo.getPendingRequests();
+}
+
+/// Sent friend requests (outgoing, awaiting response)
+@riverpod
+Future<List<Friendship>> sentRequests(Ref ref) async {
+  final socialRepo = ref.watch(socialRepositoryProvider);
+  return socialRepo.getSentRequests();
 }
 
 /// Get a friend's profile by ID - cached per user to prevent API spam

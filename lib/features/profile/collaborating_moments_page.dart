@@ -10,7 +10,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:lottie/lottie.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('CollabMoments');
 class CollaboratingMomentsPage extends ConsumerStatefulWidget {
   const CollaboratingMomentsPage({super.key});
 
@@ -67,7 +70,7 @@ class _CollaboratingMomentsPageState
         });
       }
     } catch (e) {
-      debugPrint('Error fetching collaborating moments: $e');
+      _log.e('Error fetching collaborating moments: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }

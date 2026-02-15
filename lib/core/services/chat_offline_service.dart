@@ -481,6 +481,11 @@ class ChatOfflineService {
     _isSyncing = true;
 
     try {
+      final hasNetwork = await _hasNetwork();
+      if (!hasNetwork) {
+        _log.d('No network detected, skipping chat sync');
+        return;
+      }
       // 1. Process pending text messages
       await _processTextMessages();
 
@@ -508,6 +513,16 @@ class ChatOfflineService {
     } finally {
       _isSyncing = false;
       _scheduleSync();
+    }
+  }
+
+  Future<bool> _hasNetwork() async {
+    try {
+      final result = await InternetAddress.lookup('example.com')
+          .timeout(const Duration(seconds: 2));
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
     }
   }
 

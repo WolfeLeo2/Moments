@@ -1,7 +1,9 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:pull_down_button/pull_down_button.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/services/signed_url_cache.dart';
 import 'package:moments/data/models/moment.dart';
@@ -11,19 +13,24 @@ import 'package:moments/features/feed/presentation/widgets/chapter_header.dart';
 import 'package:moments/features/feed/presentation/widgets/timeline_connector.dart';
 import 'package:moments/features/feed/presentation/widgets/scrapbook_elements.dart';
 import 'package:moments/features/moments/presentation/moment_details_page.dart';
-import 'package:moments/widgets/blurred_app_bar.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:moments/widgets/offline_image.dart';
 import 'package:moments/core/providers/providers.dart';
-import 'package:moments/features/social/presentation/friends_page.dart';
-import 'package:moments/features/profile/profile_page.dart';
 import 'package:moments/features/notifications/presentation/notifications_page.dart';
 
 /// Memory Lane - An emotional, timeline-based view of memories
 /// Replaces the traditional feed with a journal-like experience
 class MemoryLanePage extends ConsumerStatefulWidget {
-  const MemoryLanePage({super.key, this.scrollController});
+  const MemoryLanePage({
+    super.key,
+    this.scrollController,
+    this.viewLabel,
+    this.pullDownMenuItems,
+  });
 
   final ScrollController? scrollController;
+  final String? viewLabel;
+  final List<PullDownMenuEntry> Function()? pullDownMenuItems;
 
   @override
   ConsumerState<MemoryLanePage> createState() => _MemoryLanePageState();
@@ -51,18 +58,6 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
       _scrollController.dispose();
     }
     super.dispose();
-  }
-
-  void _showFriendsPage() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (context) => const FriendsPage()));
-  }
-
-  void _showProfilePage() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (context) => const ProfilePage()));
   }
 
   void _showNotificationsPage() {
@@ -205,19 +200,75 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
     super.build(context);
 
     final momentsAsync = ref.watch(momentsStreamProvider);
-    final profile = ref.watch(currentUserProfileProvider);
     final notificationCount = ref.watch(notificationCountProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBeige,
       extendBodyBehindAppBar: false,
-      appBar: BlurredAppBar(
-        title: 'Memory Lane',
-        profileImageUrl: profile.value?.avatarUrl,
-        notificationCount: notificationCount.value ?? 0,
-        onFriendsPressed: _showFriendsPage,
-        onProfilePressed: _showProfilePage,
-        onNotificationsPressed: _showNotificationsPage,
+      appBar: AppBar(
+        backgroundColor: AppTheme.backgroundBeige,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        centerTitle: false,
+        title: widget.pullDownMenuItems != null
+            ? PullDownButton(
+                itemBuilder: (context) => widget.pullDownMenuItems!(),
+                buttonBuilder: (context, showMenu) => GestureDetector(
+                  onTap: showMenu,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.viewLabel ?? 'Memory Lane',
+                        style: GoogleFonts.inter(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.textDark,
+                          letterSpacing: -0.8,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        CupertinoIcons.chevron_down,
+                        size: 14,
+                        color: AppTheme.textGray,
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : Text(
+                'Memory Lane',
+                style: GoogleFonts.caveat(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textDark,
+                ),
+              ),
+        actions: [
+          Badge(
+            isLabelVisible: (notificationCount.value ?? 0) > 0,
+            label: Text(
+              '${notificationCount.value ?? 0}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            backgroundColor: AppTheme.coralPink,
+            child: IconButton(
+              onPressed: _showNotificationsPage,
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedNotification01,
+                color: Colors.black87,
+                size: 24,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -396,20 +447,16 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: imageUrl != null
-              ? OfflineImage(
-                  networkUrl: imageUrl,
-                  cacheKey: moment.mediaPath ?? moment.id,
-                  fit: BoxFit.cover,
-                  errorWidget: Container(
-                    color: AppTheme.dustyRose.withOpacity(0.2),
-                    child: const Icon(Icons.photo, color: AppTheme.dustyRose),
-                  ),
-                )
-              : Container(
-                  color: AppTheme.dustyRose.withOpacity(0.2),
-                  child: const Icon(Icons.photo, color: AppTheme.dustyRose),
-                ),
+          child: OfflineImage(
+              localPath: moment.localMediaPath,
+              networkUrl: imageUrl,
+              cacheKey: moment.mediaPath ?? moment.id,
+              fit: BoxFit.cover,
+              errorWidget: Container(
+                color: AppTheme.dustyRose.withValues(alpha: 0.2),
+                child: const Icon(Icons.photo, color: AppTheme.dustyRose),
+              ),
+            ),
         ),
       ),
     );

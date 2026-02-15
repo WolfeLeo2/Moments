@@ -40,7 +40,10 @@ import '../widgets/friend_moments_stack.dart';
 import '../widgets/friends_in_view_sheet.dart';
 import '../utils/map_logic_service.dart';
 import '../providers/map_control_provider.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('MapboxMap');
 /// Mapbox access token - hardcoded for now
 const String _mapboxAccessToken =
     'pk.eyJ1Ijoid29sZmVsZW8iLCJhIjoiY21oYXRxMW82MW5nNjJqcGc4aDA0YndoeSJ9.gvLhQFM-46KlcUdAKFGMYg';
@@ -209,7 +212,7 @@ class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
         setState(() => _cityName = city);
       }
     } catch (e) {
-      debugPrint('Failed to geocode viewport center: $e');
+      _log.e('Failed to geocode viewport center: $e');
     }
   }
 
@@ -254,7 +257,7 @@ class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
         _loadCityName();
       }
     } catch (e) {
-      debugPrint('Error getting location: $e');
+      _log.e('Error getting location: $e');
     }
   }
 
@@ -345,7 +348,7 @@ class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
           final bytes = await consolidateHttpClientResponseBytes(response);
           imageBytes = await _createCircularMarkerFromImage(bytes);
         } catch (e) {
-          debugPrint('Failed to load marker image: $e');
+          _log.e('Failed to load marker image: $e');
         }
       }
 
@@ -405,7 +408,7 @@ class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
 
       return byteData?.buffer.asUint8List();
     } catch (e) {
-      debugPrint('Error creating circular marker: $e');
+      _log.e('Error creating circular marker: $e');
       return null;
     }
   }

@@ -1,6 +1,8 @@
-import 'package:flutter/foundation.dart';
 import '../../data/sources/supabase_config.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('SignedUrlCache');
 /// Caches signed URLs to avoid regenerating them on every access
 /// Signed URLs expire after 24 hours, so we cache them for 23 hours
 class SignedUrlCache {
@@ -16,7 +18,7 @@ class SignedUrlCache {
     final failedAt = _failedPaths[mediaPath];
     if (failedAt != null &&
         DateTime.now().difference(failedAt) < _failureCooldown) {
-      debugPrint('Skipping recently failed path: $mediaPath');
+      _log.e('Skipping recently failed path: $mediaPath');
       return null;
     }
 
@@ -45,7 +47,7 @@ class SignedUrlCache {
 
       return signedUrl;
     } catch (e) {
-      debugPrint('❌ Error generating signed URL for $mediaPath: $e');
+      _log.e('❌ Error generating signed URL for $mediaPath: $e');
       _failedPaths[mediaPath] = DateTime.now();
       return null;
     }
@@ -79,7 +81,7 @@ class SignedUrlCache {
       return results;
     }
 
-    debugPrint('Generating ${uncachedPaths.length} signed URLs in parallel...');
+    _log.d('Generating ${uncachedPaths.length} signed URLs in parallel...');
 
     // Generate remaining URLs in parallel for speed
     // Use individual error handling to prevent one failure from breaking all
@@ -94,7 +96,7 @@ class SignedUrlCache {
       }
     }
 
-    debugPrint('Batch complete: ${results.length} signed URLs ready');
+    _log.d('Batch complete: ${results.length} signed URLs ready');
     return results;
   }
 
@@ -102,13 +104,13 @@ class SignedUrlCache {
   static void clearCache() {
     _cache.clear();
     _failedPaths.clear();
-    debugPrint('Signed URL cache cleared');
+    _log.d('Signed URL cache cleared');
   }
 
   /// Clear expired URLs from cache
   static void clearExpired() {
     final now = DateTime.now();
     _cache.removeWhere((key, value) => value.$2.isBefore(now));
-    debugPrint('Expired URLs cleared from cache');
+    _log.d('Expired URLs cleared from cache');
   }
 }

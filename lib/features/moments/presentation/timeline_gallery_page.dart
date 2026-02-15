@@ -14,7 +14,10 @@ import '../../../core/services/haptic_service.dart';
 import '../../../core/providers/moments_providers.dart';
 import '../../../widgets/offline_image.dart';
 import 'moment_details_page.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('TimelineGallery');
 /// Timeline/Gallery view with neubrutalism comic-style design
 class TimelineGalleryPage extends ConsumerStatefulWidget {
   const TimelineGalleryPage({super.key});
@@ -126,7 +129,7 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
         });
       }
     } catch (e) {
-      debugPrint('Error loading URLs: $e');
+      _log.e('Error loading URLs: $e');
     }
   }
 

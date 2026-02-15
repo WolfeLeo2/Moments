@@ -12,7 +12,10 @@ import 'package:moments/widgets/offline_image.dart';
 import 'package:moments/widgets/offline_video.dart';
 import 'package:moments/widgets/audio_waveform_widget.dart';
 import 'package:moments/widgets/music_indicator.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('ReliveExperience');
 /// Relive Experience — A full-screen immersive viewer for moments.
 ///
 /// Features:
@@ -163,7 +166,7 @@ class _ReliveExperiencePageState extends ConsumerState<ReliveExperiencePage>
         });
       }
     } catch (e) {
-      debugPrint('Error loading signed URLs for relive: $e');
+      _log.e('Error loading signed URLs for relive: $e');
     }
   }
 

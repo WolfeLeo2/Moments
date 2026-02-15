@@ -198,13 +198,18 @@ class IsRecording extends _$IsRecording {
 }
 
 /// Get list of recent conversations with details (Realtime)
-/// Yields cached data immediately for instant UI, then updates with fresh data
+/// Yields cached data immediately for instant UI, then updates with fresh data.
+/// When offline, the cached layer alone is enough for a usable chat list.
 @riverpod
 Stream<List<Map<String, dynamic>>> chatList(Ref ref) async* {
   final chatRepo = ref.watch(chatRepositoryProvider);
   final db = ref.watch(appDatabaseProvider);
 
-  // 1. Yield cached data immediately from Drift
+  // Track whether we've already yielded something so the UI is never left
+  // in a permanent loading state.
+  var hasYielded = false;
+
+  // ── 1. Yield cached data immediately from Drift ──
   final cachedEntries = await db.loadChatList();
   if (cachedEntries.isNotEmpty) {
     final cachedData = cachedEntries
@@ -227,11 +232,12 @@ Stream<List<Map<String, dynamic>>> chatList(Ref ref) async* {
         .where((m) => m['lastMessage'] != null)
         .toList();
     if (cachedData.isNotEmpty) {
+      hasYielded = true;
       yield cachedData;
     }
   }
 
-  // 2. Fetch fresh data and update Drift cache
+  // ── 2. Fetch fresh data and update Drift cache ──
   try {
     final freshData = await chatRepo.getRecentConversations();
     if (freshData.isNotEmpty) {
@@ -247,46 +253,57 @@ Stream<List<Map<String, dynamic>>> chatList(Ref ref) async* {
       }).toList();
       await db.saveChatList(entries);
     }
+    hasYielded = true;
     yield freshData;
   } catch (e) {
-    // Log sync error
     ref
         .read(syncStateProvider.notifier)
         .addError('chat', 'Failed to load chat list', details: e.toString());
-    if (cachedEntries.isEmpty) {
+
+    if (!hasYielded) {
+      // Nothing in cache AND network failed → surface the error
       rethrow;
     }
     _log.w('Network failed for chatList, using cached data', error: e);
   }
 
-  // 3. Listen for realtime updates and save to Drift
-  await for (final _ in chatRepo.streamConversationsChanged()) {
-    try {
-      final updatedData = await chatRepo.getRecentConversations();
-      if (updatedData.isNotEmpty) {
-        final entries = updatedData.map((conv) {
-          final message = conv['lastMessage'] as Message;
-          return ChatListCacheCompanion.insert(
-            conversationId: conv['conversationId'] as String,
-            otherUserId: conv['otherUserId'] as String,
-            unreadCount: Value(conv['unreadCount'] as int? ?? 0),
-            lastMessageJson: Value(jsonEncode(message.toJson())),
-            updatedAt: DateTime.now().millisecondsSinceEpoch,
-          );
-        }).toList();
-        await db.saveChatList(entries);
+  // ── 3. Listen for realtime updates and save to Drift ──
+  // Wrapped in try-catch so that a realtime connection failure when offline
+  // doesn't overwrite the previously-yielded cached data with an error state.
+  try {
+    await for (final _ in chatRepo.streamConversationsChanged()) {
+      try {
+        final updatedData = await chatRepo.getRecentConversations();
+        if (updatedData.isNotEmpty) {
+          final entries = updatedData.map((conv) {
+            final message = conv['lastMessage'] as Message;
+            return ChatListCacheCompanion.insert(
+              conversationId: conv['conversationId'] as String,
+              otherUserId: conv['otherUserId'] as String,
+              unreadCount: Value(conv['unreadCount'] as int? ?? 0),
+              lastMessageJson: Value(jsonEncode(message.toJson())),
+              updatedAt: DateTime.now().millisecondsSinceEpoch,
+            );
+          }).toList();
+          await db.saveChatList(entries);
+        }
+        yield updatedData;
+      } catch (e) {
+        ref
+            .read(syncStateProvider.notifier)
+            .addError(
+              'chat',
+              'Failed to refresh chat list',
+              details: e.toString(),
+            );
+        _log.w('Error in chatList stream update', error: e);
       }
-      yield updatedData;
-    } catch (e) {
-      ref
-          .read(syncStateProvider.notifier)
-          .addError(
-            'chat',
-            'Failed to refresh chat list',
-            details: e.toString(),
-          );
-      _log.w('Error in chatList stream update', error: e);
     }
+  } catch (e) {
+    // Realtime subscription failed (e.g. offline) — the cached/fresh data
+    // already yielded is sufficient. Keep the stream alive so Riverpod
+    // doesn't transition to an error state.
+    _log.w('Realtime stream failed, staying on cached data', error: e);
   }
 }
 

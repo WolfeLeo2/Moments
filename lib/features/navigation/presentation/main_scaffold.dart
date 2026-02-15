@@ -7,9 +7,9 @@ import 'package:moments/core/providers/providers.dart';
 import 'package:moments/features/map/presentation/map_page_flutter_map.dart';
 import 'package:moments/features/mapv2/presentation/map_page_v2.dart';
 import 'package:moments/features/mapv2/providers/map_v2_providers.dart';
-import 'package:moments/features/feed/presentation/memory_lane_page.dart';
+import 'package:moments/features/spotlight/presentation/spotlight_page.dart';
+import 'package:moments/features/explore/presentation/explore_page.dart';
 import 'package:moments/features/chat/presentation/chat_list_page.dart';
-import 'package:moments/features/discovery/presentation/discovery_page.dart';
 
 /// Main scaffold with floating bottom bar navigation
 class MainScaffold extends ConsumerStatefulWidget {
@@ -56,7 +56,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
       body: BottomBar(
         borderRadius: BorderRadius.circular(500),
         duration: const Duration(milliseconds: 200),
-        width: MediaQuery.of(context).size.width * 0.55,
+        width: MediaQuery.of(context).size.width * 0.6,
         barColor: AppTheme.cardWhite,
         start: 2,
         end: 0,
@@ -89,12 +89,12 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
               ),
             ),
             _KeepAlivePage(
-              child: MemoryLanePage(
+              child: SpotlightPage(
                 scrollController: _currentIndex == 1 ? controller : null,
               ),
             ),
             _KeepAlivePage(
-              child: DiscoveryPage(
+              child: ExplorePage(
                 scrollController: _currentIndex == 2 ? controller : null,
               ),
             ),
@@ -106,7 +106,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
           child: TabBar(
             controller: _tabController,
             indicator: UnderlineTabIndicator(

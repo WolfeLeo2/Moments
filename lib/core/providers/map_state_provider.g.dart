@@ -42,7 +42,7 @@ final class MapUiStateNotifierProvider
 }
 
 String _$mapUiStateNotifierHash() =>
-    r'18bd88a0a78a55e455a54a337daf914903ba6cdd';
+    r'a052d009999bcc6b93eb66226726d6775ef5e8a6';
 
 abstract class _$MapUiStateNotifier extends $Notifier<MapUiState> {
   MapUiState build();

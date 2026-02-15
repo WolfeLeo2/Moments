@@ -252,7 +252,7 @@ class _ActionButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: isAccept ? AppTheme.primaryBlue : Colors.grey[100],
           borderRadius: BorderRadius.circular(8),
-          border: isAccept ? null : Border.all(color: Colors.grey[300]!),
+          border: isAccept ? null : Border.all(color: AppTheme.borderGray),
         ),
         child: Center(
           child: Text(

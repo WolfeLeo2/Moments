@@ -6,6 +6,7 @@ import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/features/moments/presentation/moment_details_page.dart';
 import 'package:moments/widgets/offline_image.dart';
+import 'package:moments/widgets/avatar_image.dart';
 import '../providers/marker_image_cache_provider.dart';
 import 'friend_moments_stack.dart';
 
@@ -201,21 +202,13 @@ class _FriendsInViewSheetState extends ConsumerState<FriendsInViewSheet> {
                   ),
                 ],
               ),
-              child: ClipOval(
-                child: group.avatarUrl != null
-                    ? Image(
-                        image:
-                            avatarCacheService.getAvatarImageProvider(
-                              group.avatarUrl,
-                            ) ??
-                            const AssetImage(
-                              'assets/images/default_avatar.png',
-                            ),
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            _buildAvatarPlaceholder(group),
-                      )
-                    : _buildAvatarPlaceholder(group),
+              child: AvatarImage(
+                avatarUrl: group.avatarUrl,
+                size: 50,
+                borderWidth: 0,
+                backgroundColor: Colors.white,
+                placeholder: _buildAvatarPlaceholder(group),
+                errorWidget: _buildAvatarPlaceholder(group),
               ),
             ),
 

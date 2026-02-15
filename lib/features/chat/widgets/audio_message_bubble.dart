@@ -9,7 +9,10 @@ import 'package:moments/data/models/message.dart';
 import 'package:moments/features/chat/providers/media_cache_provider.dart';
 import 'package:moments/features/chat/widgets/custom_bubble_special_three.dart';
 import 'package:moments/widgets/audio_waveform_widget.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('AudioMessage');
 class AudioMessageBubble extends ConsumerStatefulWidget {
   final Message message;
   final bool isMe;
@@ -99,7 +102,7 @@ class _AudioMessageBubbleState extends ConsumerState<AudioMessageBubble>
         }
       });
     } catch (e) {
-      debugPrint('❌ [AudioBubble] Error initializing audio: $e');
+      _log.e('❌ [AudioBubble] Error initializing audio: $e');
     }
   }
 
@@ -117,7 +120,7 @@ class _AudioMessageBubbleState extends ConsumerState<AudioMessageBubble>
         await _audioPlayer!.play();
       }
     } catch (e) {
-      debugPrint('❌ [AudioBubble] Error toggling playback: $e');
+      _log.e('❌ [AudioBubble] Error toggling playback: $e');
     }
   }
 

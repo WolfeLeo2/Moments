@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:drift/drift.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -9,7 +8,10 @@ import 'package:moments/data/models/moment.dart';
 import 'package:moments/data/models/profile.dart';
 import 'package:moments/data/models/friendship.dart';
 import 'package:moments/core/database/database.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('MomentStorage');
 /// Moment storage service for persistent local data storage
 /// Uses Drift for database operations (consolidated from sqflite)
 /// Stores moments and their media locally for offline access
@@ -107,7 +109,7 @@ class MomentStorageService {
     }
 
     await _database.saveMoments(entries);
-    debugPrint('💾 Saved ${moments.length} moments to local storage');
+    _log.d('💾 Saved ${moments.length} moments to local storage');
   }
 
   /// Sync moments from server (save new ones, delete removed ones)
@@ -126,7 +128,7 @@ class MomentStorageService {
       for (final id in idsToDelete) {
         await _database.deleteMoment(id);
       }
-      debugPrint(
+      _log.d(
         '🗑️ Deleted ${idsToDelete.length} stale moments from local storage',
       );
     }
@@ -157,12 +159,12 @@ class MomentStorageService {
         );
       } catch (e) {
         if (attempt == _maxRetries - 1) {
-          debugPrint('❌ Failed to cache media after $_maxRetries attempts: $e');
+          _log.e('❌ Failed to cache media after $_maxRetries attempts: $e');
           return null;
         }
         // Exponential backoff
         final delay = _baseRetryDelay * (1 << attempt);
-        debugPrint(
+        _log.w(
           '⚠️ Retry ${attempt + 1}/$_maxRetries for media download in ${delay.inSeconds}s',
         );
         await Future.delayed(delay);
@@ -191,7 +193,7 @@ class MomentStorageService {
     }
 
     // Download the file
-    debugPrint(
+    _log.d(
       '⬇️ Downloading media: ${remoteUrl.substring(0, remoteUrl.length.clamp(0, 50))}...',
     );
 
@@ -244,7 +246,7 @@ class MomentStorageService {
       ),
     ]);
 
-    debugPrint(
+    _log.d(
       '✅ Cached media to: $localPath (${(response.bodyBytes.length / 1024).toStringAsFixed(1)} KB)',
     );
     return localPath;
@@ -284,7 +286,7 @@ class MomentStorageService {
       await dir.delete(recursive: true);
       await dir.create(recursive: true);
     }
-    debugPrint('🗑️ Cleared all local moments and media');
+    _log.d('🗑️ Cleared all local moments and media');
   }
 
   /// Clean up old cached media (older than specified days)
@@ -302,7 +304,7 @@ class MomentStorageService {
       await _database.deleteMediaCache(entry.remotePath);
     }
 
-    debugPrint('🧹 Cleaned up ${oldEntries.length} old media files');
+    _log.d('🧹 Cleaned up ${oldEntries.length} old media files');
   }
 
   /// Get total cache size in bytes

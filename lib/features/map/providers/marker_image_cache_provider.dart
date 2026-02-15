@@ -1,9 +1,11 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/providers/database_provider.dart';
 import 'package:moments/core/services/signed_url_cache.dart';
 import 'package:moments/data/models/moment.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('MarkerCache');
 /// Cached image data for a moment marker
 class MarkerImageData {
   final String? localPath;
@@ -61,7 +63,7 @@ class MarkerImageCacheNotifier extends Notifier<Map<String, MarkerImageData>> {
 
         if (localPath != null) {
           newData[moment.id] = MarkerImageData(localPath: localPath);
-          debugPrint(
+          _log.d(
             '✅ [MarkerCache] Found local path for ${moment.id.substring(0, 8)}',
           );
         }
@@ -95,7 +97,7 @@ class MarkerImageCacheNotifier extends Notifier<Map<String, MarkerImageData>> {
               final url = urls[path];
               if (url != null) {
                 newData[moment.id] = MarkerImageData(networkUrl: url);
-                debugPrint(
+                _log.d(
                   '✅ [MarkerCache] Got URL for ${moment.id.substring(0, 8)}',
                 );
 
@@ -138,7 +140,7 @@ class MarkerImageCacheNotifier extends Notifier<Map<String, MarkerImageData>> {
         };
       }
     } catch (e) {
-      debugPrint('⚠️ [MarkerCache] Error caching ${moment.id}: $e');
+      _log.e('⚠️ [MarkerCache] Error caching ${moment.id}: $e');
     }
   }
 

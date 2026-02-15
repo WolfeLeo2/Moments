@@ -9,6 +9,7 @@ import '../../../core/services/signed_url_cache.dart';
 import '../../../core/services/app_logger.dart';
 import '../../../core/providers/providers.dart';
 import '../../../data/models/moment.dart';
+import '../../../widgets/avatar_image.dart';
 
 final _log = AppLogger('MomentCardsCarousel');
 
@@ -177,23 +178,12 @@ class _MomentCardsCarouselState extends ConsumerState<MomentCardsCarousel> {
           fit: StackFit.expand,
           children: [
             // ── Hero image (OfflineImage with local-first + network fallback) ──
-            if (heroUrl != null)
-              OfflineImage(
-                localPath: heroMoment.localMediaPath,
-                networkUrl: heroUrl,
-                cacheKey: heroMoment.mediaPath ?? heroMoment.id,
-                fit: BoxFit.cover,
-                errorWidget: Container(
-                  color: AppTheme.borderGray.withValues(alpha: 0.3),
-                  child: Icon(
-                    CupertinoIcons.photo,
-                    color: AppTheme.textGray,
-                    size: 32,
-                  ),
-                ),
-              )
-            else
-              Container(
+            OfflineImage(
+              localPath: heroMoment.localMediaPath,
+              networkUrl: heroUrl,
+              cacheKey: heroMoment.mediaPath ?? heroMoment.id,
+              fit: BoxFit.cover,
+              errorWidget: Container(
                 color: AppTheme.borderGray.withValues(alpha: 0.3),
                 child: Icon(
                   CupertinoIcons.photo,
@@ -201,6 +191,7 @@ class _MomentCardsCarouselState extends ConsumerState<MomentCardsCarousel> {
                   size: 32,
                 ),
               ),
+            ),
 
             // ── Gradient scrim at bottom ──
             Positioned(
@@ -354,34 +345,59 @@ class _MomentCardsCarouselState extends ConsumerState<MomentCardsCarousel> {
   // ─── Avatar stack ───────────────────────────────────────────────
 
   Widget _buildAvatarStack(List<Moment> moments) {
-    final userIds = moments
+    final allUserIds = moments
         .where((m) => m.userId != null)
         .map((m) => m.userId!)
         .toSet()
-        .take(3)
         .toList();
 
-    if (userIds.isEmpty) return const SizedBox.shrink();
+    if (allUserIds.isEmpty) return const SizedBox.shrink();
+
+    const maxVisible = 6;
+    final visibleIds = allUserIds.take(maxVisible).toList();
+    final overflowCount = allUserIds.length - visibleIds.length;
+    final totalItems = visibleIds.length + (overflowCount > 0 ? 1 : 0);
 
     return SizedBox(
       height: 28,
-      width: 28.0 + (userIds.length - 1) * 16.0,
+      width: 28.0 + (totalItems - 1) * 16.0,
       child: Stack(
-        children: List.generate(userIds.length, (i) {
-          return Positioned(
-            left: i * 16.0,
-            child: _buildMiniAvatar(userIds[i]),
-          );
-        }),
+        children: [
+          ...List.generate(visibleIds.length, (i) {
+            return Positioned(
+              left: i * 16.0,
+              child: _buildMiniAvatar(visibleIds[i]),
+            );
+          }),
+          if (overflowCount > 0)
+            Positioned(
+              left: visibleIds.length * 16.0,
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  color: Colors.grey.shade700,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '+$overflowCount',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 
   Widget _buildMiniAvatar(String userId) {
-    // Use avatar cache service for URL resolution
-    final avatarCache = ref.read(avatarCacheServiceProvider);
-    final avatarUrl = avatarCache.getAvatarUrlSync(userId);
-
     return Container(
       width: 28,
       height: 28,
@@ -391,14 +407,14 @@ class _MomentCardsCarouselState extends ConsumerState<MomentCardsCarousel> {
         color: AppTheme.primaryBlue.withValues(alpha: 0.3),
       ),
       child: ClipOval(
-        child: avatarUrl != null
-            ? Image(
-                image:
-                    avatarCache.getAvatarImageProvider(avatarUrl) ??
-                    const AssetImage('assets/images/default_avatar.png'),
-                fit: BoxFit.cover,
-              )
-            : const SizedBox.shrink(),
+        child: AvatarImage(
+          userId: userId,
+          size: 28,
+          borderWidth: 0,
+          backgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.3),
+          placeholder: const SizedBox.shrink(),
+          errorWidget: const SizedBox.shrink(),
+        ),
       ),
     );
   }

@@ -17,6 +17,10 @@ import '../providers/add_moment_state.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../../data/models/profile.dart';
+import '../../../widgets/invite_contributors_sheet.dart';
 
 class AddMomentPage extends ConsumerStatefulWidget {
   final double? initialLatitude;
@@ -54,6 +58,9 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
 
   // Music state
   MusicData? _selectedMusic;
+
+  // Contributors to invite after creation (public moments only)
+  final List<Profile> _selectedContributors = [];
 
   @override
   void initState() {
@@ -600,6 +607,12 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
                     ),
                   ),
 
+                  const SizedBox(height: 24),
+
+                  // Contributors Section (only for public moments)
+                  if (!state.isGroupPrivate)
+                    _buildContributorsSection(),
+
                   const SizedBox(height: 32),
 
                   const SizedBox(height: 48), // Bottom padding
@@ -834,6 +847,150 @@ class _AddMomentPageState extends ConsumerState<AddMomentPage> {
           else
             _buildRecordButton(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildContributorsSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'CONTRIBUTORS',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textDark,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Invite friends to add photos to this moment',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Colors.black45,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Selected contributors chips
+          if (_selectedContributors.isNotEmpty) ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _selectedContributors.map((profile) {
+                return Chip(
+                  avatar: CircleAvatar(
+                    radius: 14,
+                    backgroundColor: Colors.grey[200],
+                    backgroundImage: profile.avatarUrl != null
+                        ? CachedNetworkImageProvider(profile.avatarUrl!)
+                        : null,
+                    child: profile.avatarUrl == null
+                        ? Text(
+                            (profile.displayName ?? profile.username ?? 'U')
+                                .substring(0, 1)
+                                .toUpperCase(),
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          )
+                        : null,
+                  ),
+                  label: Text(
+                    profile.displayName ?? profile.username ?? 'User',
+                    style: GoogleFonts.inter(fontSize: 13),
+                  ),
+                  deleteIcon: const Icon(Icons.close, size: 16),
+                  onDeleted: () {
+                    setState(() {
+                      _selectedContributors.removeWhere((p) => p.id == profile.id);
+                    });
+                  },
+                  backgroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide(color: Colors.grey.shade300),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // Add contributors button
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: _showAddContributorsSheet,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Row(
+                  children: [
+                    HugeIcon(
+                      icon: HugeIcons.strokeRoundedUserAdd01,
+                      size: 20,
+                      color: AppTheme.primaryBlue,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Add Contributors',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.textDark,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey[400],
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddContributorsSheet() {
+    HapticService.lightTap();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => InviteContributorsSheet(
+          momentId: '',
+          existingContributorIds:
+              _selectedContributors.map((p) => p.id).toList(),
+          onInvite: (profiles) {
+            setState(() {
+              for (final profile in profiles) {
+                if (!_selectedContributors.any((p) => p.id == profile.id)) {
+                  _selectedContributors.add(profile);
+                }
+              }
+            });
+          },
+        ),
       ),
     );
   }

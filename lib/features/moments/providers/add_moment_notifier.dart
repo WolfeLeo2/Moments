@@ -25,14 +25,14 @@ class AddMoment extends _$AddMoment {
   @override
   AddMomentState build() => const AddMomentState();
 
-  void initialize({
+  Future<void> initialize({
     double? initialLatitude,
     double? initialLongitude,
     String? imagePath,
     List<String>? imagePaths,
     bool isVideo = false,
     int? videoDuration,
-  }) {
+  }) async {
     List<File> initialImages = [];
     if (imagePaths != null && imagePaths.isNotEmpty) {
       initialImages.addAll(imagePaths.map((path) => File(path)));
@@ -47,6 +47,9 @@ class AddMoment extends _$AddMoment {
       latitude: initialLatitude,
       longitude: initialLongitude,
     );
+
+    // Immediately persist initial files
+    _persistCurrentFiles();
 
     // If no location provided, fetch it
     if (initialLatitude == null || initialLongitude == null) {
@@ -188,6 +191,8 @@ class AddMoment extends _$AddMoment {
           imageFiles: [...state.imageFiles, ...newFiles],
           errorMessage: null,
         );
+        // Persist newly added files
+        _persistCurrentFiles();
       }
     } catch (e) {
       state = state.copyWith(errorMessage: 'Failed to pick images: $e');
@@ -206,6 +211,8 @@ class AddMoment extends _$AddMoment {
           imageFiles: [...state.imageFiles, File(photo.path)],
           errorMessage: null,
         );
+        // Persist newly added file
+        _persistCurrentFiles();
       }
     } catch (e) {
       state = state.copyWith(errorMessage: 'Failed to take picture: $e');
@@ -249,6 +256,53 @@ class AddMoment extends _$AddMoment {
     }
 
     state = state.copyWith(imageFiles: newFiles);
+    _persistCurrentFiles(); // Ensure edited files are also persisted
+  }
+
+  /// Copies all current files to the app's persistent storage to prevent loss (e.g. cache cleanup)
+  Future<void> _persistCurrentFiles() async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final mediaDir = Directory('${appDir.path}/media_uploads');
+      if (!await mediaDir.exists()) {
+        await mediaDir.create(recursive: true);
+      }
+
+      final updatedFiles = <File>[];
+      bool changed = false;
+
+      for (final file in state.imageFiles) {
+        final fileName = p.basename(file.path);
+
+        // If already in media_uploads, keep it
+        if (file.path.startsWith(mediaDir.path)) {
+          updatedFiles.add(file);
+          continue;
+        }
+
+        // Otherwise copy it
+        if (await file.exists()) {
+          final newPath =
+              '${mediaDir.path}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+          final newFile = await file.copy(newPath);
+          updatedFiles.add(newFile);
+          changed = true;
+          _log.i('Persisted file for safety: ${file.path} -> $newPath');
+        } else {
+          // File lost? Keep original path and hope for the best, or warn?
+          // If we can't find it now, we likely won't find it later, but let's keep it in state
+          // so the user sees something is wrong (or maybe it exists but await failed?)
+          _log.w('Could not find file to persist: ${file.path}');
+          updatedFiles.add(file);
+        }
+      }
+
+      if (changed) {
+        state = state.copyWith(imageFiles: updatedFiles);
+      }
+    } catch (e) {
+      _log.e('Error persisting files: $e');
+    }
   }
 
   Future<bool> createMoment({
@@ -273,37 +327,16 @@ class AddMoment extends _$AddMoment {
     state = state.copyWith(status: AddMomentStatus.loading, errorMessage: null);
 
     try {
-      // PERSISTENCE FIX: Copy cached files to app document directory
-      final appDir = await getApplicationDocumentsDirectory();
-      final mediaDir = Directory('${appDir.path}/media_uploads');
-      if (!await mediaDir.exists()) {
-        await mediaDir.create(recursive: true);
-      }
-
-      final persistedFiles = <File>[];
+      // Ensure all files exist before upload (validation)
       for (final file in state.imageFiles) {
-        if (await file.exists()) {
-          final fileName = p.basename(file.path);
-          // Check if already in our directory
-          if (file.path.startsWith(mediaDir.path)) {
-            persistedFiles.add(file);
-            continue;
-          }
-          final newPath =
-              '${mediaDir.path}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
-          final newFile = await file.copy(newPath);
-          persistedFiles.add(newFile);
-        } else {
-          _log.w('File not found (likely undefined cache): ${file.path}');
+        if (!await file.exists()) {
+          state = state.copyWith(
+            status: AddMomentStatus.error,
+            errorMessage:
+                'Media file unavailable: ${p.basename(file.path)}. Please re-select.',
+          );
+          return false;
         }
-      }
-
-      if (persistedFiles.length != state.imageFiles.length) {
-        state = state.copyWith(
-          status: AddMomentStatus.error,
-          errorMessage: 'Media files unavailable. Please select again.',
-        );
-        return false;
       }
 
       // Upload audio note if present
@@ -318,9 +351,9 @@ class AddMoment extends _$AddMoment {
       }
 
       // If single media (could be video or single image)
-      if (persistedFiles.length == 1) {
+      if (state.imageFiles.length == 1) {
         await _momentRepository.createMoment(
-          persistedFiles.first,
+          state.imageFiles.first,
           title,
           caption,
           state.locationName ?? 'Unknown Location',
@@ -343,7 +376,7 @@ class AddMoment extends _$AddMoment {
         );
 
         await _momentRepository.createMomentsBatch(
-          persistedFiles,
+          state.imageFiles,
           title,
           caption,
           state.locationName ?? 'Unknown Location',

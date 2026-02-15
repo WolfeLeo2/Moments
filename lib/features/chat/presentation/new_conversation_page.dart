@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/providers/providers.dart';
@@ -5,7 +6,6 @@ import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/features/chat/presentation/chat_page.dart';
 import 'package:moments/features/chat/providers/chat_providers.dart';
 import 'package:moments/data/models/profile.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -99,8 +99,8 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
                   ),
                   prefixIcon: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: FaIcon(
-                      FontAwesomeIcons.magnifyingGlass,
+                    child: Icon(
+                      CupertinoIcons.search,
                       color: Colors.grey[400],
                       size: 20,
                     ),
@@ -163,7 +163,7 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
                           return SliverToBoxAdapter(
                             child: _buildSection(
                               title: 'Recent',
-                              icon: FontAwesomeIcons.clockRotateLeft,
+                              icon: CupertinoIcons.rotate_left,
                               child: _buildHorizontalFriendsList(recentFriends),
                             ),
                           );
@@ -186,8 +186,8 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
                                 ),
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: FaIcon(
-                                FontAwesomeIcons.userGroup,
+                              child: Icon(
+                                CupertinoIcons.person_3,
                                 size: 14,
                                 color: AppTheme.primaryBlue,
                               ),
@@ -248,8 +248,8 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    FaIcon(
-                      FontAwesomeIcons.triangleExclamation,
+                    Icon(
+                      CupertinoIcons.exclamationmark_triangle,
                       size: 48,
                       color: Colors.grey[400],
                     ),
@@ -292,7 +292,7 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
                     color: AppTheme.brightYellow.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: FaIcon(icon, size: 14, color: AppTheme.textDark),
+                  child: Icon(icon, size: 14, color: AppTheme.textDark),
                 ),
                 const SizedBox(width: 10),
                 Text(
@@ -343,8 +343,8 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
                 color: Colors.grey[100],
                 shape: BoxShape.circle,
               ),
-              child: FaIcon(
-                FontAwesomeIcons.userGroup,
+              child: Icon(
+                CupertinoIcons.person_3,
                 size: 48,
                 color: Colors.grey[400],
               ),
@@ -383,8 +383,8 @@ class _NewConversationPageState extends ConsumerState<NewConversationPage> {
                 color: Colors.grey[100],
                 shape: BoxShape.circle,
               ),
-              child: FaIcon(
-                FontAwesomeIcons.magnifyingGlass,
+              child: Icon(
+                CupertinoIcons.search,
                 size: 40,
                 color: Colors.grey[400],
               ),
@@ -553,8 +553,8 @@ class _FriendListTile extends ConsumerWidget {
                     color: AppTheme.primaryBlue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: FaIcon(
-                    FontAwesomeIcons.paperPlane,
+                  child: Icon(
+                    CupertinoIcons.paperplane,
                     size: 16,
                     color: AppTheme.primaryBlue,
                   ),

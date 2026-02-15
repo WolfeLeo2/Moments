@@ -40,7 +40,10 @@ import '../../../core/providers/moments_providers.dart';
 import '../../../core/providers/database_provider.dart';
 import 'add_moment_page.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('MomentDetails');
 /// Details page showing moments in a carousel with spring animations
 class MomentDetailsPage extends ConsumerStatefulWidget {
   const MomentDetailsPage({
@@ -68,12 +71,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
   int _currentPage = 0;
   String? _groupId;
-  double _headerOpacity = 0.0;
-  late SingleMotionController _headerOpacityController;
-  double _headerScale = 0.85; // Match carousel initial scale
-  // Motor spring controllers for header elements
-  late SingleMotionController _headerScaleController;
-
   final Map<String, String> _imageUrls = {};
   bool _isGroupPrivate = false;
   bool _isLikeAnimation = true; // true = like, false = dislike
@@ -106,8 +103,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   @override
   void dispose() {
     _videoManager.disposeAll();
-    _headerScaleController.dispose();
-    _headerOpacityController.dispose();
     for (var controller in _scaleControllers) {
       controller.dispose();
     }
@@ -129,6 +124,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
     _groupId = uniqueGroupIds.length == 1 ? uniqueGroupIds.first : null;
     _currentPage = widget.initialPage;
+
     _videoManager = VideoControllerManager(
       onControllerReady: () {
         if (mounted) setState(() {});
@@ -138,7 +134,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     _loadUserAvatars();
     _loadAllPhotoHeartStatuses();
     _loadContributors();
-    _setupHeaderAnimations();
     _setupSpringAnimations();
   }
 
@@ -245,7 +240,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         _loadMissingUserNames();
       }
     } catch (e) {
-      debugPrint('Failed to load contributors: $e');
+      _log.e('Failed to load contributors: $e');
     }
   }
 
@@ -276,7 +271,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         });
       }
     } catch (e) {
-      debugPrint('Error loading user names: $e');
+      _log.e('Error loading user names: $e');
     }
   }
 
@@ -302,7 +297,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                 friendId: profile.id,
               );
             } catch (e) {
-              debugPrint('Failed to invite ${profile.username}: $e');
+              _log.e('Failed to invite ${profile.username}: $e');
             }
           }
           // Reload contributors
@@ -418,46 +413,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     }
   }
 
-  void _setupHeaderAnimations() {
-    // Header scale animation - start from 0.85 like carousel cards
-    _headerScaleController = SingleMotionController(
-      vsync: this,
-      initialValue: 0.85,
-      motion: const MaterialSpringMotion.expressiveSpatialFast(),
-    );
-
-    _headerScaleController.addListener(() {
-      if (mounted) {
-        setState(() {
-          _headerScale = _headerScaleController.value;
-        });
-      }
-    });
-
-    // Header opacity animation
-    _headerOpacityController = SingleMotionController(
-      vsync: this,
-      initialValue: 0.0,
-      motion: const MaterialSpringMotion.expressiveSpatialFast(),
-    );
-
-    _headerOpacityController.addListener(() {
-      if (mounted) {
-        setState(() {
-          _headerOpacity = _headerOpacityController.value.clamp(0.0, 1.0);
-        });
-      }
-    });
-
-    // Animate header first (before cards)
-    Future.delayed(const Duration(milliseconds: 50), () {
-      if (mounted) {
-        _headerScaleController.animateTo(1.0);
-        _headerOpacityController.animateTo(1.0);
-      }
-    });
-  }
-
   void _setupSpringAnimations() {
     // Create Motor spring animations for each card using Material Design 3 tokens
     for (int i = 0; i < _moments.length; i++) {
@@ -506,7 +461,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             opacityController.animateTo(1.0);
           } catch (e) {
             // Controller might be disposed if page was closed/reloaded rapidly
-            debugPrint('Animation controller validation error: $e');
+            _log.e('Animation controller validation error: $e');
           }
         }
       });
@@ -659,7 +614,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         _checkAllSavedOffline();
       }
     } catch (e) {
-      debugPrint('Error loading signed URLs: $e');
+      _log.e('Error loading signed URLs: $e');
     }
   }
 
@@ -804,7 +759,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         });
       }
     } catch (e) {
-      debugPrint('Error loading user avatars: $e');
+      _log.e('Error loading user avatars: $e');
     }
   }
 
@@ -827,7 +782,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         });
       }
     } catch (e) {
-      debugPrint('Error loading photo heart status: $e');
+      _log.e('Error loading photo heart status: $e');
     }
   }
 
@@ -870,7 +825,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         });
       }
     } catch (e) {
-      debugPrint('Error toggling photo heart: $e');
+      _log.e('Error toggling photo heart: $e');
     }
   }
 
@@ -1225,7 +1180,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     try {
       await ref.read(appDatabaseProvider).deleteMoment(moment.id);
     } catch (e) {
-      debugPrint('Failed to delete from local storage: $e');
+      _log.e('Failed to delete from local storage: $e');
     }
   }
 
@@ -1777,194 +1732,253 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
   // ─── HEADER ───────────────────────────────────────────────────────
 
-  Widget _buildAppBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
+  /// Action buttons (share + save) used in the app bar
+  List<Widget> _buildAppBarActions() {
+    return [
+      IconButton(
+        onPressed: () {
+          if (_moments.isEmpty) return;
+          HapticService.lightTap();
+          final m = _moments[_currentPage];
+          ShareBottomSheet.show(
+            context: context,
+            moment: m,
+            imageUrl: _imageUrls[m.id],
+            localImagePath: _localPaths[m.id],
+          );
+        },
+        icon: HugeIcon(
+          icon: HugeIcons.strokeRoundedShare01,
+          size: 22.sp,
+          color: AppTheme.textDark,
+        ),
+      ),
+      IconButton(
+        onPressed: _isSavingOffline ? null : _saveAllOffline,
+        icon: _isSavingOffline
+            ? SizedBox(
+                width: 22.w,
+                height: 22.w,
+                child: const CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppTheme.primaryBlue,
+                ),
+              )
+            : HugeIcon(
+                icon: _allSavedOffline
+                    ? HugeIcons.strokeRoundedCheckmarkCircle02
+                    : HugeIcons.strokeRoundedDownloadCircle02,
+                size: 22.sp,
+                color: _allSavedOffline ? Colors.green : AppTheme.textDark,
+              ),
+        tooltip: _allSavedOffline ? 'Saved offline' : 'Save offline',
+      ),
+    ];
+  }
+
+  Widget _buildSummaryCard() {
+    final momentCount = _moments.length;
+    final locationAddress = widget.locationName;
+    final hasAddress = locationAddress.isNotEmpty;
+    final dateRange = _getDateRange();
+    final title = _moments.isNotEmpty ? _moments.first.title : 'Moments';
+
+    return GestureDetector(
+      onLongPress: () {
+        if (_moments.isNotEmpty && _isOwnMoment(_moments[_currentPage])) {
+          HapticService.mediumTap();
+          _showTitlePrivacyMenu();
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 20),
+            // ── Editorial title ──
+            if (_moments.isNotEmpty && _moments[_currentPage].isPrivate)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: GestureDetector(
+                  onTap: () => _showPrivacyDropdown(
+                    context, _moments[_currentPage], _currentPage),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppTheme.emergencyRed.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        HugeIcon(
+                          icon: HugeIcons.strokeRoundedSquareLock02,
+                          size: 13,
+                          color: AppTheme.emergencyRed,
+                        ),
+                        const SizedBox(width: 4),
+                        Text('Private', style: GoogleFonts.inter(
+                          fontSize: 11, fontWeight: FontWeight.w600,
+                          color: AppTheme.emergencyRed)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            Text(
+              title,
+              style: GoogleFonts.inter(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.textDark,
+                letterSpacing: -0.8,
+                height: 1.15,
+              ),
+            ),
+            const SizedBox(height: 10),
+            // ── Metadata line ──
+            Wrap(
+              spacing: 16,
+              runSpacing: 6,
+              children: [
+                _buildMetaItem(CupertinoIcons.calendar, dateRange),
+                _buildMetaItem(CupertinoIcons.photo_on_rectangle,
+                    '$momentCount moment${momentCount == 1 ? '' : 's'}'),
+                if (hasAddress)
+                  _buildMetaItem(CupertinoIcons.location_solid, locationAddress),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // ── Thin divider ──
+            Container(
+              height: 0.5,
+              color: AppTheme.borderGray.withValues(alpha: 0.6),
+            ),
+            const SizedBox(height: 14),
+            // ── Contributors row ──
+            _buildContributorRowInline(),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetaItem(IconData icon, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: AppTheme.textGray),
+        const SizedBox(width: 5),
+        Text(
+          text,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: AppTheme.textGray,
+            height: 1.3,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContributorRowInline() {
+    if (_getAvatarsToDisplay().isEmpty && _contributors.isEmpty && !_isOwner) {
+      return const SizedBox.shrink();
+    }
+
+    return GestureDetector(
+      onTap: _showContributorsModal,
       child: Row(
         children: [
-          IconButton(
-            icon: SvgPicture.asset(
-              'assets/icons/Left arrow.svg',
-              width: 34.w,
-              height: 34.h,
-            ),
-            onPressed: () => Navigator.pop(context),
-          ),
-          Expanded(
-            child: GestureDetector(
-              onLongPress: () {
-                if (_moments.isNotEmpty &&
-                    _isOwnMoment(_moments[_currentPage])) {
-                  HapticService.mediumTap();
-                  _showTitlePrivacyMenu();
-                }
-              },
-              child: Column(
+          if (_getAvatarsToDisplay().isNotEmpty)
+            _buildAvatarStack()
+          else if (_isOwner)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppTheme.primaryBlue.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_moments.isNotEmpty &&
-                          _moments[_currentPage].isPrivate)
-                        GestureDetector(
-                          onTap: () => _showPrivacyDropdown(
-                            context,
-                            _moments[_currentPage],
-                            _currentPage,
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 6.0),
-                            child: HugeIcon(
-                              icon: HugeIcons.strokeRoundedSquareLock02,
-                              size: 20,
-                              color: AppTheme.emergencyRed,
-                            ),
-                          ),
-                        ),
-                      Flexible(
-                        child: Text(
-                          _moments.isNotEmpty
-                              ? _moments.first.title.toUpperCase()
-                              : 'MOMENT',
-                          style: GoogleFonts.bebasNeue(
-                            textStyle: Theme.of(
-                              context,
-                            ).textTheme.headlineMedium,
-                            letterSpacing: 1.5.sp,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black,
-                            height: 1.2.h,
-                          ),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedUserAdd01,
+                    size: 16,
+                    color: AppTheme.primaryBlue,
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        CupertinoIcons.placemark_fill,
-                        size: 12,
-                        color: AppTheme.primaryBlue,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        widget.locationName,
-                        style: GoogleFonts.inter(
-                          textStyle: Theme.of(context).textTheme.bodyMedium,
-                          fontWeight: FontWeight.w500,
-                          color: AppTheme.primaryBlue,
-                          letterSpacing: 1,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                  const SizedBox(width: 6),
+                  Text(
+                    'Invite friends',
+                    style: GoogleFonts.inter(
+                      textStyle: Theme.of(context).textTheme.bodySmall,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.primaryBlue,
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
-          IconButton(
-            onPressed: _isSavingOffline ? null : _saveAllOffline,
-            icon: _isSavingOffline
-                ? SizedBox(
-                    width: 24.w,
-                    height: 24.w,
-                    child: const CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppTheme.primaryBlue,
-                    ),
-                  )
-                : HugeIcon(
-                    icon: _allSavedOffline
-                        ? HugeIcons.strokeRoundedCheckmarkCircle02
-                        : HugeIcons.strokeRoundedDownloadCircle02,
-                    size: 24.sp,
-                    color: _allSavedOffline ? Colors.green : AppTheme.textDark,
-                  ),
-            tooltip: _allSavedOffline ? 'Saved offline' : 'Save offline',
-          ),
+          if (_contributors.length > 1) ...[
+            const SizedBox(width: 8),
+            Text(
+              '+${_contributors.length - 1}',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textGray,
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildMetaRow() {
+  Widget _buildSectionCard({
+    required String title,
+    required Widget child,
+    bool edgeToEdge = false,
+  }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Text(
-        '${_moments.length} ${_moments.length == 1 ? 'photo' : 'photos'}  •  ${_getDateRange()}',
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: AppTheme.textDark,
-          letterSpacing: 0.3,
-        ),
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
-
-  Widget _buildContributorRow() {
-    if (_getAvatarsToDisplay().isEmpty && _contributors.isEmpty && !_isOwner) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: GestureDetector(
-        onTap: _showContributorsModal,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_getAvatarsToDisplay().isNotEmpty)
-              _buildAvatarStack()
-            else if (_isOwner)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryBlue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppTheme.primaryBlue.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    HugeIcon(
-                      icon: HugeIcons.strokeRoundedUserAdd01,
-                      size: 16,
-                      color: AppTheme.primaryBlue,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Invite friends',
-                      style: GoogleFonts.inter(
-                        textStyle: Theme.of(context).textTheme.bodySmall,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.primaryBlue,
-                      ),
-                    ),
-                  ],
-                ),
+      padding: EdgeInsets.symmetric(
+        horizontal: edgeToEdge ? 0 : 24, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: edgeToEdge ? 20 : 0),
+            child: Container(
+              height: 0.5,
+              color: AppTheme.borderGray.withValues(alpha: 0.5),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: edgeToEdge ? 20 : 0),
+            child: Text(
+              title.toUpperCase(),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.5,
+                color: AppTheme.textGray,
               ),
-            if (_contributors.length > 1) ...[
-              const SizedBox(width: 8),
-              HugeIcon(
-                icon: HugeIcons.strokeRoundedArrowRight02,
-                size: 16,
-                color: Colors.grey,
-              ),
-            ],
-          ],
-        ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          child,
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }
@@ -2004,7 +2018,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     final opacity = index < _opacities.length
         ? _opacities[index].clamp(0.0, 1.0)
         : 0.0;
-    final rotation = (((index * 37) % 5) - 2) * 0.5;
+    final rotation = 0.0; // Clean editorial style — no rotation
 
     return GestureDetector(
       onTap: () => _openRelive(index),
@@ -2112,21 +2126,19 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   Widget _buildImageCard(Moment moment, String? imageUrl, int index) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white, width: 4),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 28,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: AspectRatio(
         aspectRatio: 4 / 5,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(20),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -2282,7 +2294,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     final hasMusic = _moments.any((m) => m.musicData != null);
 
     // Carousel gets most of the screen height
-    final carouselHeight = screenHeight * 0.55;
+    final carouselHeight = screenHeight * 0.52;
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBeige,
@@ -2291,38 +2303,30 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
-            // Pinned app bar – stays visible while scrolling
+            // Collapsing SliverAppBar — expands to show location, collapses to compact bar
             SliverAppBar(
-              pinned: true,
+              pinned: false,
+              floating: true,
+              snap: true,
               automaticallyImplyLeading: false,
               backgroundColor: AppTheme.backgroundBeige,
               surfaceTintColor: Colors.transparent,
               elevation: 0,
-              scrolledUnderElevation: 0,
-              toolbarHeight: 76,
-              titleSpacing: 0,
-              title: Transform.scale(
-                scale: _headerScale.clamp(0.01, 1.0),
-                child: Opacity(
-                  opacity: _headerOpacity.clamp(0.0, 1.0),
-                  child: _buildAppBar(),
-                ),
-              ),
-            ),
-            // Scrollable meta and contributor info
-            SliverToBoxAdapter(
-              child: Transform.scale(
-                scale: _headerScale.clamp(0.01, 1.0),
-                child: Opacity(
-                  opacity: _headerOpacity.clamp(0.0, 1.0),
-                  child: Column(
-                    children: [_buildMetaRow(), _buildContributorRow()],
+              scrolledUnderElevation: 0.5,
+              
+              leading: Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: IconButton(
+                  icon: SvgPicture.asset(
+                    'assets/icons/Left arrow.svg',
+                    width: 34.w,
+                    height: 34.h,
                   ),
+                  onPressed: () => Navigator.pop(context),
                 ),
               ),
+              actions: _buildAppBarActions(),
             ),
-            // Music section above carousel
-            if (hasMusic) SliverToBoxAdapter(child: _buildMusicSection()),
             // Carousel with fixed height
             SliverToBoxAdapter(
               child: SizedBox(
@@ -2330,37 +2334,44 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
                 child: _buildCarousel(carouselHeight, 0),
               ),
             ),
-            // Date + hint text below carousel
+            // Editorial metadata section below carousel
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  children: [
-                    Text(
-                      _getDateRange(),
-                      style: GoogleFonts.inter(
-                        textStyle: Theme.of(context).textTheme.bodyMedium,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.textGray,
-                      ),
-                    ),
-                    Text(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSummaryCard(),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 24, bottom: 8),
+                    child: Text(
                       'Tap to relive  •  Double-tap to ♥',
                       style: GoogleFonts.inter(
-                        textStyle: Theme.of(context).textTheme.bodySmall,
+                        fontSize: 12,
                         fontWeight: FontWeight.w400,
-                        color: AppTheme.textGray.withValues(alpha: 0.8),
+                        color: AppTheme.textGray.withValues(alpha: 0.45),
                         fontStyle: FontStyle.italic,
                       ),
                     ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
             // Audio notes section at bottom
+            if (hasMusic)
+              SliverToBoxAdapter(
+                child: _buildSectionCard(
+                  title: 'Soundtrack',
+                  child: _buildMusicSection(),
+                  edgeToEdge: true,
+                ),
+              ),
             if (hasAudioNotes)
-              SliverToBoxAdapter(child: _buildAudioNotesSection()),
+              SliverToBoxAdapter(
+                child: _buildSectionCard(
+                  title: 'Audio Notes',
+                  child: _buildAudioNotesSection(),
+                  edgeToEdge: true,
+                ),
+              ),
             SliverToBoxAdapter(child: SizedBox(height: 80 + bottomPadding)),
           ],
         ),
@@ -2438,13 +2449,16 @@ class _MomentDetailsFABState extends State<_MomentDetailsFAB>
       onTap: onTap,
       scaleFactor: 0.9,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: color,
-          border: Border.all(color: Colors.black, width: 2),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: const [
-            BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: Row(
@@ -2533,12 +2547,11 @@ class _MomentDetailsFABState extends State<_MomentDetailsFAB>
             decoration: BoxDecoration(
               color: AppTheme.primaryBlue,
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.black, width: 2.5),
-              boxShadow: const [
+              boxShadow: [
                 BoxShadow(
-                  color: Colors.black,
-                  offset: Offset(3, 3),
-                  blurRadius: 0,
+                  color: AppTheme.primaryBlue.withValues(alpha: 0.35),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),

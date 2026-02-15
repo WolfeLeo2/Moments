@@ -28,6 +28,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:icon_button_m3e/icon_button_m3e.dart';
 
 import 'package:moments/core/services/firebase_messaging_service.dart';
+import 'package:moments/core/services/app_logger.dart';
+
+final _log = AppLogger('ChatPage');
 
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({
@@ -351,7 +354,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
         }
       }
     } catch (e) {
-      debugPrint('Error picking media: $e');
+      _log.e('Error picking media: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -397,7 +400,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
         await _sendImageMessage(conversationId, File(pickedFile.path));
       }
     } catch (e) {
-      debugPrint('Error picking camera image: $e');
+      _log.e('Error picking camera image: $e');
     }
   }
 

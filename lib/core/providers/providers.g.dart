@@ -493,7 +493,7 @@ final class NotificationsListProvider
   NotificationsList create() => NotificationsList();
 }
 
-String _$notificationsListHash() => r'be19e8986ce7d2ec8922579223fa61991f4a0f4b';
+String _$notificationsListHash() => r'f83251bcce82ac7827e3b9f94c87d9e32f198d83';
 
 /// Provider for the list of notifications with pagination support
 /// No auto-mark-as-read, user must interact with notifications to mark them read
@@ -613,6 +613,50 @@ final class PendingRequestsProvider
 }
 
 String _$pendingRequestsHash() => r'37d33371cb6118f599f3c7591cdc90bc39781618';
+
+/// Sent friend requests (outgoing, awaiting response)
+
+@ProviderFor(sentRequests)
+const sentRequestsProvider = SentRequestsProvider._();
+
+/// Sent friend requests (outgoing, awaiting response)
+
+final class SentRequestsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<Friendship>>,
+          List<Friendship>,
+          FutureOr<List<Friendship>>
+        >
+    with $FutureModifier<List<Friendship>>, $FutureProvider<List<Friendship>> {
+  /// Sent friend requests (outgoing, awaiting response)
+  const SentRequestsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'sentRequestsProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$sentRequestsHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<List<Friendship>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<Friendship>> create(Ref ref) {
+    return sentRequests(ref);
+  }
+}
+
+String _$sentRequestsHash() => r'069ed7f328a03ba18d520a5104967da620bea387';
 
 /// Get a friend's profile by ID - cached per user to prevent API spam
 

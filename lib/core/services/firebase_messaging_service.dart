@@ -6,11 +6,15 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:moments/firebase_options.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:moments/core/services/app_logger.dart';
+import 'package:moments/core/services/chat_encryption_service.dart';
 
+final _log = AppLogger('FCM');
 // Action keys
 const String _actionReply = 'REPLY';
 const String _actionMarkRead = 'MARK_READ';
@@ -23,18 +27,25 @@ const String _supabaseAnonKey =
 // Top-level function for background messages
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  debugPrint("Handling a background message: ${message.messageId}");
+  _log.d("Handling a background message: ${message.messageId}");
 
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
+    // Load env vars for encryption key
+    try {
+      await dotenv.load(fileName: ".env");
+    } catch (_) {
+      _log.w("Failed to load .env in background handler");
+    }
+
     try {
       await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseAnonKey);
     } catch (_) {}
   } catch (e) {
-    debugPrint("Failed to initialize background services: $e");
+    _log.e("Failed to initialize background services: $e");
   }
 
   await FirebaseMessagingService.showRichNotification(message);
@@ -43,10 +54,10 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 // Top-level handler for notification actions (required for background)
 @pragma('vm:entry-point')
 Future<void> _notificationActionHandler(NotificationResponse response) async {
-  debugPrint('=== BACKGROUND ACTION HANDLER TRIGGERED ===');
-  debugPrint('ActionId: ${response.actionId}');
-  debugPrint('Input: ${response.input}');
-  debugPrint('Payload: ${response.payload}');
+  _log.d('=== BACKGROUND ACTION HANDLER TRIGGERED ===');
+  _log.d('ActionId: ${response.actionId}');
+  _log.d('Input: ${response.input}');
+  _log.d('Payload: ${response.payload}');
 
   // Initialize services first
   try {
@@ -54,6 +65,13 @@ Future<void> _notificationActionHandler(NotificationResponse response) async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
   } catch (_) {}
+
+  // Load env vars for encryption key
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {
+    _log.w("Failed to load .env in action handler");
+  }
 
   try {
     await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseAnonKey);
@@ -199,11 +217,11 @@ class FirebaseMessagingService {
     final payload = response.payload;
     final inputText = response.input;
 
-    debugPrint('Action received - id: $actionId, input: $inputText');
-    debugPrint('Payload: $payload');
+    _log.d('Action received - id: $actionId, input: $inputText');
+    _log.d('Payload: $payload');
 
     if (payload == null) {
-      debugPrint('No payload, cannot process action');
+      _log.d('No payload, cannot process action');
       return;
     }
 
@@ -212,10 +230,10 @@ class FirebaseMessagingService {
     final conversationId = data['related_id'];
 
     // Debug info
-    debugPrint('Parsed conversationId: $conversationId');
+    _log.d('Parsed conversationId: $conversationId');
 
     if (conversationId == null) {
-      debugPrint('No conversation ID in payload');
+      _log.d('No conversation ID in payload');
       return;
     }
 
@@ -226,6 +244,11 @@ class FirebaseMessagingService {
       );
     } catch (_) {}
 
+    // Load env vars for encryption key (just in case not loaded yet)
+    try {
+      await dotenv.load(fileName: ".env");
+    } catch (_) {}
+
     try {
       await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseAnonKey);
     } catch (_) {}
@@ -233,10 +256,10 @@ class FirebaseMessagingService {
     final supabase = Supabase.instance.client;
     final currentUserId = supabase.auth.currentUser?.id;
 
-    debugPrint('Current user ID: $currentUserId');
+    _log.d('Current user ID: $currentUserId');
 
     if (currentUserId == null) {
-      debugPrint('User not authenticated - cannot process action');
+      _log.d('User not authenticated - cannot process action');
       // Still dismiss the notification
       await _localNotifications.cancel(conversationId.hashCode);
       return;
@@ -245,19 +268,19 @@ class FirebaseMessagingService {
     switch (actionId) {
       case _actionReply:
         if (inputText != null && inputText.trim().isNotEmpty) {
-          debugPrint('Sending reply: "$inputText"');
+          _log.d('Sending reply: "$inputText"');
           await _sendReply(supabase, conversationId, currentUserId, inputText);
         } else {
-          debugPrint('Empty reply text');
+          _log.d('Empty reply text');
         }
         break;
       case _actionMarkRead:
-        debugPrint('Marking as read');
+        _log.d('Marking as read');
         await _markAsRead(supabase, conversationId, currentUserId);
         break;
       default:
         // Regular tap - navigate to chat
-        debugPrint('Regular tap, navigating');
+        _log.d('Regular tap, navigating');
         onNotificationTap?.call(data);
     }
   }
@@ -270,13 +293,20 @@ class FirebaseMessagingService {
     String content,
   ) async {
     try {
-      debugPrint('Inserting message to conversation: $conversationId');
+      _log.d('Inserting message to conversation: $conversationId');
+
+      // Encrypt content
+      final encryption = ChatEncryptionService.instance;
+      final encryptedContent = encryption.encrypt(
+        content.trim(),
+        conversationId,
+      );
 
       // Insert the message
       await supabase.from('messages').insert({
         'conversation_id': conversationId,
         'sender_id': senderId,
-        'content': content.trim(),
+        'content': encryptedContent,
         // 'created_at': Let Postgres default to now()
       });
 
@@ -286,13 +316,13 @@ class FirebaseMessagingService {
           .update({'updated_at': DateTime.now().toUtc().toIso8601String()})
           .eq('id', conversationId);
 
-      debugPrint('Reply sent successfully');
+      _log.d('Reply sent successfully');
 
       // Dismiss the notification
       await _localNotifications.cancel(conversationId.hashCode);
     } catch (e, stack) {
-      debugPrint('Error sending reply: $e');
-      debugPrint('Stack: $stack');
+      _log.e('Error sending reply: $e');
+      _log.e('Stack: $stack');
       // Still dismiss the notification even on error
       await _localNotifications.cancel(conversationId.hashCode);
     }
@@ -305,7 +335,7 @@ class FirebaseMessagingService {
     String userId,
   ) async {
     try {
-      debugPrint('Marking messages as read in: $conversationId');
+      _log.d('Marking messages as read in: $conversationId');
 
       // Mark all unread messages from OTHER people as read
       final result = await supabase
@@ -316,13 +346,13 @@ class FirebaseMessagingService {
           .eq('is_read', false)
           .select();
 
-      debugPrint('Mark as read result: ${result.length} messages updated');
+      _log.d('Mark as read result: ${result.length} messages updated');
 
       // Dismiss the notification
       await _localNotifications.cancel(conversationId.hashCode);
     } catch (e, stack) {
-      debugPrint('Error marking as read: $e');
-      debugPrint('Stack: $stack');
+      _log.e('Error marking as read: $e');
+      _log.e('Stack: $stack');
       // Still dismiss the notification even on error
       await _localNotifications.cancel(conversationId.hashCode);
     }
@@ -333,7 +363,7 @@ class FirebaseMessagingService {
       String? token = await _firebaseMessaging.getToken();
       if (token != null) await _saveTokenToDatabase(token);
     } catch (e) {
-      debugPrint("Error getting FCM token: $e");
+      _log.e("Error getting FCM token: $e");
     }
   }
 
@@ -354,7 +384,7 @@ class FirebaseMessagingService {
         return response.bodyBytes;
       }
     } catch (e) {
-      debugPrint('Error downloading avatar: $e');
+      _log.e('Error downloading avatar: $e');
     }
     return null;
   }
@@ -399,7 +429,7 @@ class FirebaseMessagingService {
 
       return byteData?.buffer.asUint8List();
     } catch (e) {
-      debugPrint('Error cropping image to circle: $e');
+      _log.e('Error cropping image to circle: $e');
       return imageBytes; // Return original if cropping fails
     }
   }
@@ -410,11 +440,22 @@ class FirebaseMessagingService {
       final data = message.data;
       final senderName =
           data['actor_name'] as String? ?? data['title'] ?? 'Moments';
-      final body = data['body'] ?? message.notification?.body ?? '';
+      var body = data['body'] ?? message.notification?.body ?? '';
       final avatarUrl =
           data['avatar_url'] as String? ?? data['sender_avatar_url'] as String?;
       final actorId = data['actor_id'] as String?;
       final conversationId = data['related_id'] as String?;
+
+      // Decrypt body if encrypted
+      if (conversationId != null) {
+        final encryption = ChatEncryptionService.instance;
+        // Clean potential encrypted body
+        if (encryption.decrypt(body, conversationId) != body) {
+          body = encryption.decrypt(body, conversationId);
+        } else if (body.startsWith('enc:')) {
+          body = encryption.decrypt(body, conversationId);
+        }
+      }
 
       // Download avatar
       Uint8List? avatarBytes = await _downloadAvatar(avatarUrl);
@@ -464,7 +505,7 @@ class FirebaseMessagingService {
       // Push Dynamic Shortcut for Android 11+ (only for chats)
       if (Platform.isAndroid && conversationId != null && isChat) {
         try {
-          debugPrint(
+          _log.d(
             'Pushing shortcut for $conversationId with avatar bytes: ${avatarBytes?.lengthInBytes}',
           );
           await platform.invokeMethod('pushConversationShortcut', {
@@ -473,7 +514,7 @@ class FirebaseMessagingService {
             'personIconBytes': avatarBytes,
           });
         } catch (e) {
-          debugPrint('Error pushing conversation shortcut: $e');
+          _log.e('Error pushing conversation shortcut: $e');
         }
       }
 
@@ -504,8 +545,15 @@ class FirebaseMessagingService {
               .order('created_at', ascending: true)
               .limit(10);
 
+          final encryption = ChatEncryptionService.instance;
+
           for (final msgData in recentMessagesData) {
-            final content = msgData['content'] as String? ?? '';
+            var content = msgData['content'] as String? ?? '';
+            // Decrypt history content
+            try {
+              content = encryption.decrypt(content, conversationId);
+            } catch (_) {}
+
             final timestamp =
                 DateTime.tryParse(msgData['created_at'].toString()) ??
                 DateTime.now();
@@ -514,7 +562,7 @@ class FirebaseMessagingService {
             messages.add(Message(content, timestamp, isFromMe ? null : sender));
           }
         } catch (e) {
-          debugPrint('Error fetching chat history: $e');
+          _log.e('Error fetching chat history: $e');
         }
 
         if (messages.isEmpty ||
@@ -600,7 +648,7 @@ class FirebaseMessagingService {
         payload: payload,
       );
     } catch (e) {
-      debugPrint('Error showing notification: $e');
+      _log.e('Error showing notification: $e');
     }
   }
 
@@ -616,7 +664,7 @@ class FirebaseMessagingService {
         'last_active_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'fcm_token');
     } catch (e) {
-      debugPrint("Error saving FCM token: $e");
+      _log.e("Error saving FCM token: $e");
     }
   }
 }

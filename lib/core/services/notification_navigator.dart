@@ -10,7 +10,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:moments/data/models/moment.dart';
 import 'package:moments/features/moments/presentation/moment_details_page.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('NotifNavigator');
 /// Handles navigation from push notification taps.
 ///
 /// Notification types:
@@ -33,13 +36,13 @@ class NotificationNavigator {
     final relatedId = data['related_id'] as String?;
     final actorId = data['actor_id'] as String?;
 
-    debugPrint(
+    _log.d(
       'NotificationNavigator: type=$type, relatedId=$relatedId, actorId=$actorId',
     );
 
     final context = navigatorKey.currentContext;
     if (context == null) {
-      debugPrint('NotificationNavigator: No context available');
+      _log.d('NotificationNavigator: No context available');
       return;
     }
 
@@ -142,7 +145,7 @@ class NotificationNavigator {
         }
       }
     } catch (e) {
-      debugPrint('Error navigating to chat: $e');
+      _log.e('Error navigating to chat: $e');
       if (context.mounted) {
         Navigator.of(
           context,
@@ -191,7 +194,7 @@ class NotificationNavigator {
         );
       }
     } catch (e) {
-      debugPrint('Error navigating to moment details: $e');
+      _log.e('Error navigating to moment details: $e');
       if (context.mounted) {
         Navigator.of(
           context,
@@ -238,7 +241,7 @@ class NotificationNavigator {
         }
       }
     } catch (e) {
-      debugPrint('Error navigating to moment: $e');
+      _log.e('Error navigating to moment: $e');
       if (context.mounted) {
         Navigator.of(
           context,

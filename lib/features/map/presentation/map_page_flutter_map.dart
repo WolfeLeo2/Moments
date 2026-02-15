@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -30,7 +31,6 @@ import '../widgets/stacked_moment_marker.dart';
 import '../widgets/friend_moments_stack.dart';
 import '../widgets/friends_in_view_sheet.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:moments/data/models/user_profile.dart';
 import 'package:moments/data/services/user_profile_service.dart';
@@ -226,7 +226,7 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
         setState(() => _cityName = city);
       }
     } catch (e) {
-      debugPrint('Failed to geocode viewport center: $e');
+      _log.e('Failed to geocode viewport center: $e');
     }
   }
 
@@ -292,14 +292,14 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
               LatLng(position.latitude!, position.longitude!),
               14.0,
             );
-            debugPrint(
+            _log.d(
               '📍 Map moved to: ${position.latitude}, ${position.longitude}',
             );
           } catch (e) {
-            debugPrint('⚠️ Error moving map: $e');
+            _log.e('⚠️ Error moving map: $e');
           }
         } else {
-          debugPrint('📍 Map not ready yet, skipping auto-center');
+          _log.d('📍 Map not ready yet, skipping auto-center');
         }
 
         // Ensure city name is updated effectively
@@ -419,7 +419,7 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
     try {
       bounds = _mapController.camera.visibleBounds;
     } catch (e) {
-      debugPrint('⚠️ Error getting map bounds: $e');
+      _log.e('⚠️ Error getting map bounds: $e');
       return const SizedBox.shrink();
     }
 
@@ -651,13 +651,13 @@ class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
             // Reset the provider so we don't re-trigger on rebuilds
             ref.read(mapCameraTargetProvider.notifier).setTarget(null);
           } catch (e) {
-            debugPrint('⚠️ Error moving map to target: $e');
+            _log.e('⚠️ Error moving map to target: $e');
           }
         } else {
           // If map isn't ready, we should probably keep the target in the provider
           // so it can be handled when the map becomes ready.
           // For now, just log it.
-          debugPrint('⚠️ Map not ready for camera move request');
+          _log.w('⚠️ Map not ready for camera move request');
         }
       }
     });
@@ -1078,8 +1078,8 @@ class _AnimatedFABState extends State<_AnimatedFAB>
               border: Border.all(color: Colors.black, width: 1),
               shape: BoxShape.circle,
             ),
-            child: const FaIcon(
-              FontAwesomeIcons.plus,
+            child: const Icon(
+              CupertinoIcons.plus,
               color: AppTheme.primaryBlue,
               size: 20,
             ),
@@ -1135,8 +1135,8 @@ class _AnimatedFABState extends State<_AnimatedFAB>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const FaIcon(
-                    FontAwesomeIcons.camera,
+                  const Icon(
+                    CupertinoIcons.camera,
                     size: 20,
                     color: AppTheme.primaryBlue,
                   ),
@@ -1178,8 +1178,8 @@ class _AnimatedFABState extends State<_AnimatedFAB>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const FaIcon(
-                    FontAwesomeIcons.image,
+                  const Icon(
+                    CupertinoIcons.photo,
                     size: 20,
                     color: Colors.black,
                   ),

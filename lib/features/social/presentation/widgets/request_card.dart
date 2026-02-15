@@ -6,6 +6,7 @@ import 'package:moments/data/models/friendship.dart';
 import 'package:moments/data/models/profile.dart';
 import 'package:moments/features/social/presentation/widgets/action_button.dart';
 import 'package:moments/core/providers/providers.dart';
+import 'package:moments/widgets/avatar_image.dart';
 
 /// Modern request card with smooth interactions and atmospheric design
 class RequestCard extends ConsumerStatefulWidget {
@@ -144,22 +145,20 @@ class _RequestCardState extends ConsumerState<RequestCard>
                         border: Border.all(color: Colors.black, width: 2),
                       ),
                       padding: const EdgeInsets.all(3),
-                      child: CircleAvatar(
-                        radius: 28,
-                        backgroundColor: Colors.white,
-                        child: CircleAvatar(
-                          radius: 26,
-                          backgroundColor: Colors.grey[200],
-                          backgroundImage: ref
-                              .watch(avatarCacheServiceProvider)
-                              .getAvatarImageProvider(profile.avatarUrl),
-                          child: profile.avatarUrl == null
-                              ? HugeIcon(
-                                  icon: HugeIcons.strokeRoundedUser,
-                                  size: 28,
-                                  color: Colors.grey[400],
-                                )
-                              : null,
+                      child: AvatarImage(
+                        avatarUrl: profile.avatarUrl,
+                        size: 52,
+                        borderWidth: 0,
+                        backgroundColor: Colors.grey[200],
+                        placeholder: HugeIcon(
+                          icon: HugeIcons.strokeRoundedUser,
+                          size: 28,
+                          color: Colors.grey[400],
+                        ),
+                        errorWidget: HugeIcon(
+                          icon: HugeIcons.strokeRoundedUser,
+                          size: 28,
+                          color: Colors.grey[400],
                         ),
                       ),
                     ),

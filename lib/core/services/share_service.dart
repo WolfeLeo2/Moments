@@ -5,7 +5,10 @@ import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../data/models/moment.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('ShareService');
 /// Service for generating and sharing moment content.
 /// Inspired by Instagram Stories, BeReal, and Locket sharing patterns.
 class ShareService {
@@ -30,10 +33,10 @@ class ShareService {
       final file = File('${tempDir.path}/moment_share_$timestamp.png');
       await file.writeAsBytes(bytes);
 
-      debugPrint('ShareService: Image captured at ${file.path}');
+      _log.d('ShareService: Image captured at ${file.path}');
       return file.path;
     } catch (e) {
-      debugPrint('ShareService: Failed to capture widget: $e');
+      _log.e('ShareService: Failed to capture widget: $e');
       return null;
     }
   }
@@ -46,9 +49,9 @@ class ShareService {
     try {
       final xFile = XFile(imagePath);
       await Share.shareXFiles([xFile], text: text);
-      debugPrint('ShareService: Shared image successfully');
+      _log.d('ShareService: Shared image successfully');
     } catch (e) {
-      debugPrint('ShareService: Failed to share image: $e');
+      _log.e('ShareService: Failed to share image: $e');
     }
   }
 
@@ -57,7 +60,7 @@ class ShareService {
     try {
       await Share.share(text);
     } catch (e) {
-      debugPrint('ShareService: Failed to share text: $e');
+      _log.e('ShareService: Failed to share text: $e');
     }
   }
 

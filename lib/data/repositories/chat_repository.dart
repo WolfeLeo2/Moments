@@ -2,6 +2,7 @@ import 'package:moments/core/services/app_logger.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/painting.dart';
+import 'package:moments/core/services/chat_encryption_service.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/data/models/reaction.dart';
 import 'package:moments/data/sources/supabase_config.dart';
@@ -12,6 +13,7 @@ final _log = AppLogger('ChatRepository');
 /// Repository for chat operations
 class ChatRepository {
   final SupabaseClient _client = SupabaseConfig.client;
+  final ChatEncryptionService _encryption = ChatEncryptionService.instance;
 
   /// Get or create a 1-on-1 conversation with a friend
   /// Uses optimized RPC that does everything in a single DB call
@@ -46,6 +48,18 @@ class ChatRepository {
                 // Filter out messages deleted for this specific user
                 if (msg.deletedFor == currentUserId) return false;
                 return true;
+              })
+              .map((msg) {
+                // Decrypt message content
+                if (msg.messageType == MessageType.text) {
+                  return msg.copyWith(
+                    content: _encryption.decrypt(
+                      msg.content,
+                      msg.conversationId,
+                    ),
+                  );
+                }
+                return msg;
               })
               .toList();
 
@@ -146,17 +160,22 @@ class ChatRepository {
         final createdAt = DateTime.parse(
           row['last_message_created_at'] as String,
         );
+        final conversationId = row['conversation_id'] as String;
+        final rawContent = row['last_message_content'] as String;
+        final msgType = row['last_message_type'] as String? ?? 'text';
+        final content = msgType == 'text'
+            ? _encryption.decrypt(rawContent, conversationId)
+            : rawContent;
+
         return {
-          'conversationId': row['conversation_id'] as String,
+          'conversationId': conversationId,
           'otherUserId': row['other_user_id'] as String,
           'lastMessage': Message(
             id: row['last_message_id'] as String,
-            conversationId: row['conversation_id'] as String,
+            conversationId: conversationId,
             senderId: row['last_message_sender_id'] as String,
-            content: row['last_message_content'] as String,
-            messageType: MessageType.fromString(
-              row['last_message_type'] as String? ?? 'text',
-            ),
+            content: content,
+            messageType: MessageType.fromString(msgType),
             createdAt: createdAt,
             updatedAt: createdAt, // Use createdAt as fallback
             isRead: row['last_message_is_read'] as bool? ?? false,
@@ -179,10 +198,12 @@ class ChatRepository {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not authenticated');
 
+    final encryptedContent = _encryption.encrypt(content, conversationId);
+
     final messageData = {
       'conversation_id': conversationId,
       'sender_id': userId,
-      'content': content,
+      'content': encryptedContent,
       'message_type': 'text',
     };
 
@@ -196,7 +217,7 @@ class ChatRepository {
         .select()
         .single();
 
-    return Message.fromJson(response);
+    return Message.fromJson(response).copyWith(content: content);
   }
 
   /// Edit a message (only own messages, within 15 minutes)
@@ -224,10 +245,13 @@ class ChatRepository {
       throw Exception('Messages can only be edited within 15 minutes');
     }
 
+    final conversationId = message['conversation_id'] as String;
+    final encryptedContent = _encryption.encrypt(newContent, conversationId);
+
     await _client
         .from('messages')
         .update({
-          'content': newContent,
+          'content': encryptedContent,
           'is_edited': true,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
@@ -359,7 +383,13 @@ class ChatRepository {
           .maybeSingle();
 
       if (response == null) return null;
-      return Message.fromJson(response);
+      final msg = Message.fromJson(response);
+      if (msg.messageType == MessageType.text) {
+        return msg.copyWith(
+          content: _encryption.decrypt(msg.content, msg.conversationId),
+        );
+      }
+      return msg;
     } catch (e) {
       return null;
     }
@@ -378,7 +408,13 @@ class ChatRepository {
           .maybeSingle();
 
       if (response == null) return null;
-      return Message.fromJson(response);
+      final msg = Message.fromJson(response);
+      if (msg.messageType == MessageType.text) {
+        return msg.copyWith(
+          content: _encryption.decrypt(msg.content, msg.conversationId),
+        );
+      }
+      return msg;
     } catch (e) {
       return null;
     }

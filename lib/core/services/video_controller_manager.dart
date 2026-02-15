@@ -1,7 +1,9 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:video_player/video_player.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('VideoManager');
 /// Manages video controllers with a sliding window approach.
 /// Prewarms controllers for current ± 1 indices to enable instant playback
 /// while keeping memory and power usage low.
@@ -71,7 +73,7 @@ class VideoControllerManager {
 
   Future<void> _initializeController(String momentId, VideoInfo info) async {
     _initializing[momentId] = true;
-    debugPrint('VideoControllerManager: prewarming controller for $momentId (isLocal=${info.isLocal})');
+    _log.d('VideoControllerManager: prewarming controller for $momentId (isLocal=${info.isLocal})');
 
     try {
       final VideoPlayerController controller;
@@ -87,15 +89,15 @@ class VideoControllerManager {
 
       if (_activeIds.contains(momentId)) {
         _controllers[momentId] = controller;
-        debugPrint('VideoControllerManager: controller ready for $momentId');
+        _log.d('VideoControllerManager: controller ready for $momentId');
         onControllerReady?.call();
       } else {
         // Window moved, dispose immediately
-        debugPrint('VideoControllerManager: disposing prewarmed controller (window moved) for $momentId');
+        _log.d('VideoControllerManager: disposing prewarmed controller (window moved) for $momentId');
         await controller.dispose();
       }
     } catch (e) {
-      debugPrint('VideoControllerManager: failed to initialize controller for $momentId: $e');
+      _log.e('VideoControllerManager: failed to initialize controller for $momentId: $e');
     } finally {
       _initializing.remove(momentId);
     }
@@ -104,7 +106,7 @@ class VideoControllerManager {
   Future<void> _disposeController(String momentId) async {
     final controller = _controllers.remove(momentId);
     if (controller != null) {
-      debugPrint('VideoControllerManager: disposing controller for $momentId');
+      _log.d('VideoControllerManager: disposing controller for $momentId');
       await controller.dispose();
     }
   }
@@ -120,7 +122,7 @@ class VideoControllerManager {
 
   /// Dispose all controllers. Call when leaving the page.
   Future<void> disposeAll() async {
-    debugPrint('VideoControllerManager: disposing all controllers (${_controllers.length})');
+    _log.d('VideoControllerManager: disposing all controllers (${_controllers.length})');
     for (final controller in _controllers.values) {
       await controller.dispose();
     }

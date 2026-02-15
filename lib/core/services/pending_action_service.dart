@@ -1,8 +1,10 @@
-import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:moments/data/models/pending_action.dart';
 import 'package:moments/core/database/database.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('PendingAction');
 /// Service for managing pending offline actions using Drift
 /// Handles queueing actions when offline and retrieving them for sync
 class PendingActionService {
@@ -34,7 +36,7 @@ class PendingActionService {
     );
 
     await _database.queuePendingAction(action.toCompanion());
-    debugPrint('Queued action: ${actionType.name} for $entityType:$entityId');
+    _log.d('Queued action: ${actionType.name} for $entityType:$entityId');
 
     return id;
   }
@@ -107,7 +109,7 @@ class PendingActionService {
       await _database.removePendingAction(matching[i].id);
     }
 
-    debugPrint(
+    _log.d(
       'Deduplicated ${matching.length - 1} actions for $entityType:$entityId',
     );
   }

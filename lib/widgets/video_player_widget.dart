@@ -1,7 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('VideoPlayer');
 class VideoPlayerWidget extends StatefulWidget {
   final String videoUrl;
   final bool isLocalFile; // If true, load from file path instead of network
@@ -29,7 +32,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   @override
   void initState() {
     super.initState();
-    debugPrint(
+    _log.d(
       'VideoPlayerWidget: initializing (isLocalFile=${widget.isLocalFile}) url=${widget.videoUrl}',
     );
     _initializePlayer();
@@ -78,7 +81,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   @override
   void dispose() {
-    debugPrint(
+    _log.d(
       'VideoPlayerWidget: disposing controller for url=${widget.videoUrl}',
     );
     _controller.dispose();

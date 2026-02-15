@@ -1,6 +1,8 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/providers/moments_providers.dart';
@@ -16,7 +18,6 @@ import 'package:moments/features/moments/presentation/moment_details_page.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:moments/features/map/providers/map_control_provider.dart';
 import 'package:moments/data/models/moment.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 enum NotificationType {
   friendRequest,
@@ -75,7 +76,7 @@ class _NotificationTypeConfig {
         return _NotificationTypeConfig(
           accentColor: AppTheme.primaryBlue,
           backgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.08),
-          icon: FontAwesomeIcons.userPlus,
+          icon: CupertinoIcons.person_add,
           label: 'Friend Request',
         );
       case NotificationType.collaborationInvite:
@@ -83,42 +84,42 @@ class _NotificationTypeConfig {
         return _NotificationTypeConfig(
           accentColor: AppTheme.electricPurple,
           backgroundColor: AppTheme.electricPurple.withValues(alpha: 0.08),
-          icon: FontAwesomeIcons.users,
+          icon: CupertinoIcons.person_3,
           label: 'Collaboration',
         );
       case NotificationType.momentLike:
         return _NotificationTypeConfig(
           accentColor: const Color(0xFFE91E63),
           backgroundColor: const Color(0xFFE91E63).withValues(alpha: 0.08),
-          icon: FontAwesomeIcons.solidHeart,
+          icon: CupertinoIcons.heart_fill,
           label: 'Reaction',
         );
       case NotificationType.newMoment:
         return _NotificationTypeConfig(
           accentColor: const Color(0xFF4CAF50),
           backgroundColor: const Color(0xFF4CAF50).withValues(alpha: 0.08),
-          icon: FontAwesomeIcons.image,
+          icon: CupertinoIcons.photo,
           label: 'New Moment',
         );
       case NotificationType.system:
         return _NotificationTypeConfig(
           accentColor: const Color(0xFFFF9800),
           backgroundColor: const Color(0xFFFF9800).withValues(alpha: 0.08),
-          icon: FontAwesomeIcons.gears,
+          icon: CupertinoIcons.settings,
           label: 'System',
         );
       case NotificationType.promo:
         return _NotificationTypeConfig(
           accentColor: AppTheme.neonPink,
           backgroundColor: AppTheme.neonPink.withValues(alpha: 0.08),
-          icon: FontAwesomeIcons.gift,
+          icon: CupertinoIcons.gift,
           label: 'Promo',
         );
       case NotificationType.other:
         return _NotificationTypeConfig(
           accentColor: Colors.grey,
           backgroundColor: Colors.grey.withValues(alpha: 0.08),
-          icon: FontAwesomeIcons.bell,
+          icon: CupertinoIcons.bell,
           label: 'Notification',
         );
     }
@@ -144,9 +145,13 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     super.initState();
     FirebaseMessagingService.cancelAllNotifications();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       ref.invalidate(notificationsListProvider);
-      ref.read(notificationsListProvider.notifier).markAllAsRead();
+      // Wait a tick for the list to begin loading before marking as read
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (mounted) {
+        ref.read(notificationsListProvider.notifier).markAllAsRead();
+      }
     });
   }
 
@@ -171,13 +176,16 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Notifications',
-          style: TextStyle(
-            fontSize: 24,
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontFamily: 'GoogleSansFlex',
             fontWeight: FontWeight.w900,
-            color: Colors.black87,
-            letterSpacing: -0.5,
+            fontVariations: const [
+              FontVariation('wght', 900),  
+            ],
+            color: AppTheme.textDark,
+            letterSpacing: -1.5,
           ),
         ),
         centerTitle: false,
@@ -201,6 +209,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   label: Text(
                     filter,
                     style: TextStyle(
+                      fontFamily: 'GoogleSansFlex',
                       color: isSelected ? Colors.white : Colors.grey[700],
                       fontWeight: FontWeight.w600,
                     ),
@@ -214,9 +223,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   },
                   backgroundColor: Colors.white,
                   selectedColor: AppTheme.primaryBlue,
-                  showCheckmark: true,
+                  showCheckmark: false,
                   side: BorderSide(
-                    color: isSelected ? Colors.transparent : Colors.grey[500]!,
+                    color: isSelected ? Colors.transparent : AppTheme.softIvory,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -429,8 +441,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          FaIcon(
-            FontAwesomeIcons.solidEnvelope,
+          Icon(
+            CupertinoIcons.envelope,
             size: 64,
             color: Colors.grey[300],
           ),
@@ -603,8 +615,8 @@ class _NotificationCard extends ConsumerWidget {
             color: Colors.red.shade400,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const FaIcon(
-            FontAwesomeIcons.trashCan,
+          child: const Icon(
+            CupertinoIcons.trash,
             color: Colors.white,
             size: 24,
           ),
@@ -625,60 +637,78 @@ class _NotificationCard extends ConsumerWidget {
       onTap: () => _handleTap(context, ref, item),
       child: Container(
         decoration: BoxDecoration(
-          color: item.isRead ? Colors.white : config.backgroundColor,
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: item.isRead
                 ? Colors.grey.shade200
-                : config.accentColor.withValues(alpha: 0.3),
+                : config.accentColor.withValues(alpha: 0.25),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Main content
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Avatar or Icon
-                  _buildAvatar(item),
-                  const SizedBox(width: 12),
-                  // Text content
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Type label badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: config.accentColor.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            config.label,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: config.accentColor,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: IntrinsicHeight(
+            child: Row(
+              children: [
+                // Left accent strip — small colour bar for category
+                Container(
+                  width: 4,
+                  decoration: BoxDecoration(
+                    color: config.accentColor,
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(14),
+                    ),
+                  ),
+                ),
+                // Card body
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main content
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Avatar or Icon
+                            _buildAvatar(item),
+                            const SizedBox(width: 12),
+                            // Text content
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Type label badge
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: config.accentColor
+                                          .withValues(alpha: 0.10),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      config.label,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: config.accentColor,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
                         // Main text
                         RichText(
                           text: TextSpan(
@@ -708,8 +738,8 @@ class _NotificationCard extends ConsumerWidget {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              FaIcon(
-                                FontAwesomeIcons.folder,
+                              Icon(
+                                CupertinoIcons.folder,
                                 size: 14,
                                 color: config.accentColor,
                               ),
@@ -745,8 +775,9 @@ class _NotificationCard extends ConsumerWidget {
                   // Unread indicator
                   if (!item.isRead)
                     Container(
-                      width: 10,
-                      height: 10,
+                      width: 8,
+                      height: 8,
+                      margin: const EdgeInsets.only(top: 4),
                       decoration: BoxDecoration(
                         color: config.accentColor,
                         shape: BoxShape.circle,
@@ -757,7 +788,12 @@ class _NotificationCard extends ConsumerWidget {
             ),
             // Action buttons for requests
             if (requiresAction) _buildActionButtons(context, ref, item),
-          ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -766,20 +802,21 @@ class _NotificationCard extends ConsumerWidget {
   Widget _buildAvatar(NotificationItem item) {
     if (item.actorAvatarUrl != null && item.actorAvatarUrl!.isNotEmpty) {
       return Container(
-        width: 48,
-        height: 48,
+        width: 46,
+        height: 46,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: config.accentColor.withValues(alpha: 0.3),
-            width: 2,
+            color: Colors.grey.shade300,
+            width: 1.5,
           ),
         ),
         child: ClipOval(
-          child: Image.network(
-            item.actorAvatarUrl!,
+          child: CachedNetworkImage(
+            imageUrl: item.actorAvatarUrl!,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _buildIconAvatar(),
+            placeholder: (_, __) => _buildIconAvatar(),
+            errorWidget: (_, __, ___) => _buildIconAvatar(),
           ),
         ),
       );
@@ -789,14 +826,14 @@ class _NotificationCard extends ConsumerWidget {
 
   Widget _buildIconAvatar() {
     return Container(
-      width: 48,
-      height: 48,
+      width: 46,
+      height: 46,
       decoration: BoxDecoration(
-        color: config.accentColor.withValues(alpha: 0.15),
+        color: config.accentColor.withValues(alpha: 0.10),
         shape: BoxShape.circle,
       ),
       child: Center(
-        child: FaIcon(config.icon, color: config.accentColor, size: 24),
+        child: Icon(config.icon, color: config.accentColor, size: 20),
       ),
     );
   }

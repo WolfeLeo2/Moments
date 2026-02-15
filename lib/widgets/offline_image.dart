@@ -1,9 +1,11 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('OfflineImage');
 /// Cache for file existence checks to avoid repeated async calls
 /// Has a max size to prevent unbounded memory growth
 class _FileExistenceCache {
@@ -20,7 +22,7 @@ class _FileExistenceCache {
       for (final key in keysToRemove) {
         _cache.remove(key);
       }
-      debugPrint(
+      _log.d(
         '🧹 OfflineImage cache cleaned: removed ${keysToRemove.length} entries',
       );
     }
@@ -148,7 +150,7 @@ class _OfflineImageState extends State<OfflineImage> {
       }
     } else if (_localFileExists == true && widget.localPath != null) {
       // Use local file
-      debugPrint(
+      _log.d(
         '✅ OfflineImage: Using local file for cacheKey=${widget.cacheKey}',
       );
       imageWidget = Image.file(
@@ -161,7 +163,7 @@ class _OfflineImageState extends State<OfflineImage> {
         gaplessPlayback: true, // Prevents flash during image changes
         errorBuilder: (context, error, stack) {
           // Invalidate cache and fallback to network if local file is corrupted
-          debugPrint(
+          _log.e(
             '⚠️ OfflineImage: Local file error at ${widget.localPath}: $error',
           );
           _FileExistenceCache.invalidate(widget.localPath!);
@@ -186,7 +188,7 @@ class _OfflineImageState extends State<OfflineImage> {
 
   Widget _buildNetworkImage() {
     if (widget.networkUrl == null || widget.networkUrl!.isEmpty) {
-      debugPrint(
+      _log.e(
         '❌ OfflineImage: No network URL for cacheKey=${widget.cacheKey}',
       );
       return widget.errorWidget ?? _defaultError();
@@ -208,7 +210,7 @@ class _OfflineImageState extends State<OfflineImage> {
         return widget.placeholder ?? BlurHash(hash: hash);
       },
       errorWidget: (context, url, error) {
-        debugPrint('❌ OfflineImage: Network error for $url: $error');
+        _log.e('❌ OfflineImage: Network error for $url: $error');
         return widget.errorWidget ?? _defaultError();
       },
     );

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/theme/app_theme.dart';
@@ -7,6 +8,8 @@ import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/widgets/time_ago_text.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/features/chat/presentation/new_conversation_page.dart';
+import 'package:moments/features/notifications/presentation/notifications_page.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 
 class ChatListPage extends ConsumerStatefulWidget {
@@ -53,6 +56,7 @@ class _ChatListPageState extends ConsumerState<ChatListPage>
   Widget build(BuildContext context) {
     super.build(context);
     final chatListAsync = ref.watch(chatListProvider);
+    final notificationCount = ref.watch(notificationCountProvider).value ?? 0;
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBeige,
@@ -60,49 +64,87 @@ class _ChatListPageState extends ConsumerState<ChatListPage>
         padding: const EdgeInsets.only(bottom: 80), // Space for floating dock
         child: FloatingActionButton.extended(
           onPressed: () => _openNewConversation(context),
-          label: const Text("New Message"),
+          label: Text(
+            "New Message",
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSecondaryContainer,
+            ),
+          ),
           elevation: 0,
           shape: RoundedSuperellipseBorder(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(12),
           ),
-          backgroundColor: ColorScheme.fromSeed(
-            seedColor: AppTheme.primaryBlue,
-          ).primary,
-          icon: const HugeIcon(
+          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+          icon: HugeIcon(
             icon: HugeIcons.strokeRoundedMessageAdd02,
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.onSecondaryContainer,
             size: 22,
           ),
         ),
       ),
       appBar: AppBar(
         backgroundColor: AppTheme.backgroundBeige,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        centerTitle: false,
         automaticallyImplyLeading: false,
+        centerTitle: true,
         title: Text(
           'Messages',
-          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontFamily: 'GoogleSansFlex',
             fontWeight: FontWeight.w900,
-            color: Colors.black87,
-            letterSpacing: -0.5,
+            fontVariations: const [
+              FontVariation('wght', 900),  
+            ],
+            color: AppTheme.textDark,
+            letterSpacing: -1.5,
           ),
         ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        actions: [
+          Badge(
+            isLabelVisible: notificationCount > 0,
+            label: Text(
+              '$notificationCount',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            backgroundColor: AppTheme.coralPink,
+            child: IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const NotificationsPage()),
+              ),
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedNotification01,
+                color: Colors.black87,
+                size: 24,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Column(
+        children: [
+          // ── Search bar ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: TextField(
+              autofocus: false,
               controller: _searchController,
               onChanged: (value) {
                 setState(() => _searchQuery = value.toLowerCase());
               },
               decoration: InputDecoration(
                 hintText: 'Search conversations...',
-                hintStyle: TextStyle(color: Colors.grey[500]),
-                prefixIcon: HugeIcon(
-                  icon: HugeIcons.strokeRoundedSearch01,
-                  color: Colors.grey[600]!,
+                hintStyle: TextStyle(color: AppTheme.textSecondary),
+                prefixIcon: Icon(
+                  CupertinoIcons.search,
+                  color: AppTheme.textGray,
                   size: 20,
                 ),
                 suffixIcon: _searchQuery.isNotEmpty
@@ -118,11 +160,11 @@ class _ChatListPageState extends ConsumerState<ChatListPage>
                 fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
+                  borderSide: BorderSide(color: AppTheme.borderGray),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
+                  borderSide: BorderSide(color: AppTheme.borderGray),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -135,9 +177,9 @@ class _ChatListPageState extends ConsumerState<ChatListPage>
               ),
             ),
           ),
-        ),
-      ),
-      body: Builder(
+          // ── Conversation list ──
+          Expanded(
+            child: Builder(
         builder: (context) {
           final conversations = chatListAsync.asData?.value;
 
@@ -187,6 +229,9 @@ class _ChatListPageState extends ConsumerState<ChatListPage>
             },
           );
         },
+      ),
+          ),
+        ],
       ),
     );
   }

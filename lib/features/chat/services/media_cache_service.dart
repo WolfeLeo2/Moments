@@ -1,8 +1,10 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('MediaCache');
 /// Service to cache downloaded media files (audio, images, videos)
 /// and expensive-to-compute data like audio waveforms.
 class MediaCacheService {
@@ -119,7 +121,7 @@ class MediaCacheService {
     String messageId,
     String audioFilePath,
   ) async {
-    debugPrint(
+    _log.d(
       'MediaCacheService: getWaveformData is deprecated - use PlayerService.getWaveformData instead',
     );
     return null;

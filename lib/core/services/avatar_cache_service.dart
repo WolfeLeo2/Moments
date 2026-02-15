@@ -1,14 +1,16 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/database.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('AvatarCache');
 /// Centralized avatar caching service
 /// Provides in-memory cache with Drift persistence for fast avatar loading
 ///
@@ -64,11 +66,11 @@ class AvatarCacheService {
       if (!_initCompleter.isCompleted) {
         _initCompleter.complete();
       }
-      debugPrint(
+      _log.d(
         'AvatarCacheService: Loaded ${_memoryCache.length} avatars from cache',
       );
     } catch (e) {
-      debugPrint('AvatarCacheService: Error initializing cache: $e');
+      _log.e('AvatarCacheService: Error initializing cache: $e');
       _initialized = true;
       _initializing = false;
       if (!_initCompleter.isCompleted) {
@@ -99,7 +101,7 @@ class AvatarCacheService {
         }
       }
     } catch (e) {
-      debugPrint('AvatarCacheService: Error loading local paths: $e');
+      _log.e('AvatarCacheService: Error loading local paths: $e');
     }
   }
 
@@ -161,7 +163,7 @@ class AvatarCacheService {
       completer.complete(avatarUrl);
       return avatarUrl;
     } catch (e) {
-      debugPrint('AvatarCacheService: Error fetching avatar for $userId: $e');
+      _log.e('AvatarCacheService: Error fetching avatar for $userId: $e');
       completer.complete(null);
       return null;
     } finally {
@@ -216,7 +218,7 @@ class AvatarCacheService {
         _downloadAvatarInBackground(avatarUrl);
       }
     } catch (e) {
-      debugPrint('AvatarCacheService: Error fetching avatars: $e');
+      _log.e('AvatarCacheService: Error fetching avatars: $e');
     }
 
     return result;
@@ -248,7 +250,7 @@ class AvatarCacheService {
   void _downloadAvatarInBackground(String url) {
     // Don't await - let it run in background
     downloadAvatar(url).then((_) {}).catchError((e) {
-      debugPrint('AvatarCacheService: Background download failed: $e');
+      _log.e('AvatarCacheService: Background download failed: $e');
     });
   }
 
@@ -257,7 +259,7 @@ class AvatarCacheService {
     try {
       await _database.updateProfileAvatarUrl(userId, avatarUrl);
     } catch (e) {
-      debugPrint('AvatarCacheService: Error persisting avatar: $e');
+      _log.e('AvatarCacheService: Error persisting avatar: $e');
     }
   }
 
@@ -270,7 +272,7 @@ class AvatarCacheService {
         await _database.updateProfileAvatarUrl(entry.key, entry.value);
       }
     } catch (e) {
-      debugPrint('AvatarCacheService: Error batch persisting avatars: $e');
+      _log.e('AvatarCacheService: Error batch persisting avatars: $e');
     }
   }
 
@@ -320,7 +322,7 @@ class AvatarCacheService {
       _localPathCache[urlHash] = localPath;
       return localPath;
     } catch (e) {
-      debugPrint('AvatarCacheService: Error downloading avatar: $e');
+      _log.e('AvatarCacheService: Error downloading avatar: $e');
       return null;
     }
   }
@@ -345,13 +347,13 @@ class AvatarCacheService {
     if (localPath != null) {
       final file = File(localPath);
       if (file.existsSync()) {
-        debugPrint('AvatarCacheService: Using local avatar for $avatarUrl');
+        _log.d('AvatarCacheService: Using local avatar for $avatarUrl');
         return FileImage(file);
       }
     }
 
     // Fall back to network with caching
-    debugPrint('AvatarCacheService: Using network avatar for $avatarUrl');
+    _log.d('AvatarCacheService: Using network avatar for $avatarUrl');
     return CachedNetworkImageProvider(avatarUrl);
   }
 
@@ -390,12 +392,12 @@ class AvatarCacheService {
       }
 
       if (deletedCount > 0) {
-        debugPrint(
+        _log.d(
           '🧹 AvatarCacheService: Cleaned up $deletedCount old avatars',
         );
       }
     } catch (e) {
-      debugPrint('AvatarCacheService: Error cleaning up old avatars: $e');
+      _log.e('AvatarCacheService: Error cleaning up old avatars: $e');
     }
   }
 
@@ -411,7 +413,7 @@ class AvatarCacheService {
         await avatarDir.delete(recursive: true);
       }
     } catch (e) {
-      debugPrint('AvatarCacheService: Error clearing cache: $e');
+      _log.e('AvatarCacheService: Error clearing cache: $e');
     }
   }
 

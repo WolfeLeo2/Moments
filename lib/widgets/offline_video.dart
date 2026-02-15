@@ -2,7 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'video_player_widget.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('OfflineVideo');
 /// Widget that plays video from local file or network
 /// Prefers local file if available for offline support.
 /// Can use a prewarmed controller from VideoControllerManager for instant playback.
@@ -45,7 +48,7 @@ class _OfflineVideoState extends State<OfflineVideo>
     // If we have a prewarmed controller that's ready, use it directly
     if (widget.prewarmedController != null &&
         widget.prewarmedController!.value.isInitialized) {
-      debugPrint('OfflineVideo: using prewarmed controller');
+      _log.d('OfflineVideo: using prewarmed controller');
       return _buildVideoFromController(widget.prewarmedController!);
     }
 
@@ -61,7 +64,7 @@ class _OfflineVideoState extends State<OfflineVideo>
 
           if (snapshot.hasData && snapshot.data == true) {
             // Use local file
-            debugPrint('OfflineVideo: using local file: ${file.path}');
+            _log.d('OfflineVideo: using local file: ${file.path}');
             return VideoPlayerWidget(
               videoUrl: widget.localPath!,
               isLocalFile: true,
@@ -71,7 +74,7 @@ class _OfflineVideoState extends State<OfflineVideo>
           }
 
           // File doesn't exist, use network
-          debugPrint(
+          _log.d(
             'OfflineVideo: local file not found, using network: ${widget.networkUrl}',
           );
           return _buildNetworkVideo();
@@ -80,7 +83,7 @@ class _OfflineVideoState extends State<OfflineVideo>
     }
 
     // No local path, use network
-    debugPrint(
+    _log.d(
       'OfflineVideo: no localPath provided, using network: ${widget.networkUrl}',
     );
     return _buildNetworkVideo();
@@ -98,7 +101,7 @@ class _OfflineVideoState extends State<OfflineVideo>
       return widget.errorWidget ?? _buildDefaultError();
     }
 
-    debugPrint('OfflineVideo: playing network video: ${widget.networkUrl}');
+    _log.d('OfflineVideo: playing network video: ${widget.networkUrl}');
     return VideoPlayerWidget(
       videoUrl: widget.networkUrl!,
       isLocalFile: false,

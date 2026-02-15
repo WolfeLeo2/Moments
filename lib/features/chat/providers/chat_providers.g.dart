@@ -177,7 +177,7 @@ final class MessagesStreamProvider
   }
 }
 
-String _$messagesStreamHash() => r'c253dfcac6da0ebbbdb910ce05148cf3fd58102a';
+String _$messagesStreamHash() => r'd6dcb14ed7f59ce8358175f8532a2f22dec1b32c';
 
 /// Stream messages for a specific conversation with Drift reactive storage
 
@@ -738,13 +738,15 @@ abstract class _$IsRecording extends $Notifier<bool> {
 }
 
 /// Get list of recent conversations with details (Realtime)
-/// Yields cached data immediately for instant UI, then updates with fresh data
+/// Yields cached data immediately for instant UI, then updates with fresh data.
+/// When offline, the cached layer alone is enough for a usable chat list.
 
 @ProviderFor(chatList)
 const chatListProvider = ChatListProvider._();
 
 /// Get list of recent conversations with details (Realtime)
-/// Yields cached data immediately for instant UI, then updates with fresh data
+/// Yields cached data immediately for instant UI, then updates with fresh data.
+/// When offline, the cached layer alone is enough for a usable chat list.
 
 final class ChatListProvider
     extends
@@ -757,7 +759,8 @@ final class ChatListProvider
         $FutureModifier<List<Map<String, dynamic>>>,
         $StreamProvider<List<Map<String, dynamic>>> {
   /// Get list of recent conversations with details (Realtime)
-  /// Yields cached data immediately for instant UI, then updates with fresh data
+  /// Yields cached data immediately for instant UI, then updates with fresh data.
+  /// When offline, the cached layer alone is enough for a usable chat list.
   const ChatListProvider._()
     : super(
         from: null,
@@ -784,7 +787,7 @@ final class ChatListProvider
   }
 }
 
-String _$chatListHash() => r'3c7a67169735de3a9b4b97ff3e14271a0d49b2b5';
+String _$chatListHash() => r'87a3f596a83dec42a7d776545f3166e6c8135d2c';
 
 /// Offline-first mark conversation as read
 /// Updates local database immediately, then syncs to server in background

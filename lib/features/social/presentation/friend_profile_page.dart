@@ -1,20 +1,20 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/services/haptic_service.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/moments_providers.dart';
 import '../../../core/providers/providers.dart';
-import '../../../data/models/profile.dart';
 import '../../../data/models/moment.dart';
 import '../../chat/presentation/chat_page.dart';
 import '../../moments/presentation/moment_details_page.dart';
 import '../../map/widgets/stacked_moment_marker.dart';
 import '../../../widgets/offline_image.dart';
+import '../../../widgets/avatar_image.dart';
 
 class FriendProfilePage extends ConsumerStatefulWidget {
   final String friendId;
@@ -36,7 +36,6 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final MapController _mapController = MapController();
-  final ScrollController _scrollController = ScrollController();
   int _selectedTabIndex = 0;
 
   @override
@@ -47,10 +46,10 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
   }
 
   void _handleTabAnimation() {
-    // Update selected index based on which tab is more visible during swipe
     final animationValue = _tabController.animation?.value ?? 0;
     final newIndex = animationValue.round();
     if (newIndex != _selectedTabIndex) {
+      HapticService.selectionClick();
       setState(() => _selectedTabIndex = newIndex);
     }
   }
@@ -59,7 +58,6 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
   void dispose() {
     _tabController.animation?.removeListener(_handleTabAnimation);
     _tabController.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -71,28 +69,34 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
     return Scaffold(
       backgroundColor: AppTheme.backgroundBeige,
       body: NestedScrollView(
-        controller: _scrollController,
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
+            // ── SliverAppBar with back + actions ──
             SliverAppBar(
-              floating: true,
               pinned: true,
+              floating: false,
               backgroundColor: AppTheme.backgroundBeige,
               surfaceTintColor: Colors.transparent,
-              leading: _buildBackButton(),
-              actions: [_buildMoreButton()],
-              title: Text(
-                widget.friendName,
-                style: GoogleFonts.bangers(
-                  fontSize: 24.sp,
-                  color: Colors.black,
-                  letterSpacing: 1,
-                ),
+              elevation: 0,
+              leading: IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(CupertinoIcons.back, color: Colors.black87),
               ),
-              centerTitle: true,
+              actions: [
+                _buildMoreButton(),
+                const SizedBox(width: 8),
+              ],
             ),
+            // ── Avatar + Name + Bio ──
             SliverToBoxAdapter(child: _buildProfileHeader(profileAsync)),
-            SliverToBoxAdapter(child: _buildSegmentedTabs()),
+            // ── Stats row ──
+            SliverToBoxAdapter(child: _buildStatsRow()),
+            // ── Mutual friends ──
+            SliverToBoxAdapter(child: _buildMutualFriendsRow()),
+            // ── Action buttons ──
+            SliverToBoxAdapter(child: _buildActionButtons()),
+            // ── Cupertino segmented control ──
+            SliverToBoxAdapter(child: _buildSegmentedControl()),
           ];
         },
         body: TabBarView(
@@ -106,380 +110,425 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
     );
   }
 
-  Widget _buildSegmentedTabs() {
+  // ── Profile header (avatar centered, name, username, bio) ─────────────
+
+  Widget _buildProfileHeader(AsyncValue profileAsync) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
-      child: Container(
-        padding: EdgeInsets.all(4.w),
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(12.r),
-        ),
-        child: Row(
-          children: [
-            _buildTabButton(
-              index: 0,
-              icon: HugeIcons.strokeRoundedGridView,
-              label: 'Moments',
-            ),
-            _buildTabButton(
-              index: 1,
-              icon: HugeIcons.strokeRoundedMapsLocation01,
-              label: 'Map',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabButton({
-    required int index,
-    required dynamic icon,
-    required String label,
-  }) {
-    final isSelected = _selectedTabIndex == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _selectedTabIndex = index);
-          _tabController.animateTo(index);
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: EdgeInsets.symmetric(vertical: 10.h),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(10.r),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              HugeIcon(
-                icon: icon,
-                size: 18.sp,
-                color: isSelected ? Colors.black : Colors.grey[600]!,
-              ),
-              SizedBox(width: 6.w),
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 14.sp,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected ? Colors.black : Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBackButton() {
-    return Padding(
-      padding: EdgeInsets.all(8.w),
-      child: GestureDetector(
-        onTap: () => Navigator.pop(context),
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppTheme.cardWhite,
-            borderRadius: BorderRadius.circular(12.r),
-            border: Border.all(color: Colors.grey[300]!, width: 1),
-          ),
-          child: Icon(Icons.arrow_back, color: Colors.black, size: 20.sp),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMoreButton() {
-    return Padding(
-      padding: EdgeInsets.only(right: 8.w),
-      child: PopupMenuButton<String>(
-        onSelected: (value) {
-          switch (value) {
-            case 'block':
-              _showBlockConfirmation();
-              break;
-            case 'remove':
-              _showRemoveFriendConfirmation();
-              break;
-            case 'report':
-              break;
-          }
-        },
-        itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-          PopupMenuItem<String>(
-            value: 'block',
-            child: Row(
-              children: [
-                Icon(Icons.block, color: Colors.red, size: 20.sp),
-                SizedBox(width: 8.w),
-                Text('Block User', style: GoogleFonts.inter(color: Colors.red)),
-              ],
-            ),
-          ),
-          PopupMenuItem<String>(
-            value: 'remove',
-            child: Row(
-              children: [
-                Icon(Icons.person_remove, color: Colors.orange, size: 20.sp),
-                SizedBox(width: 8.w),
-                Text(
-                  'Remove Friend',
-                  style: GoogleFonts.inter(color: Colors.orange),
-                ),
-              ],
-            ),
-          ),
-          PopupMenuItem<String>(
-            value: 'report',
-            child: Row(
-              children: [
-                Icon(Icons.flag, color: Colors.black, size: 20.sp),
-                SizedBox(width: 8.w),
-                Text('Report', style: GoogleFonts.inter(color: Colors.black)),
-              ],
-            ),
-          ),
-        ],
-        child: Container(
-          padding: EdgeInsets.all(8.w),
-          decoration: BoxDecoration(
-            color: AppTheme.cardWhite,
-            borderRadius: BorderRadius.circular(12.r),
-            border: Border.all(color: Colors.grey[300]!, width: 1),
-          ),
-          child: HugeIcon(
-            icon: HugeIcons.strokeRoundedMoreHorizontal,
-            color: Colors.black,
-            size: 20.sp,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileHeader(AsyncValue<Profile?> profileAsync) {
-    return Container(
-      padding: EdgeInsets.fromLTRB(24.w, 8.h, 24.w, 8.h),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
       child: Column(
         children: [
-          _buildAvatarSection(profileAsync),
-          SizedBox(height: 16.h),
-          _buildNameSection(profileAsync),
-          SizedBox(height: 10.h),
-          _buildBioSection(profileAsync),
-          SizedBox(height: 16.h),
-          _buildStatsRow(),
-          SizedBox(height: 12.h),
-          _buildActionButtons(),
+          // ── Avatar ──
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.grey.shade300, width: 1.5),
+            ),
+            child: ClipOval(
+              child: SizedBox(
+                width: 96,
+                height: 96,
+                child: widget.friendAvatarUrl != null
+                    ? AvatarImage(
+                        avatarUrl: widget.friendAvatarUrl,
+                        size: 96,
+                        borderWidth: 0,
+                        backgroundColor: Colors.grey.shade200,
+                        placeholder: _buildAvatarPlaceholder(),
+                        errorWidget: _buildAvatarPlaceholder(),
+                      )
+                    : _buildAvatarPlaceholder(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          // ── Name ──
+          Text(
+            widget.friendName,
+            style: GoogleFonts.inter(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: Colors.black,
+              letterSpacing: -0.5,
+            ),
+          ),
+          // ── Username ──
+          profileAsync.when(
+            data: (profile) => profile?.username != null
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      '@${profile!.username}',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.grey.shade500,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+          // ── Bio ──
+          profileAsync.when(
+            data: (profile) {
+              if (profile?.bio != null && profile!.bio!.isNotEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(
+                    profile.bio!,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.grey[700],
+                      height: 1.4,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildAvatarSection(AsyncValue<Profile?> profileAsync) {
-    return Container(
-      width: 90.w,
-      height: 90.w,
-      decoration: BoxDecoration(
-        color: Colors.black,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.black, width: 3),
-      ),
-      child: ClipOval(
-        child: widget.friendAvatarUrl != null
-            ? Image(
-                image: ref
-                    .watch(avatarCacheServiceProvider)
-                    .getAvatarImageProvider(widget.friendAvatarUrl)!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(),
-              )
-            : _buildAvatarPlaceholder(),
       ),
     );
   }
 
   Widget _buildAvatarPlaceholder() {
     return Container(
-      color: AppTheme.primaryBlue,
+      color: Colors.grey.shade200,
       child: Center(
         child: Text(
           widget.friendName[0].toUpperCase(),
-          style: GoogleFonts.bangers(fontSize: 36.sp, color: Colors.white),
+          style: GoogleFonts.inter(
+            fontSize: 36,
+            fontWeight: FontWeight.w700,
+            color: Colors.grey.shade500,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildNameSection(AsyncValue<Profile?> profileAsync) {
-    return Column(
-      children: [
-        Text(
-          widget.friendName,
-          style: GoogleFonts.inter(
-            fontSize: 22.sp,
-            color: Colors.black,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        profileAsync.when(
-          data: (profile) => profile?.username != null
-              ? Text(
-                  '@${profile!.username}',
-                  style: GoogleFonts.inter(
-                    fontSize: 14.sp,
-                    color: Colors.grey[500],
-                    fontWeight: FontWeight.w400,
-                  ),
-                )
-              : const SizedBox.shrink(),
-          loading: () => const SizedBox.shrink(),
-          error: (_, __) => const SizedBox.shrink(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBioSection(AsyncValue<Profile?> profileAsync) {
-    return profileAsync.when(
-      data: (profile) {
-        if (profile?.bio != null && profile!.bio!.isNotEmpty) {
-          return Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.w),
-            child: Text(
-              profile.bio!,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 14.sp,
-                color: Colors.grey[700],
-                height: 1.4,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          );
-        }
-        return const SizedBox.shrink();
-      },
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-    );
-  }
+  // ── Stats row ─────────────────────────────────────────────────────────
 
   Widget _buildStatsRow() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Consumer(
-          builder: (context, ref, _) {
-            final momentsCountAsync = ref.watch(
-              userMomentsCountProvider(widget.friendId),
-            );
-            return _buildStatItem(
-              momentsCountAsync.when(
-                data: (count) => count.toString(),
-                loading: () => '-',
-                error: (_, __) => '0',
-              ),
-              'Moments',
-            );
-          },
-        ),
-        Container(
-          height: 30.h,
-          width: 1,
-          margin: EdgeInsets.symmetric(horizontal: 24.w),
-          color: Colors.grey[300],
-        ),
-        Consumer(
-          builder: (context, ref, _) {
-            final mutualAsync = ref.watch(
-              mutualFriendsCountProvider(widget.friendId),
-            );
-            return _buildStatItem(
-              mutualAsync.when(
-                data: (count) => count.toString(),
-                loading: () => '-',
-                error: (_, __) => '0',
-              ),
-              'Mutual Friends',
-            );
-          },
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(40, 18, 40, 0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          Consumer(
+            builder: (context, ref, _) {
+              final momentsCountAsync =
+                  ref.watch(userMomentsCountProvider(widget.friendId));
+              return _buildStatColumn(
+                momentsCountAsync.when(
+                  data: (count) => count.toString(),
+                  loading: () => '-',
+                  error: (_, __) => '0',
+                ),
+                'Moments',
+              );
+            },
+          ),
+          Container(width: 1, height: 32, color: Colors.grey.shade200),
+          Consumer(
+            builder: (context, ref, _) {
+              final mutualAsync =
+                  ref.watch(mutualFriendsCountProvider(widget.friendId));
+              return _buildStatColumn(
+                mutualAsync.when(
+                  data: (count) => count.toString(),
+                  loading: () => '-',
+                  error: (_, __) => '0',
+                ),
+                'Mutual',
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildStatItem(String value, String label) {
+  Widget _buildStatColumn(String value, String label) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           value,
           style: GoogleFonts.inter(
-            fontSize: 20.sp,
-            fontWeight: FontWeight.w700,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
             color: Colors.black,
           ),
         ),
+        const SizedBox(height: 2),
         Text(
           label,
           style: GoogleFonts.inter(
-            fontSize: 12.sp,
-            fontWeight: FontWeight.w400,
-            color: Colors.grey[600],
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey.shade500,
           ),
         ),
       ],
     );
   }
 
+  // ── Mutual friends avatar row ─────────────────────────────────────────
+
+  Widget _buildMutualFriendsRow() {
+    return Consumer(
+      builder: (context, ref, _) {
+        final mutualAsync =
+            ref.watch(mutualFriendsCountProvider(widget.friendId));
+        return mutualAsync.when(
+          data: (count) {
+            if (count <= 0) return const SizedBox(height: 8);
+            final displayCount = count.clamp(0, 3);
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 26.0 + (displayCount - 1) * 16.0,
+                    height: 26,
+                    child: Stack(
+                      children: List.generate(
+                        displayCount,
+                        (i) => Positioned(
+                          left: i * 16.0,
+                          child: Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: [
+                                Colors.grey.shade400,
+                                Colors.grey.shade500,
+                                Colors.grey.shade600,
+                              ][i % 3],
+                              border: Border.all(
+                                color: AppTheme.backgroundBeige,
+                                width: 2,
+                              ),
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                CupertinoIcons.person_fill,
+                                size: 13,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$count friend${count == 1 ? '' : 's'} in common',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: Colors.grey[500],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+          loading: () => const SizedBox(height: 8),
+          error: (_, __) => const SizedBox(height: 8),
+        );
+      },
+    );
+  }
+
+  // ── Action buttons ────────────────────────────────────────────────────
+
   Widget _buildActionButtons() {
-    return GestureDetector(
-      onTap: () => _openChat(),
-      child: Container(
-        width: double.infinity,
-        padding: EdgeInsets.symmetric(vertical: 12.h),
-        decoration: BoxDecoration(
-          color: Colors.black,
-          borderRadius: BorderRadius.circular(12.r),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            HugeIcon(
-              icon: HugeIcons.strokeRoundedBubbleChat,
-              size: 18.sp,
-              color: Colors.white,
-            ),
-            SizedBox(width: 8.w),
-            Text(
-              'Message',
-              style: GoogleFonts.inter(
-                fontSize: 15.sp,
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Material(
+              color: AppTheme.primaryBlue,
+              borderRadius: BorderRadius.circular(24),
+              child: InkWell(
+                onTap: _openChat,
+                borderRadius: BorderRadius.circular(24),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        CupertinoIcons.chat_bubble_fill,
+                        size: 17,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Message',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── CupertinoSlidingSegmentedControl ──────────────────────────────────
+
+  Widget _buildSegmentedControl() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+      child: SizedBox(
+        width: double.infinity,
+        child: CupertinoSlidingSegmentedControl<int>(
+          groupValue: _selectedTabIndex,
+          backgroundColor: CupertinoColors.systemGrey5,
+          thumbColor: CupertinoColors.white,
+          padding: const EdgeInsets.all(4),
+          onValueChanged: (value) {
+            if (value == null) return;
+            HapticService.selectionClick();
+            setState(() => _selectedTabIndex = value);
+            _tabController.animateTo(value);
+          },
+          children: {
+            0: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    CupertinoIcons.square_grid_2x2,
+                    size: 16,
+                    color: _selectedTabIndex == 0
+                        ? Colors.black
+                        : Colors.grey.shade600,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Moments',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: _selectedTabIndex == 0
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      color: _selectedTabIndex == 0
+                          ? Colors.black
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            1: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    CupertinoIcons.map,
+                    size: 16,
+                    color: _selectedTabIndex == 1
+                        ? Colors.black
+                        : Colors.grey.shade600,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Map',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: _selectedTabIndex == 1
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      color: _selectedTabIndex == 1
+                          ? Colors.black
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          },
         ),
       ),
     );
   }
 
+  // ── More button (Cupertino action sheet) ──────────────────────────────
+
+  Widget _buildMoreButton() {
+    return IconButton(
+      onPressed: _showActionsSheet,
+      icon: const Icon(CupertinoIcons.ellipsis, color: Colors.black87, size: 22),
+    );
+  }
+
+  void _showActionsSheet() {
+    HapticService.lightTap();
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _showBlockConfirmation();
+            },
+            isDestructiveAction: true,
+            child: const Text('Block User'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _showRemoveFriendConfirmation();
+            },
+            isDestructiveAction: true,
+            child: const Text('Remove Friend'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Report'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+
+  // ── Chat ──────────────────────────────────────────────────────────────
+
   void _openChat() {
+    HapticService.lightTap();
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -492,44 +541,25 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
     );
   }
 
+  // ── Block / Remove dialogs (Cupertino style) ──────────────────────────
+
   void _showBlockConfirmation() {
-    showDialog(
+    showCupertinoDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.r),
-        ),
-        title: Text(
-          'Block ${widget.friendName}?',
-          style: GoogleFonts.inter(
-            fontSize: 18.sp,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        content: Text(
+      builder: (context) => CupertinoAlertDialog(
+        title: Text('Block ${widget.friendName}?'),
+        content: const Text(
           'They won\'t be able to see your moments or message you.',
-          style: GoogleFonts.inter(fontSize: 14.sp, color: Colors.grey[600]),
         ),
         actions: [
-          TextButton(
+          CupertinoDialogAction(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.inter(color: Colors.grey[600]),
-            ),
+            child: const Text('Cancel'),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.r),
-              ),
-            ),
-            child: Text('Block', style: GoogleFonts.inter(color: Colors.white)),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Block'),
           ),
         ],
       ),
@@ -537,33 +567,20 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
   }
 
   void _showRemoveFriendConfirmation() {
-    showDialog(
+    showCupertinoDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.r),
-        ),
-        title: Text(
-          'Remove Friend?',
-          style: GoogleFonts.inter(
-            fontSize: 18.sp,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Remove Friend?'),
         content: Text(
           'You\'ll need to send a new friend request to reconnect with ${widget.friendName}.',
-          style: GoogleFonts.inter(fontSize: 14.sp, color: Colors.grey[600]),
         ),
         actions: [
-          TextButton(
+          CupertinoDialogAction(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.inter(color: Colors.grey[600]),
-            ),
+            child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          CupertinoDialogAction(
+            isDestructiveAction: true,
             onPressed: () async {
               final repo = ref.read(socialRepositoryProvider);
               await repo.removeFriend(widget.friendId);
@@ -572,26 +589,18 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
                 Navigator.pop(context);
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.r),
-              ),
-            ),
-            child: Text(
-              'Remove',
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
+            child: const Text('Remove'),
           ),
         ],
       ),
     );
   }
 
+  // ── Moments grid ──────────────────────────────────────────────────────
+
   Widget _buildMomentsGrid(AsyncValue<List<Moment>> momentsAsync) {
     return momentsAsync.when(
       data: (allMoments) {
-        // Filter to show only friend's non-private moments in grid
         final friendMoments = allMoments
             .where((m) => m.userId == widget.friendId && !m.isPrivate)
             .toList();
@@ -601,26 +610,26 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                HugeIcon(
-                  icon: HugeIcons.strokeRoundedImage01,
-                  size: 48.sp,
-                  color: Colors.grey[400],
+                Icon(
+                  CupertinoIcons.photo_on_rectangle,
+                  size: 48,
+                  color: Colors.grey[300],
                 ),
-                SizedBox(height: 16.h),
+                const SizedBox(height: 16),
                 Text(
                   'No shared moments yet',
                   style: GoogleFonts.inter(
-                    fontSize: 16.sp,
+                    fontSize: 16,
                     color: Colors.grey[600],
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                SizedBox(height: 4.h),
+                const SizedBox(height: 4),
                 Text(
                   'When ${widget.friendName.split(' ').first} shares moments,\nthey\'ll appear here',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
-                    fontSize: 13.sp,
+                    fontSize: 13,
                     color: Colors.grey[400],
                   ),
                 ),
@@ -630,54 +639,43 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
         }
 
         return GridView.builder(
-          padding: EdgeInsets.all(16.w),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          padding: const EdgeInsets.all(2),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
-            crossAxisSpacing: 4.w,
-            mainAxisSpacing: 4.h,
+            crossAxisSpacing: 2,
+            mainAxisSpacing: 2,
             childAspectRatio: 1,
           ),
           itemCount: friendMoments.length,
           itemBuilder: (context, index) {
             final moment = friendMoments[index];
 
-            return GestureDetector(
-              // KEY FIX: Pass allMoments (unfiltered) so _getMomentsInSameGroup
-              // can find ALL moments in the group, including current user's
-              onTap: () => _navigateToDetails(moment, allMoments),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(4.r),
-                  border: Border.all(
-                    color: Colors.black.withValues(alpha: 1),
-                    width: 1,
-                  ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(3.r),
-                  child: Consumer(
-                    builder: (context, ref, child) {
-                      final db = ref.read(appDatabaseProvider);
-                      return FutureBuilder<String?>(
-                        future: db.getLocalMediaPath(moment.id),
-                        builder: (context, snapshot) {
-                          return OfflineImage(
-                            localPath: snapshot.data,
-                            networkUrl: moment.imageUrl,
-                            cacheKey: moment.id,
-                            fit: BoxFit.cover,
-                            errorWidget: Center(
-                              child: Icon(
-                                Icons.broken_image,
-                                color: Colors.grey,
-                                size: 24.sp,
-                              ),
+            return Material(
+              color: Colors.grey[100],
+              child: InkWell(
+                onTap: () => _navigateToDetails(moment, allMoments),
+                child: Consumer(
+                  builder: (context, ref, child) {
+                    final db = ref.read(appDatabaseProvider);
+                    return FutureBuilder<String?>(
+                      future: db.getLocalMediaPath(moment.id),
+                      builder: (context, snapshot) {
+                        return OfflineImage(
+                          localPath: snapshot.data,
+                          networkUrl: moment.imageUrl,
+                          cacheKey: moment.id,
+                          fit: BoxFit.cover,
+                          errorWidget: Center(
+                            child: Icon(
+                              CupertinoIcons.photo,
+                              color: Colors.grey[300],
+                              size: 24,
                             ),
-                          );
-                        },
-                      );
-                    },
-                  ),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
             );
@@ -696,11 +694,7 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
 
   /// Navigate to moment details - uses UNFILTERED allMoments to get the full group
   void _navigateToDetails(Moment tappedMoment, List<Moment> allMoments) {
-    // Get ALL moments in the same group from the UNFILTERED list
-    // This ensures we include the current user's moments in the group too
     final groupMoments = _getMomentsInSameGroup(tappedMoment, allMoments);
-
-    // Find the index of the tapped moment within the group
     final groupIndex = groupMoments.indexWhere((m) => m.id == tappedMoment.id);
 
     Navigator.push(
@@ -716,12 +710,13 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
     );
   }
 
-  /// Get moments that belong to the same group as the tapped moment
   List<Moment> _getMomentsInSameGroup(Moment moment, List<Moment> allMoments) {
     return allMoments
         .where((m) => m.momentGroupId == moment.momentGroupId)
         .toList();
   }
+
+  // ── Map tab ───────────────────────────────────────────────────────────
 
   Widget _buildMapTab(AsyncValue<List<Moment>> momentsAsync) {
     return momentsAsync.when(
@@ -735,16 +730,16 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                HugeIcon(
-                  icon: HugeIcons.strokeRoundedMapsLocation01,
-                  size: 48.sp,
-                  color: Colors.grey[400],
+                Icon(
+                  CupertinoIcons.map,
+                  size: 48,
+                  color: Colors.grey[300],
                 ),
-                SizedBox(height: 16.h),
+                const SizedBox(height: 16),
                 Text(
                   'No locations to show',
                   style: GoogleFonts.inter(
-                    fontSize: 16.sp,
+                    fontSize: 16,
                     color: Colors.grey[600],
                     fontWeight: FontWeight.w500,
                   ),
@@ -765,14 +760,13 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
         );
 
         return Padding(
-          padding: EdgeInsets.all(10.w),
+          padding: const EdgeInsets.all(10),
           child: Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10.r),
-              border: Border.all(color: Colors.black, width: 1),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(9.r),
+              borderRadius: BorderRadius.circular(16),
               child: FlutterMap(
                 mapController: _mapController,
                 options: MapOptions(initialCenter: center, initialZoom: 12),
@@ -787,8 +781,8 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
                         .map(
                           (m) => Marker(
                             point: LatLng(m.latitude, m.longitude),
-                            width: 60.w,
-                            height: 60.h,
+                            width: 60,
+                            height: 60,
                             child: StackedMomentMarker(
                               moments: [m],
                               onTap: () => _navigateToDetails(m, allMoments),

@@ -8,7 +8,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../data/models/moment.dart';
 import '../../../core/services/share_service.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('YearInReview');
 /// Year in Review page - Spotify Wrapped-style recap of user's moments
 /// Features animated statistics, beautiful gradients, and shareable cards
 class YearInReviewPage extends StatefulWidget {
@@ -79,7 +82,7 @@ class _YearInReviewPageState extends State<YearInReviewPage>
         XFile(file.path),
       ], text: 'My ${widget.year} in Moments ✨');
     } catch (e) {
-      debugPrint('Error sharing: $e');
+      _log.e('Error sharing: $e');
     }
   }
 

@@ -7,7 +7,10 @@ import 'package:moments/data/models/message.dart';
 import 'package:moments/features/chat/providers/media_cache_provider.dart';
 import 'package:moments/features/chat/widgets/custom_media_bubble.dart';
 import 'package:video_player/video_player.dart';
+import 'package:moments/core/services/app_logger.dart';
 
+
+final _log = AppLogger('VideoMessage');
 class VideoMessageBubble extends ConsumerStatefulWidget {
   final Message message;
   final bool isMe;
@@ -60,7 +63,7 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
       await _videoPlayerController!.initialize();
       _setupChewie();
     } catch (e) {
-      debugPrint('Error initializing video player: $e');
+      _log.e('Error initializing video player: $e');
     }
   }
 

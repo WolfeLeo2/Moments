@@ -402,7 +402,7 @@ class _NotificationSettingsPageState
         shape: RoundedSuperellipseBorder(
           borderRadius: BorderRadius.circular(12.sp),
           side: BorderSide(
-            color: enabled ? AppTheme.borderBlack : Colors.grey[300]!,
+            color: enabled ? AppTheme.borderBlack : AppTheme.borderGray,
           ),
         ),
       ),
@@ -412,7 +412,7 @@ class _NotificationSettingsPageState
           decoration: BoxDecoration(
             color: enabled
                 ? iconColor.withValues(alpha: 0.1)
-                : Colors.grey[200],
+                : AppTheme.borderGray,
             shape: BoxShape.circle,
           ),
           child: HugeIcon(
