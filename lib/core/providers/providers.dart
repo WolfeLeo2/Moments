@@ -196,6 +196,8 @@ class NotificationsList extends _$NotificationsList {
       final repo = ref.read(notificationRepositoryProvider);
       await repo.deleteNotification(notificationId);
       _log.d('DB delete completed for $notificationId');
+      // Force badge count refresh
+      ref.invalidate(notificationCountProvider);
     } catch (e, stack) {
       _log.e('Error deleting notification', error: e, stackTrace: stack);
       // Rollback on failure
@@ -224,6 +226,8 @@ class NotificationsList extends _$NotificationsList {
     try {
       final repo = ref.read(notificationRepositoryProvider);
       await repo.markAsRead(notificationId);
+      // Force badge count refresh
+      ref.invalidate(notificationCountProvider);
     } catch (e, stack) {
       _log.e('Error marking notification as read', error: e, stackTrace: stack);
       // Rollback on failure
@@ -268,6 +272,8 @@ class NotificationsList extends _$NotificationsList {
       _log.d('Batch marking all as read');
       await repo.markAllAsRead();
       _log.d('Successfully marked all as read in DB');
+      // Force badge count refresh so it drops to 0 immediately
+      ref.invalidate(notificationCountProvider);
     } catch (e, stack) {
       _log.e(
         'Error marking all as read, reverting optimistic update',

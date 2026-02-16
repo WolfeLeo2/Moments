@@ -150,7 +150,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       // Wait a tick for the list to begin loading before marking as read
       await Future.delayed(const Duration(milliseconds: 100));
       if (mounted) {
-        ref.read(notificationsListProvider.notifier).markAllAsRead();
+        await ref.read(notificationsListProvider.notifier).markAllAsRead();
+        // Explicitly refresh badge count so it drops to 0 immediately
+        if (mounted) {
+          ref.invalidate(notificationCountProvider);
+        }
       }
     });
   }
@@ -181,9 +185,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
             fontFamily: 'GoogleSansFlex',
             fontWeight: FontWeight.w900,
-            fontVariations: const [
-              FontVariation('wght', 900),  
-            ],
+            fontVariations: const [FontVariation('wght', 900)],
             color: AppTheme.textDark,
             letterSpacing: -1.5,
           ),
@@ -441,11 +443,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            CupertinoIcons.envelope,
-            size: 64,
-            color: Colors.grey[300],
-          ),
+          Icon(CupertinoIcons.envelope, size: 64, color: Colors.grey[300]),
           const SizedBox(height: 16),
           Text(
             'Nothing here',
@@ -694,8 +692,9 @@ class _NotificationCard extends ConsumerWidget {
                                       vertical: 3,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: config.accentColor
-                                          .withValues(alpha: 0.10),
+                                      color: config.accentColor.withValues(
+                                        alpha: 0.10,
+                                      ),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
@@ -709,85 +708,90 @@ class _NotificationCard extends ConsumerWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                        // Main text
-                        RichText(
-                          text: TextSpan(
-                            style: TextStyle(
-                              color: Colors.grey[800],
-                              fontSize: 14,
-                              height: 1.4,
+                                  // Main text
+                                  RichText(
+                                    text: TextSpan(
+                                      style: TextStyle(
+                                        color: Colors.grey[800],
+                                        fontSize: 14,
+                                        height: 1.4,
+                                      ),
+                                      children: [
+                                        if (item.actorName != null)
+                                          TextSpan(
+                                            text: '${item.actorName} ',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        TextSpan(
+                                          text: _getBodyText(item),
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Group title for collab invites
+                                  if (item.type ==
+                                          NotificationType
+                                              .collaborationInvite &&
+                                      item.groupTitle != null) ...[
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          CupertinoIcons.folder,
+                                          size: 14,
+                                          color: config.accentColor,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            item.groupTitle!,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: config.accentColor,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  const SizedBox(height: 6),
+                                  // Time
+                                  TimeAgoText(
+                                    dateTime: item.createdAt,
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            children: [
-                              if (item.actorName != null)
-                                TextSpan(
-                                  text: '${item.actorName} ',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              TextSpan(
-                                text: _getBodyText(item),
-                                style: TextStyle(color: Colors.grey[600]),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Group title for collab invites
-                        if (item.type == NotificationType.collaborationInvite &&
-                            item.groupTitle != null) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                CupertinoIcons.folder,
-                                size: 14,
-                                color: config.accentColor,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  item.groupTitle!,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: config.accentColor,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                            // Unread indicator
+                            if (!item.isRead)
+                              Container(
+                                width: 8,
+                                height: 8,
+                                margin: const EdgeInsets.only(top: 4),
+                                decoration: BoxDecoration(
+                                  color: config.accentColor,
+                                  shape: BoxShape.circle,
                                 ),
                               ),
-                            ],
-                          ),
-                        ],
-                        const SizedBox(height: 6),
-                        // Time
-                        TimeAgoText(
-                          dateTime: item.createdAt,
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  // Unread indicator
-                  if (!item.isRead)
-                    Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.only(top: 4),
-                      decoration: BoxDecoration(
-                        color: config.accentColor,
-                        shape: BoxShape.circle,
                       ),
-                    ),
-                ],
-              ),
-            ),
-            // Action buttons for requests
-            if (requiresAction) _buildActionButtons(context, ref, item),
+                      // Action buttons for requests
+                      if (requiresAction)
+                        _buildActionButtons(context, ref, item),
                     ],
                   ),
                 ),
@@ -806,10 +810,7 @@ class _NotificationCard extends ConsumerWidget {
         height: 46,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.grey.shade300,
-            width: 1.5,
-          ),
+          border: Border.all(color: Colors.grey.shade300, width: 1.5),
         ),
         child: ClipOval(
           child: CachedNetworkImage(

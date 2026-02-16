@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_m3shapes_extended/flutter_m3shapes_extended.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -56,14 +57,14 @@ class BlurredAppBar extends StatelessWidget implements PreferredSizeWidget {
         style: const TextStyle(
           color: Colors.white,
           fontSize: 9,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
         ),
       ),
-      backgroundColor: AppTheme.coralPink,
+      backgroundColor: AppTheme.emergencyRed,
       child: IconButton(
         onPressed: onNotificationsPressed,
-        icon: const HugeIcon(
-          icon: HugeIcons.strokeRoundedNotification01,
+        icon: const Icon(
+          CupertinoIcons.bell,
           color: Colors.black87,
           size: 24,
         ),

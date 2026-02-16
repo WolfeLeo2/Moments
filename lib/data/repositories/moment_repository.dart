@@ -1144,4 +1144,106 @@ class MomentRepository {
           return pending;
         });
   }
+
+  // ============================================
+  // MOMENT COMMENTS
+  // ============================================
+
+  /// Fetch comments for a moment (with user profiles)
+  Future<List<Map<String, dynamic>>> getCommentsForMoment(
+    String momentId,
+  ) async {
+    try {
+      final response = await SupabaseConfig.client
+          .from('moment_comments')
+          .select('*, profiles:user_id(display_name, avatar_url)')
+          .eq('moment_id', momentId)
+          .order('created_at', ascending: true);
+
+      return List<Map<String, dynamic>>.from(response as List);
+    } catch (e) {
+      _log.e('Failed to fetch comments: $e');
+      return [];
+    }
+  }
+
+  /// Stream comments for a moment (real-time updates)
+  Stream<List<Map<String, dynamic>>> watchCommentsForMoment(String momentId) {
+    return SupabaseConfig.client
+        .from('moment_comments')
+        .stream(primaryKey: ['id'])
+        .eq('moment_id', momentId)
+        .order('created_at', ascending: true)
+        .asyncMap((data) async {
+          // Enrich each comment with profile data
+          final enriched = <Map<String, dynamic>>[];
+          for (final json in data) {
+            final profileResponse = await SupabaseConfig.client
+                .from('profiles')
+                .select('display_name, avatar_url')
+                .eq('id', json['user_id'])
+                .maybeSingle();
+
+            enriched.add({
+              ...json,
+              'display_name': profileResponse?['display_name'],
+              'avatar_url': profileResponse?['avatar_url'],
+            });
+          }
+          return enriched;
+        });
+  }
+
+  /// Add a comment to a moment
+  Future<Map<String, dynamic>> addComment(
+    String momentId,
+    String content,
+  ) async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) throw Exception('User not authenticated');
+
+      final response = await SupabaseConfig.client
+          .from('moment_comments')
+          .insert({
+            'moment_id': momentId,
+            'user_id': userId,
+            'content': content.trim(),
+          });
+
+      return response;
+    } catch (e) {
+      throw Exception('Failed to add comment: $e');
+    }
+  }
+
+  /// Delete a comment (only the comment author)
+  Future<void> deleteComment(String commentId) async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId == null) throw Exception('User not authenticated');
+
+      await SupabaseConfig.client
+          .from('moment_comments')
+          .delete()
+          .eq('id', commentId)
+          .eq('user_id', userId);
+    } catch (e) {
+      throw Exception('Failed to delete comment: $e');
+    }
+  }
+
+  /// Get comment count for a moment
+  Future<int> getCommentCount(String momentId) async {
+    try {
+      final response = await SupabaseConfig.client
+          .from('moment_comments')
+          .select('id')
+          .eq('moment_id', momentId);
+
+      return (response as List).length;
+    } catch (e) {
+      return 0;
+    }
+  }
 }

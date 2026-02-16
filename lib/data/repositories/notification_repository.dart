@@ -8,6 +8,10 @@ final _log = AppLogger('NotificationRepository');
 class NotificationRepository {
   final SupabaseClient _client = SupabaseConfig.client;
 
+  // Reusable stream infrastructure to prevent channel leaks
+  StreamController<int>? _countController;
+  RealtimeChannel? _countChannel;
+
   /// Get the count of unread notifications
   Future<int> getUnreadCount() async {
     try {
@@ -22,7 +26,23 @@ class NotificationRepository {
     }
   }
 
-  /// Stream of unread notification count
+  /// Manually trigger a re-fetch of the unread count.
+  /// Call this after mutations (markAllAsRead, markAsRead, delete) to ensure
+  /// the count updates even if the realtime event is missed.
+  void refreshCount() {
+    if (_countController != null && !_countController!.isClosed) {
+      _log.d('NotificationRepository: Manual refreshCount triggered');
+      getUnreadCount().then((c) {
+        if (_countController != null && !_countController!.isClosed) {
+          _countController!.add(c);
+        }
+      });
+    }
+  }
+
+  /// Stream of unread notification count.
+  /// Reuses a single broadcast StreamController and Supabase Realtime channel
+  /// to prevent leaks on repeated calls.
   Stream<int> streamUnreadCount() {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
@@ -30,7 +50,15 @@ class NotificationRepository {
       return Stream.value(0);
     }
 
-    final controller = StreamController<int>();
+    // Reuse existing stream if available
+    if (_countController != null && !_countController!.isClosed) {
+      // Still trigger a fresh fetch so new listeners get current data
+      refreshCount();
+      return _countController!.stream;
+    }
+
+    final controller = StreamController<int>.broadcast();
+    _countController = controller;
 
     void fetch() {
       _log.d('NotificationRepository: Fetching unread count for $userId');
@@ -44,18 +72,17 @@ class NotificationRepository {
     fetch();
 
     // Listen for ALL changes in notifications table (simpler, more reliable)
-    // Filter is checked in callback to ensure it works with Supabase Realtime
     _log.d(
       'NotificationRepository: Setting up realtime channel for notifications',
     );
     final channel = _client.channel('notification-changes-$userId');
+    _countChannel = channel;
     channel
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'notifications',
           callback: (payload) {
-            // Check if this change affects the current user
             final newRecord = payload.newRecord;
             final oldRecord = payload.oldRecord;
             final affectedUserId = newRecord['user_id'] ?? oldRecord['user_id'];
@@ -78,7 +105,11 @@ class NotificationRepository {
 
     controller.onCancel = () async {
       _log.d('NotificationRepository: Closing notification count stream');
-      await _client.removeChannel(channel);
+      if (_countChannel != null) {
+        await _client.removeChannel(_countChannel!);
+        _countChannel = null;
+      }
+      _countController = null;
       await controller.close();
     };
 
@@ -95,6 +126,9 @@ class NotificationRepository {
         .update({'is_read': true})
         .eq('user_id', userId)
         .eq('is_read', false);
+
+    // Explicitly refresh the count stream so badge updates immediately
+    refreshCount();
   }
 
   /// Mark a single notification as read
@@ -107,6 +141,9 @@ class NotificationRepository {
         .update({'is_read': true})
         .eq('id', notificationId)
         .eq('user_id', userId);
+
+    // Explicitly refresh the count stream so badge updates immediately
+    refreshCount();
   }
 
   /// Get notifications with pagination support
@@ -153,6 +190,9 @@ class NotificationRepository {
           .eq('id', notificationId)
           .eq('user_id', userId);
       _log.d('NotificationRepository: Delete successful');
+
+      // Refresh count after deletion
+      refreshCount();
     } catch (e) {
       _log.e('NotificationRepository: Delete failed: $e');
       rethrow;

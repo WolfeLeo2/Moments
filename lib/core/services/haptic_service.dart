@@ -55,4 +55,15 @@ class HapticService {
     await Future.delayed(const Duration(milliseconds: 50));
     await HapticFeedback.lightImpact();
   }
+
+  /// Heartbeat - double-pulse pattern for live pulse interactions
+  static Future<void> heartbeat() async {
+    await HapticFeedback.heavyImpact();
+    await Future.delayed(const Duration(milliseconds: 120));
+    await HapticFeedback.mediumImpact();
+    await Future.delayed(const Duration(milliseconds: 300));
+    await HapticFeedback.heavyImpact();
+    await Future.delayed(const Duration(milliseconds: 120));
+    await HapticFeedback.mediumImpact();
+  }
 }
