@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:moments/core/services/auth_service.dart';
 import 'package:moments/core/services/avatar_cache_service.dart';
 import 'package:moments/core/services/app_logger.dart';
@@ -54,9 +55,9 @@ AIService aiService(Ref ref) {
 // AUTH STATE
 // ============================================
 
-/// Current authenticated user
+/// Current authenticated user — typed as User? for safety
 @riverpod
-Stream<dynamic> currentUser(Ref ref) {
+Stream<User?> currentUser(Ref ref) {
   final authService = ref.watch(authServiceProvider);
   return authService.authStateChanges.map((state) => state.session?.user);
 }
@@ -110,7 +111,7 @@ class NotificationsList extends _$NotificationsList {
     _log.d('build() called');
     _currentOffset = 0;
     _hasMore = true;
-    final repo = ref.read(notificationRepositoryProvider);
+    final repo = ref.watch(notificationRepositoryProvider);
     final notifications = await repo.getNotifications(
       limit: _pageSize,
       offset: 0,
@@ -438,13 +439,13 @@ class FriendRequest extends _$FriendRequest {
 // ============================================
 
 /// Invalidate all friends-related caches
-void invalidateFriendsCache(WidgetRef ref) {
+void invalidateFriendsCache(Ref ref) {
   ref.invalidate(friendsListProvider);
   ref.invalidate(pendingRequestsProvider);
 }
 
 /// Invalidate profile cache
-void invalidateProfileCache(WidgetRef ref) {
+void invalidateProfileCache(Ref ref) {
   ref.invalidate(currentUserProfileProvider);
 }
 
@@ -457,4 +458,25 @@ void invalidateProfileCache(WidgetRef ref) {
 MomentStorageService momentStorageService(Ref ref) {
   final db = ref.watch(appDatabaseProvider);
   return MomentStorageService(db);
+}
+
+// ============================================
+// DISMISSED NOTIFICATION IDS
+// ============================================
+
+/// Tracks which notification IDs have been dismissed (swiped away) in the
+/// current session. Using a keepAlive provider so dismissals survive page
+/// pops and re-pushes — unlike a Set on widget State.
+@Riverpod(keepAlive: true)
+class DismissedNotificationIds extends _$DismissedNotificationIds {
+  @override
+  Set<String> build() => {};
+
+  void add(String id) {
+    state = {...state, id};
+  }
+
+  void clear() {
+    state = {};
+  }
 }

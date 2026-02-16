@@ -7,7 +7,7 @@ import 'firebase_options.dart';
 import 'core/services/firebase_messaging_service.dart';
 import 'core/services/notification_navigator.dart';
 import 'core/services/chat_offline_service.dart';
-import 'core/services/ai_service.dart';
+
 import 'core/theme/app_theme.dart';
 import 'core/services/map_cache_service.dart';
 import 'core/services/garbage_collection_service.dart';
@@ -30,20 +30,16 @@ void main() async {
   // Initialize Supabase
   await SupabaseConfig.initialize();
 
-  // Initialize Firebase Messaging
+  // Initialize Firebase Messaging — must happen before widget tree
+  // because it sets up background handlers and foreground listeners
   await FirebaseMessagingService().initialize();
 
-  // Initialize notification deep-link handler
+  // Initialize notification deep-link handler — must happen before widget tree
+  // because it registers the onNotificationTap callback for cold-start taps
   NotificationNavigator.initialize();
 
-  // Initialize map tile caching (async, non-blocking)
-  MapCacheService().initialize();
-
-  // Run garbage collection on startup (async, non-blocking)
-  GarbageCollectionService().runGC();
-
-  // Initialize Firebase AI (Gemini Developer API - free tier)
-  AIService().initialize();
+  // Note: MapCacheService, GarbageCollectionService, and AIService
+  // are initialized in _MomentsRootAppState.initState() via their providers
 
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
@@ -80,6 +76,12 @@ class _MomentsRootAppState extends ConsumerState<MomentsRootApp> {
 
     // Start chat offline service for message retry and sync
     ref.read(chatOfflineServiceProvider).start();
+
+    // Initialize map tile caching (async, non-blocking)
+    MapCacheService().initialize();
+
+    // Run garbage collection on startup (async, non-blocking)
+    GarbageCollectionService().runGC();
 
     // Refresh badges when a notification arrives
     FirebaseMessagingService.onMessageReceived = () {

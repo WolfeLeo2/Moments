@@ -137,8 +137,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   String _selectedFilter = 'All';
   final List<String> _filters = ['All', 'Requests', 'Activity', 'System'];
 
-  // Track dismissed items for animation
-  final Set<String> _dismissedIds = {};
+  // Dismissed notification IDs tracked via provider (persists across page pops)
+  // see dismissedNotificationIdsProvider in providers.dart
 
   @override
   void initState() {
@@ -397,7 +397,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final seenIds = <String>{};
     final deduplicatedItems = <NotificationItem>[];
     for (final item in items) {
-      if (!seenIds.contains(item.id) && !_dismissedIds.contains(item.id)) {
+      if (!seenIds.contains(item.id) &&
+          !ref.read(dismissedNotificationIdsProvider).contains(item.id)) {
         seenIds.add(item.id);
         deduplicatedItems.add(item);
       }
@@ -516,7 +517,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   ? null
                   : () {
                       HapticFeedback.mediumImpact();
-                      setState(() => _dismissedIds.add(item.id));
+                      ref
+                          .read(dismissedNotificationIdsProvider.notifier)
+                          .add(item.id);
                       ref
                           .read(notificationsListProvider.notifier)
                           .removeNotification(item.id);

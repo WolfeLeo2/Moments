@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
@@ -6,21 +7,23 @@ import 'package:moments/features/chat/presentation/chat_page.dart';
 import 'package:moments/features/chat/presentation/chat_list_page.dart';
 import 'package:moments/core/services/firebase_messaging_service.dart';
 import 'package:moments/features/map/providers/map_control_provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:moments/core/providers/providers.dart';
+import 'package:moments/core/providers/moments_providers.dart';
 
-import 'package:moments/data/models/moment.dart';
 import 'package:moments/features/moments/presentation/moment_details_page.dart';
 import 'package:moments/core/services/app_logger.dart';
 
-
 final _log = AppLogger('NotifNavigator');
+
 /// Handles navigation from push notification taps.
 ///
 /// Notification types:
 /// - 'friend_request' -> Notifications Page (Requests tab)
 /// - 'new_message' -> Chat Page with the specific conversation
-/// - 'moment_invite' -> Map Page with camera pan
-/// - 'system' -> Notifications Page
+/// - 'moment_invite' -> Notifications Page (for accept/decline)
+/// - 'new_moment_group' -> Map Page with camera pan
+/// - 'new_moment_post' -> Moment Details Page
+/// - 'system'/'promo'/default -> Notifications Page
 class NotificationNavigator {
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
@@ -42,54 +45,42 @@ class NotificationNavigator {
 
     final context = navigatorKey.currentContext;
     if (context == null) {
-      _log.d('NotificationNavigator: No context available');
+      // Cold-start: widget tree hasn't mounted yet. Retry after a short delay.
+      _log.d('NotificationNavigator: No context yet, scheduling retry');
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _handleNotificationTap(data);
+      });
       return;
     }
 
     switch (type) {
       case 'friend_request':
-        // Navigate to Notifications page (Requests tab is index 1)
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const NotificationsPage()));
+        _pushPage(context, const NotificationsPage());
         break;
 
-      case 'message': // The type in DB is 'message', not 'new_message'
+      case 'message':
       case 'new_message':
+      case 'chat_message':
         if (actorId != null) {
-          // Use actor_id (sender) to open chat
           _navigateToChat(context, actorId);
-        } else if (relatedId != null) {
-          // Fallback: if relatedId is conversation_id, we can't easily get friend details without query.
-          // Just go to chat list.
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const ChatListPage()));
         } else {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const ChatListPage()));
+          _pushPage(context, const ChatListPage());
         }
         break;
 
       case 'moment_invite':
-      case 'collaboration_invite': // The type in DB is 'collaboration_invite'
-        // User requested: "Why navigate to the moment detail page yet the accepting or rejecting part is in the notifications page?"
-        // So we navigate to NotificationsPage for invites.
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const NotificationsPage()));
+      case 'collaboration_invite':
+        // Navigate to NotificationsPage for accept/decline actions
+        _pushPage(context, const NotificationsPage());
         break;
 
       case 'new_moment_group':
-        // User requested: "Friend A posted a new moment... it moves to the map"
         if (relatedId != null) {
           _navigateToMomentLocation(context, relatedId);
         }
         break;
 
       case 'new_moment_post':
-        // User requested: "Same for newly added moments in a moment group... opens the moment details page"
         if (relatedId != null) {
           _navigateToMomentDetails(context, relatedId);
         }
@@ -98,154 +89,105 @@ class NotificationNavigator {
       case 'system':
       case 'promo':
       default:
-        // Default to notifications page
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const NotificationsPage()));
+        _pushPage(context, const NotificationsPage());
         break;
     }
   }
 
-  /// Navigate to a specific chat.
-  /// [friendId] should be the friend's user_id.
+  /// Push a page using Navigator (works with GoRouter's navigatorKey)
+  static void _pushPage(BuildContext context, Widget page) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  }
+
+  /// Navigate to a specific chat using the social repository provider.
   static Future<void> _navigateToChat(
     BuildContext context,
     String friendId,
   ) async {
     try {
-      // Fetch friend's profile to get name and avatar
-      final supabase = Supabase.instance.client;
-      final response = await supabase
-          .from('profiles')
-          .select('id, display_name, avatar_url')
-          .eq('id', friendId)
-          .maybeSingle();
+      // Use the repository via Riverpod instead of raw Supabase queries
+      final container = ProviderScope.containerOf(context, listen: false);
+      final socialRepo = container.read(socialRepositoryProvider);
+      final profile = await socialRepo.getProfileById(friendId);
 
-      if (response != null) {
-        final friendName = response['display_name'] as String? ?? 'Friend';
-        final friendAvatarUrl = response['avatar_url'] as String?;
-
-        if (context.mounted) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ChatPage(
-                friendId: friendId,
-                friendName: friendName,
-                friendAvatarUrl: friendAvatarUrl,
-              ),
-            ),
-          );
-        }
-      } else {
-        // Fallback to chat list
-        if (context.mounted) {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const ChatListPage()));
-        }
+      if (profile != null && context.mounted) {
+        _pushPage(
+          context,
+          ChatPage(
+            friendId: friendId,
+            friendName: profile.displayName ?? 'Friend',
+            friendAvatarUrl: profile.avatarUrl,
+          ),
+        );
+      } else if (context.mounted) {
+        _pushPage(context, const ChatListPage());
       }
     } catch (e) {
       _log.e('Error navigating to chat: $e');
       if (context.mounted) {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const ChatListPage()));
+        _pushPage(context, const ChatListPage());
       }
     }
   }
 
+  /// Navigate to moment details using the moment repository provider.
   static Future<void> _navigateToMomentDetails(
     BuildContext context,
     String momentGroupId,
   ) async {
     try {
-      final supabase = Supabase.instance.client;
+      final container = ProviderScope.containerOf(context, listen: false);
+      final momentRepo = container.read(momentRepositoryProvider);
 
-      // 1. Fetch the moment group details
-      final groupResponse = await supabase
-          .from('moment_groups')
-          .select('place_name')
-          .eq('id', momentGroupId)
-          .maybeSingle();
-
-      final placeName = groupResponse?['place_name'] as String? ?? 'Moment';
-
-      // 2. Fetch the moments for this group
-      final momentsResponse = await supabase
-          .from('moments')
-          .select('*')
-          .eq('moment_group_id', momentGroupId)
-          .order('created_at', ascending: false);
-
-      final List<dynamic> data = momentsResponse as List<dynamic>;
-      final List<Moment> moments = data
-          .map((json) => Moment.fromJson(json))
-          .toList();
-
-      if (context.mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => MomentDetailsPage(
-              locationName: placeName,
-              moments: moments,
-              initialPage: 0,
-            ),
+      final moments = await momentRepo.getMomentsByGroup(momentGroupId);
+      if (moments.isNotEmpty && context.mounted) {
+        _pushPage(
+          context,
+          MomentDetailsPage(
+            locationName: moments.first.location,
+            moments: moments,
+            initialPage: 0,
           ),
         );
+      } else if (context.mounted) {
+        _pushPage(context, const NotificationsPage());
       }
     } catch (e) {
       _log.e('Error navigating to moment details: $e');
       if (context.mounted) {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const NotificationsPage()));
+        _pushPage(context, const NotificationsPage());
       }
     }
   }
 
+  /// Navigate to a moment's location on the map using the moment repository.
   static Future<void> _navigateToMomentLocation(
     BuildContext context,
-    String momentId,
+    String momentGroupId,
   ) async {
     try {
-      final supabase = Supabase.instance.client;
-      // Check moment_groups first (for invites)
-      final response = await supabase
-          .from('moment_groups')
-          .select('latitude, longitude')
-          .eq('id', momentId)
-          .maybeSingle();
+      final container = ProviderScope.containerOf(context, listen: false);
+      final momentRepo = container.read(momentRepositoryProvider);
 
-      if (response != null &&
-          response['latitude'] != null &&
-          response['longitude'] != null) {
-        final lat = response['latitude'] as double;
-        final lng = response['longitude'] as double;
+      // Get moments for this group to find the location
+      final moments = await momentRepo.getMomentsByGroup(momentGroupId);
+      if (moments.isNotEmpty && context.mounted) {
+        final moment = moments.first;
 
-        if (context.mounted) {
-          // Pop until we are at the root (MapPage)
-          Navigator.of(context).popUntil((route) => route.isFirst);
+        // Pop to root (map page)
+        Navigator.of(context).popUntil((route) => route.isFirst);
 
-          // Trigger camera move via Riverpod
-          // We use the container from the context to access the provider
-          ProviderScope.containerOf(
-            context,
-          ).read(mapCameraTargetProvider.notifier).setTarget(LatLng(lat, lng));
-        }
-      } else {
-        // Fallback to notifications page
-        if (context.mounted) {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const NotificationsPage()));
-        }
+        // Trigger camera move via Riverpod
+        container
+            .read(mapCameraTargetProvider.notifier)
+            .setTarget(LatLng(moment.latitude, moment.longitude));
+      } else if (context.mounted) {
+        _pushPage(context, const NotificationsPage());
       }
     } catch (e) {
-      _log.e('Error navigating to moment: $e');
+      _log.e('Error navigating to moment location: $e');
       if (context.mounted) {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const NotificationsPage()));
+        _pushPage(context, const NotificationsPage());
       }
     }
   }

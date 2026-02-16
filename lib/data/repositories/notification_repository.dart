@@ -12,8 +12,9 @@ class NotificationRepository {
   StreamController<int>? _countController;
   RealtimeChannel? _countChannel;
 
-  /// Get the count of unread notifications
-  Future<int> getUnreadCount() async {
+  /// Get the count of unread notifications.
+  /// Returns null on error so callers can distinguish 'zero' from 'fetch failed'.
+  Future<int?> getUnreadCount() async {
     try {
       final userId = _client.auth.currentUser?.id;
       if (userId == null) return 0;
@@ -22,7 +23,7 @@ class NotificationRepository {
       return count as int;
     } catch (e) {
       _log.e('Error fetching notification count: $e');
-      return 0;
+      return null;
     }
   }
 
@@ -33,7 +34,10 @@ class NotificationRepository {
     if (_countController != null && !_countController!.isClosed) {
       _log.d('NotificationRepository: Manual refreshCount triggered');
       getUnreadCount().then((c) {
-        if (_countController != null && !_countController!.isClosed) {
+        // Only emit if we got a real value (skip on error to keep last-known count)
+        if (c != null &&
+            _countController != null &&
+            !_countController!.isClosed) {
           _countController!.add(c);
         }
       });
@@ -64,7 +68,8 @@ class NotificationRepository {
       _log.d('NotificationRepository: Fetching unread count for $userId');
       getUnreadCount().then((c) {
         _log.d('NotificationRepository: Unread count = $c');
-        if (!controller.isClosed) controller.add(c);
+        // Only emit non-null values (skip on error to preserve last-known count)
+        if (c != null && !controller.isClosed) controller.add(c);
       });
     }
 

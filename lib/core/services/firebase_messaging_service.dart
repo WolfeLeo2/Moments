@@ -242,16 +242,22 @@ class FirebaseMessagingService {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-    } catch (_) {}
+    } catch (e) {
+      _log.d('Firebase already initialized or init failed: $e');
+    }
 
     // Load env vars for encryption key (just in case not loaded yet)
     try {
       await dotenv.load(fileName: ".env");
-    } catch (_) {}
+    } catch (e) {
+      _log.d('Dotenv already loaded or load failed: $e');
+    }
 
     try {
       await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseAnonKey);
-    } catch (_) {}
+    } catch (e) {
+      _log.d('Supabase already initialized or init failed: $e');
+    }
 
     final supabase = Supabase.instance.client;
     final currentUserId = supabase.auth.currentUser?.id;

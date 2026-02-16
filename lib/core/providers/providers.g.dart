@@ -257,17 +257,17 @@ final class AiServiceProvider
 
 String _$aiServiceHash() => r'f3676f4c3d527135c19190275905b7fddc88471a';
 
-/// Current authenticated user
+/// Current authenticated user — typed as User? for safety
 
 @ProviderFor(currentUser)
 const currentUserProvider = CurrentUserProvider._();
 
-/// Current authenticated user
+/// Current authenticated user — typed as User? for safety
 
 final class CurrentUserProvider
-    extends $FunctionalProvider<AsyncValue<dynamic>, dynamic, Stream<dynamic>>
-    with $FutureModifier<dynamic>, $StreamProvider<dynamic> {
-  /// Current authenticated user
+    extends $FunctionalProvider<AsyncValue<User?>, User?, Stream<User?>>
+    with $FutureModifier<User?>, $StreamProvider<User?> {
+  /// Current authenticated user — typed as User? for safety
   const CurrentUserProvider._()
     : super(
         from: null,
@@ -284,16 +284,16 @@ final class CurrentUserProvider
 
   @$internal
   @override
-  $StreamProviderElement<dynamic> $createElement($ProviderPointer pointer) =>
+  $StreamProviderElement<User?> $createElement($ProviderPointer pointer) =>
       $StreamProviderElement(pointer);
 
   @override
-  Stream<dynamic> create(Ref ref) {
+  Stream<User?> create(Ref ref) {
     return currentUser(ref);
   }
 }
 
-String _$currentUserHash() => r'901f17b44ebfcc072cefe9729ae92fa4703cb895';
+String _$currentUserHash() => r'df184e2b2b619a7eea7caa5c646ae48e7709707d';
 
 /// Current user's profile with auto-refresh
 
@@ -493,7 +493,7 @@ final class NotificationsListProvider
   NotificationsList create() => NotificationsList();
 }
 
-String _$notificationsListHash() => r'f83251bcce82ac7827e3b9f94c87d9e32f198d83';
+String _$notificationsListHash() => r'a34a22475fe479e3bb793a8ad668c7fce782eac5';
 
 /// Provider for the list of notifications with pagination support
 /// No auto-mark-as-read, user must interact with notifications to mark them read
@@ -1058,3 +1058,71 @@ final class MomentStorageServiceProvider
 
 String _$momentStorageServiceHash() =>
     r'd1d57948a08e6caa59e4ce88cfdd25e948ea24cc';
+
+/// Tracks which notification IDs have been dismissed (swiped away) in the
+/// current session. Using a keepAlive provider so dismissals survive page
+/// pops and re-pushes — unlike a Set on widget State.
+
+@ProviderFor(DismissedNotificationIds)
+const dismissedNotificationIdsProvider = DismissedNotificationIdsProvider._();
+
+/// Tracks which notification IDs have been dismissed (swiped away) in the
+/// current session. Using a keepAlive provider so dismissals survive page
+/// pops and re-pushes — unlike a Set on widget State.
+final class DismissedNotificationIdsProvider
+    extends $NotifierProvider<DismissedNotificationIds, Set<String>> {
+  /// Tracks which notification IDs have been dismissed (swiped away) in the
+  /// current session. Using a keepAlive provider so dismissals survive page
+  /// pops and re-pushes — unlike a Set on widget State.
+  const DismissedNotificationIdsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'dismissedNotificationIdsProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$dismissedNotificationIdsHash();
+
+  @$internal
+  @override
+  DismissedNotificationIds create() => DismissedNotificationIds();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(Set<String> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<Set<String>>(value),
+    );
+  }
+}
+
+String _$dismissedNotificationIdsHash() =>
+    r'd1257b1a748b9bbec1be1564dc4e64e19a1c0274';
+
+/// Tracks which notification IDs have been dismissed (swiped away) in the
+/// current session. Using a keepAlive provider so dismissals survive page
+/// pops and re-pushes — unlike a Set on widget State.
+
+abstract class _$DismissedNotificationIds extends $Notifier<Set<String>> {
+  Set<String> build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final created = build();
+    final ref = this.ref as $Ref<Set<String>, Set<String>>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<Set<String>, Set<String>>,
+              Set<String>,
+              Object?,
+              Object?
+            >;
+    element.handleValue(ref, created);
+  }
+}
