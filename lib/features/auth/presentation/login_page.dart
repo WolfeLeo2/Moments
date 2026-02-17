@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/router/app_router.dart';
 import '../../../data/sources/supabase_config.dart';
@@ -18,7 +19,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
+  late final AuthService _authService = AuthService(Supabase.instance.client);
   bool _isLoading = false;
   bool _isSignUp = false;
 
@@ -134,13 +135,13 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: AppTheme.backgroundBeige,
       body: SafeArea(
         child: Center(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Lottie Animation
-                  Lottie.asset(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Lottie Animation
+                Lottie.asset(
                   'assets/animations/login.json',
                   width: 320,
                   height: 320,
@@ -235,8 +236,11 @@ class _LoginPageState extends State<LoginPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        SvgPicture.asset('assets/icons/google.svg',
-                            width: 24, height: 24),
+                        SvgPicture.asset(
+                          'assets/icons/google.svg',
+                          width: 24,
+                          height: 24,
+                        ),
                         const SizedBox(width: 12),
                         const Text(
                           'CONTINUE WITH GOOGLE',

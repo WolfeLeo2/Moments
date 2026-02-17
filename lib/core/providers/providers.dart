@@ -25,16 +25,24 @@ final _log = AppLogger('Providers');
 
 /// Auth service provider - singleton instance
 @Riverpod(keepAlive: true)
-AuthService authService(Ref ref) => AuthService();
+AuthService authService(Ref ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return AuthService(client);
+}
 
 /// Social repository provider - singleton instance
 @Riverpod(keepAlive: true)
-SocialRepository socialRepository(Ref ref) => SocialRepository();
+SocialRepository socialRepository(Ref ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return SocialRepository(client);
+}
 
 /// Notification repository provider - singleton instance
 @Riverpod(keepAlive: true)
-NotificationRepository notificationRepository(Ref ref) =>
-    NotificationRepository();
+NotificationRepository notificationRepository(Ref ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return NotificationRepository(client);
+}
 
 /// Avatar cache service provider - receives database via constructor injection
 @Riverpod(keepAlive: true)

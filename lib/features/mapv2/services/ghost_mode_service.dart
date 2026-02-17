@@ -136,12 +136,26 @@ class GhostModeService {
   }
 
   /// Stop broadcasting your location.
-  void goOffline() {
-    _isLive = false;
+  Future<void> goOffline() async {
+    _log.i('Stopping Ghost Mode...');
     _broadcastTimer?.cancel();
     _broadcastTimer = null;
-    _channel?.untrack();
-    _log.i('Ghost mode: OFFLINE');
+
+    if (_channel == null) {
+      _log.w('Ghost Mode channel is null, cannot untrack.');
+      _isLive = false;
+      return;
+    }
+
+    try {
+      _log.d('Untracking presence for user $currentUserId...');
+      await _channel?.untrack();
+      _log.i('Ghost mode: OFFLINE (untracked)');
+    } catch (e) {
+      _log.e('Error untracking ghost mode: $e');
+    } finally {
+      _isLive = false;
+    }
   }
 
   void _broadcastLocation({
@@ -190,7 +204,14 @@ class GhostModeService {
     }
 
     _liveFriendsController.add(Map.from(_liveFriends));
-    _log.d('Live friends: ${_liveFriends.length}');
+    _log.d('Live friends sync: ${_liveFriends.length} friends found.');
+    if (_liveFriends.isEmpty) {
+      _log.d(
+        'Live friends list is EMPTY. Any previous markers should be removed.',
+      );
+    } else {
+      _log.d('Current live friends: ${_liveFriends.keys.join(', ')}');
+    }
   }
 
   /// Clean up resources.

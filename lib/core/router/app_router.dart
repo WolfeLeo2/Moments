@@ -4,7 +4,7 @@ import '../../features/navigation/presentation/main_scaffold.dart';
 import '../../features/moments/presentation/add_moment_page.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/auth/presentation/phone_verification_page.dart';
-import '../services/auth_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/notification_navigator.dart';
 
 import '../../features/splash/presentation/splash_page.dart'; // Import SplashPage
@@ -17,14 +17,12 @@ class AppRouter {
   static const String momentDetailRoute = '/moment/:id';
   static const String addMomentRoute = '/add-moment';
 
-  static final _authService = AuthService();
-
   static final GoRouter router = GoRouter(
     navigatorKey: NotificationNavigator.navigatorKey,
     initialLocation: splashRoute, // Start at splash
     debugLogDiagnostics: false,
     redirect: (context, state) {
-      final isSignedIn = _authService.isSignedIn;
+      final isSignedIn = Supabase.instance.client.auth.currentUser != null;
       final isOnLoginPage = state.matchedLocation == loginRoute;
       final isOnSplashPage = state.matchedLocation == splashRoute;
       final isOnVerifyPhone = state.matchedLocation == verifyPhoneRoute;

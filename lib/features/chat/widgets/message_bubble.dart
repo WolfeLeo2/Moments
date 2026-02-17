@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:moments/core/theme/app_theme.dart';
+import 'package:moments/core/utils/emoji_utils.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/features/chat/widgets/custom_bubble_special_three.dart';
 
@@ -56,6 +57,80 @@ class MessageBubble extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      );
+    }
+
+    // ── Emoji-only messages: render without bubble (WhatsApp-style) ──
+    final content = message.content;
+    if (message.messageType == MessageType.text &&
+        message.replyToMessage == null &&
+        isEmojiOnly(content)) {
+      final emojiCount = countEmojis(content);
+      final fontSize = emojiOnlyFontSize(emojiCount);
+      final hasReactions = message.reactions.isNotEmpty;
+
+      return Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: isMe ? 64 : 8,
+            right: isMe ? 8 : 64,
+            top: 2,
+            bottom: hasReactions ? 14 : 2,
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: isMe ? Alignment.bottomRight : Alignment.bottomLeft,
+            children: [
+              Column(
+                crossAxisAlignment: isMe
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(content, style: TextStyle(fontSize: fontSize)),
+                  // Status row
+                  if (isMe)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: _buildStatusIcon(
+                        AppTheme.textGray.withValues(alpha: 0.5),
+                      ),
+                    ),
+                ],
+              ),
+              // Reactions
+              if (hasReactions)
+                Positioned(
+                  bottom: -10,
+                  right: isMe ? 12 : null,
+                  left: isMe ? null : 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                      border: Border.all(
+                        color: Colors.grey.withValues(alpha: 0.1),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: _buildReactions(context),
+                  ),
+                ),
+            ],
+          ),
         ),
       );
     }
@@ -199,6 +274,10 @@ class MessageBubble extends StatelessWidget {
       preview = '🎬 Video';
     } else if (reply.messageType == MessageType.audio) {
       preview = '🎤 Audio';
+    } else if (reply.messageType == MessageType.gif) {
+      preview = '🎞️ GIF';
+    } else if (reply.messageType == MessageType.sticker) {
+      preview = '🎭 Sticker';
     } else if (preview.length > 60) {
       preview = '${preview.substring(0, 60)}...';
     }

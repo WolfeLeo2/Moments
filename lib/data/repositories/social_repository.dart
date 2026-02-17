@@ -3,13 +3,14 @@ import 'package:moments/core/services/phone_hash_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/profile.dart';
 import '../models/friendship.dart';
-import '../sources/supabase_config.dart';
 
 final _log = AppLogger('SocialRepository');
 
 /// Repository for managing user profiles and friendships
 class SocialRepository {
-  final SupabaseClient _client = SupabaseConfig.client;
+  final SupabaseClient _client;
+
+  SocialRepository(this._client);
 
   // ============================================
   // PROFILE MANAGEMENT
@@ -263,7 +264,9 @@ class SocialRepository {
       await _client
           .from('friendships')
           .delete()
-          .or('and(user_id.eq.$userId,friend_id.eq.$friendUserId),and(user_id.eq.$friendUserId,friend_id.eq.$userId)');
+          .or(
+            'and(user_id.eq.$userId,friend_id.eq.$friendUserId),and(user_id.eq.$friendUserId,friend_id.eq.$userId)',
+          );
     } catch (e) {
       throw Exception('Failed to remove friend: $e');
     }
@@ -531,10 +534,13 @@ class SocialRepository {
     try {
       final userId = _client.auth.currentUser?.id;
       if (userId == null) return;
-      await _client.from('profiles').update({
-        'phone_number': phoneNumber,
-        'phone_hash': PhoneHashService.hashNumber(phoneNumber),
-      }).eq('id', userId);
+      await _client
+          .from('profiles')
+          .update({
+            'phone_number': phoneNumber,
+            'phone_hash': PhoneHashService.hashNumber(phoneNumber),
+          })
+          .eq('id', userId);
     } catch (e) {
       _log.e('Update phone number error: $e');
     }
@@ -549,7 +555,9 @@ class SocialRepository {
       final response = await _client
           .from('friendships')
           .select('status')
-          .or('and(user_id.eq.$userId,friend_id.eq.$otherUserId),and(user_id.eq.$otherUserId,friend_id.eq.$userId)')
+          .or(
+            'and(user_id.eq.$userId,friend_id.eq.$otherUserId),and(user_id.eq.$otherUserId,friend_id.eq.$userId)',
+          )
           .maybeSingle();
 
       return response?['status'] as String?;
@@ -573,7 +581,9 @@ class SocialRepository {
       final existing = await _client
           .from('friendships')
           .select()
-          .or('and(user_id.eq.$userId,friend_id.eq.$friendId),and(user_id.eq.$friendId,friend_id.eq.$userId)')
+          .or(
+            'and(user_id.eq.$userId,friend_id.eq.$friendId),and(user_id.eq.$friendId,friend_id.eq.$userId)',
+          )
           .maybeSingle();
 
       if (existing != null) {

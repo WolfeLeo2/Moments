@@ -7,10 +7,10 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 final _log = AppLogger('AuthService');
 
 class AuthService {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final SupabaseClient _supabase;
   late final GoogleSignIn _googleSignIn;
 
-  AuthService() {
+  AuthService(this._supabase) {
     // Initialize Google Sign In
     // For iOS: clientId is automatically read from Info.plist (GIDClientID)
     // For Android: need to provide serverClientId (web client ID)

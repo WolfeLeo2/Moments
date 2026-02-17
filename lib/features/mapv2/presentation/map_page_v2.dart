@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -13,11 +15,12 @@ import 'package:wechat_assets_picker/wechat_assets_picker.dart'
 import 'package:photo_manager/photo_manager.dart' as pm;
 import 'package:supercluster/supercluster.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../core/services/signed_url_cache.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/services/auth_service.dart';
-import '../../../core/services/avatar_cache_service.dart';
+
 import '../../../core/services/geocoding_service.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/services/app_logger.dart';
@@ -59,6 +62,9 @@ class _MomentPoint {
   final String momentGroupId;
   final String? mediaUrl; // Signed URL or image_url for thumbnail
   final String? thumbnailUrl; // Video thumbnail if applicable
+  final String? mediaPath; // Storage path
+  final String? localMediaPath; // Local file path
+  final String? localThumbnailPath; // Local thumbnail path
   final String mediaType; // 'image' or 'video'
 
   const _MomentPoint({
@@ -71,6 +77,9 @@ class _MomentPoint {
     required this.momentGroupId,
     this.mediaUrl,
     this.thumbnailUrl,
+    this.mediaPath,
+    this.localMediaPath,
+    this.localThumbnailPath,
     this.mediaType = 'image',
   });
 }
@@ -95,7 +104,7 @@ class MapPageV2 extends ConsumerStatefulWidget {
 
 class _MapPageV2State extends ConsumerState<MapPageV2>
     with WidgetsBindingObserver {
-  final AuthService _authService = AuthService();
+  AuthService get _authService => ref.read(authServiceProvider);
 
   MapboxMap? _mapboxMap;
   bool _isMapReady = false;
@@ -154,6 +163,7 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
   StreamSubscription<Map<String, LiveFriend>>? _liveFriendsSubscription;
   final Map<String, String> _liveFriendAnnotationIds = {}; // userId -> MapboxID
   final Set<String> _currentLiveFriendIds = {};
+  Map<String, LiveFriend> _latestLiveFriends = {};
 
   @override
   void initState() {
@@ -164,6 +174,8 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
     // Don't call _initializeLocation here — let Mapbox's puck handle the
     // permission dialog in _onStyleLoaded to avoid duplicate system prompts.
   }
+
+  final Location _location = Location();
 
   @override
   void dispose() {
@@ -214,8 +226,7 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
   /// [false] if explicitly denied (caller should stop polling).
   Future<bool> _initializeLocation() async {
     try {
-      final location = Location();
-      final permission = await location.hasPermission();
+      final permission = await _location.hasPermission();
 
       // Permanently denied — no point in polling further
       if (permission == PermissionStatus.deniedForever) {
@@ -229,7 +240,13 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
         return true; // Still might be granted, keep polling
       }
 
-      final loc = await location.getLocation();
+      // Add timeout to prevent hanging indefinitely
+      final loc = await _location.getLocation().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          throw TimeoutException('Location fetch timed out');
+        },
+      );
       if (mounted && loc.latitude != null && loc.longitude != null) {
         setState(() => _currentPosition = loc);
         _flyToUserLocation();
@@ -267,19 +284,35 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
   }
 
   Future<void> _flyToUserLocation() async {
-    if (_currentPosition == null || _mapboxMap == null) return;
-    await _mapboxMap!.flyTo(
-      CameraOptions(
-        center: Point(
-          coordinates: Position(
-            _currentPosition!.longitude!,
-            _currentPosition!.latitude!,
-          ),
-        ),
-        zoom: 14.0,
-      ),
-      MapAnimationOptions(duration: 1000, startDelay: 0),
+    if (_currentPosition == null || _mapboxMap == null) {
+      _log.w('Cannot fly: position or map is null');
+      return;
+    }
+    if (!_isStyleLoaded) {
+      _log.w('Cannot fly: Style not loaded yet');
+      return;
+    }
+
+    _log.i(
+      'Flying to user location: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}',
     );
+
+    try {
+      await _mapboxMap!.flyTo(
+        CameraOptions(
+          center: Point(
+            coordinates: Position(
+              _currentPosition!.longitude!,
+              _currentPosition!.latitude!,
+            ),
+          ),
+          zoom: 14.0,
+        ),
+        MapAnimationOptions(duration: 1000, startDelay: 0),
+      );
+    } catch (e) {
+      _log.e('FlyTo failed: $e');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -321,6 +354,7 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
 
     _annotationManager = await _mapboxMap!.annotations
         .createPointAnnotationManager();
+    // ignore: deprecated_member_use
     _annotationManager?.addOnPointAnnotationClickListener(
       _annotationClickListener,
     );
@@ -342,12 +376,16 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
     // ── Live Friends — separate annotation manager + stream ──
     _liveFriendAnnotationManager = await _mapboxMap!.annotations
         .createPointAnnotationManager();
+    // ignore: deprecated_member_use
     _liveFriendAnnotationManager?.addOnPointAnnotationClickListener(
       _AnnotationClickListener(_onLiveFriendTapped),
     );
     final ghostService = ref.read(ghostModeServiceProvider);
     _liveFriendsSubscription = ghostService.liveFriendsStream.listen((friends) {
-      if (mounted) _updateLiveFriendAnnotations(friends);
+      if (mounted) {
+        _latestLiveFriends = friends;
+        _updateLiveFriendAnnotations(friends);
+      }
     });
   }
 
@@ -596,8 +634,18 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
   // ---------------------------------------------------------------------------
 
   void _rebuildCluster(List<Moment> moments) {
-    final points = moments
-        .where((m) => m.latitude != 0 && m.longitude != 0)
+    // Group deduplication: Only show one marker per moment group
+    final Map<String, Moment> uniqueGroups = {};
+    for (final m in moments) {
+      if (m.latitude != 0 && m.longitude != 0) {
+        // Use momentGroupId if available, otherwise fallback to unique moment ID
+        final key = (m.momentGroupId.isNotEmpty) ? m.momentGroupId : m.id;
+        // Keep the first one found
+        uniqueGroups.putIfAbsent(key, () => m);
+      }
+    }
+
+    final points = uniqueGroups.values
         .map(
           (m) => _MomentPoint(
             momentId: m.id,
@@ -609,10 +657,16 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
             momentGroupId: m.momentGroupId,
             mediaUrl: m.imageUrl,
             thumbnailUrl: m.thumbnailPath,
+            mediaPath: m.mediaPath,
+            localMediaPath: m.localMediaPath,
+            localThumbnailPath: m.localThumbnailPath,
             mediaType: m.mediaType,
           ),
         )
         .toList();
+
+    // Clear bitmap cache to ensure fresh rendering (e.g. if URLs updated)
+    _bitmapCache.clear();
 
     _log.i('Cluster points: ${points.length}');
     _cluster = SuperclusterImmutable<_MomentPoint>(
@@ -699,8 +753,6 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
       }
       _lastElementsHash = elementsHash;
 
-      final avatarService = ref.read(avatarCacheServiceProvider);
-
       // 1. Prepare Target Annotations (Parallel Bitmap Generation)
       // We use Future.wait to allow multiple bitmaps to generate/fetch simultaneously
       // logic is moved to helper methods that return efficiently.
@@ -708,31 +760,15 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
         return element.handle(
           cluster: (cluster) async {
             final count = cluster.childPointCount;
-            // Collect 3 for display + total for overflow count
-            final userIds = _collectClusterUserIds(cluster, limit: 3);
-            final allUserIds = _collectClusterUserIds(cluster, limit: 50);
-            final totalUniqueUsers = allUserIds.length;
             final lat = cluster.latitude;
             final lng = cluster.longitude;
 
             // Stable ID for the annotation
             final annotationId = 'c_${lat}_${lng}_$count';
 
-            // Cache key involves user IDs to invalidate on avatar load
-            final cacheKey =
-                'cluster_stack_${userIds.join('_')}_${count}_$totalUniqueUsers';
-
-            final bitmap =
-                _bitmapCache[cacheKey] ??
-                await _renderClusterAvatarStack(
-                  userIds: userIds,
-                  avatarService: avatarService,
-                  clusterCount: count,
-                  totalUniqueUsers: totalUniqueUsers,
-                );
+            final bitmap = await _renderCluster(cluster);
 
             if (bitmap != null) {
-              _bitmapCache[cacheKey] = bitmap;
               return (
                 id: annotationId,
                 momentId: 'cluster_${lng}_${lat}',
@@ -757,11 +793,28 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
             // Cache key uses momentId so each moment has its own thumbnail
             final cacheKey = 'moment_thumb_${mp.momentId}';
 
+            // Resolve signed URL if mediaUrl is missing but mediaPath/thumbnailPath exists
+            var effectiveUrl = mediaUrl;
+            if ((effectiveUrl == null || effectiveUrl.isEmpty)) {
+              final storagePath = mp.mediaType == 'video'
+                  ? mp.thumbnailUrl
+                  : mp.mediaPath;
+
+              if (storagePath != null &&
+                  storagePath.isNotEmpty &&
+                  !storagePath.startsWith('http')) {
+                effectiveUrl = await SignedUrlCache.getSignedUrl(storagePath);
+              }
+            }
+
             final bitmap =
                 _bitmapCache[cacheKey] ??
                 await _renderMomentThumbnail(
-                  mediaUrl,
+                  effectiveUrl,
                   momentId: mp.momentId,
+                  localPath: mp.mediaType == 'video'
+                      ? mp.localThumbnailPath
+                      : mp.localMediaPath,
                   size: 90,
                 );
 
@@ -918,24 +971,48 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
     final toAdd = incomingIds.difference(_currentLiveFriendIds);
     final toUpdate = incomingIds.intersection(_currentLiveFriendIds);
 
+    // Force clear all if the new list is empty (Robust cleanup)
+    if (friends.isEmpty) {
+      // Logic: If we have ANY tracking IDs, we should clear them.
+      // Also if we have any annotations in the manager (orphan check).
+      if (_liveFriendAnnotationIds.isNotEmpty) {
+        _log.i(
+          'Friend list empty. Force clearing all live friend annotations.',
+        );
+        try {
+          await _liveFriendAnnotationManager?.deleteAll();
+          _liveFriendAnnotationIds.clear();
+          _currentLiveFriendIds.clear();
+        } catch (e) {
+          _log.w('Failed to clear all live friend annotations: $e');
+        }
+      }
+      return;
+    }
+
     // Remove stale annotations
     if (toRemove.isNotEmpty) {
       try {
         final currentAnns = await _liveFriendAnnotationManager!
             .getAnnotations();
         final annsToDelete = currentAnns.where((a) {
+          // Find the userId for this annotation ID
           final userId = _liveFriendAnnotationIds.entries
               .where((e) => e.value == a.id)
               .map((e) => e.key)
               .firstOrNull;
-          return userId != null && toRemove.contains(userId);
+          // If we found a userId and they are in the removal list, delete it.
+          // ALSO delete if we can't find a userId map (orphan annotation).
+          return (userId != null && toRemove.contains(userId));
         }).toList();
+
         if (annsToDelete.isNotEmpty) {
           await _liveFriendAnnotationManager!.deleteMulti(annsToDelete);
         }
       } catch (e) {
         _log.w('Failed to remove live friend annotations: $e');
       }
+      // Always remove from our local tracking map
       for (final id in toRemove) {
         _liveFriendAnnotationIds.remove(id);
       }
@@ -966,7 +1043,7 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
       }
     }
 
-    // Update positions for existing annotations
+    // Update positions AND images for existing annotations
     for (final userId in toUpdate) {
       final friend = friends[userId]!;
       final mapboxId = _liveFriendAnnotationIds[userId];
@@ -975,10 +1052,24 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
         final currentAnns = await _liveFriendAnnotationManager!
             .getAnnotations();
         final ann = currentAnns.where((a) => a.id == mapboxId).firstOrNull;
+
         if (ann != null) {
-          ann.geometry = Point(
+          // 1. Update Position
+          final newPos = Point(
             coordinates: Position(friend.longitude, friend.latitude),
           );
+          ann.geometry = newPos;
+
+          // 2. Update Image (Refresh bitmap in case avatar loaded)
+          final bitmap = await _renderLiveFriendMarker(
+            friend.avatarUrl,
+            userId: friend.userId,
+          );
+          if (bitmap != null) {
+            ann.image = bitmap;
+          }
+
+          // 3. Commit updates
           await _liveFriendAnnotationManager!.update(ann);
         }
       } catch (e) {
@@ -1062,6 +1153,21 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
             height: innerRadius * 0.5,
           ),
           iconPaint,
+        );
+
+        // Loading Spinner (if we are waiting for an image)
+        final spinnerPaint = Paint()
+          ..color = AppTheme.vibrantGreen
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.0
+          ..strokeCap = StrokeCap.round;
+
+        canvas.drawArc(
+          Rect.fromCircle(center: center, radius: innerRadius * 0.4),
+          -pi / 2,
+          3 * pi / 2, // 270 degrees
+          false,
+          spinnerPaint,
         );
       }
 
@@ -1189,9 +1295,15 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
   Future<Uint8List?> _renderMomentThumbnail(
     String? mediaUrl, {
     String? momentId,
+    String? localPath,
     double size = 90,
     double borderWidth = 3.0,
   }) async {
+    if (mediaUrl == null || mediaUrl.isEmpty) {
+      _log.w('Moment $momentId has NO media URL');
+    } else {
+      _log.d('Rendering thumbnail for moment $momentId with URL: $mediaUrl');
+    }
     try {
       final totalSize = size + 10; // shadow margin
       final center = Offset(totalSize / 2, totalSize / 2 - 1);
@@ -1224,7 +1336,11 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
       // Inner circle for the image
       final innerRadius = radius - borderWidth - 1;
 
-      final ui.Image? image = _loadMomentImage(mediaUrl, momentId: momentId);
+      final ui.Image? image = _loadMomentImage(
+        mediaUrl,
+        momentId: momentId,
+        localPath: localPath,
+      );
       if (image != null) {
         canvas.save();
         canvas.clipPath(
@@ -1238,16 +1354,36 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
         );
         canvas.restore();
       } else {
-        // Fallback: pastel blue fill
+        // Fallback: Loading Spinner or Placeholder
         canvas.save();
         canvas.clipPath(
           Path()..addOval(Rect.fromCircle(center: center, radius: innerRadius)),
         );
+
+        // Background
         canvas.drawCircle(
           center,
           innerRadius,
           Paint()..color = AppTheme.primaryBlue.withValues(alpha: 0.12),
         );
+
+        // Draw Spinner (Static representation for map bitmap)
+        // Since this is a static bitmap, we can't animate it easily.
+        // We draw a "loading" arc to indicate progress.
+        final spinnerPaint = Paint()
+          ..color = AppTheme.primaryBlue
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5
+          ..strokeCap = StrokeCap.round;
+
+        canvas.drawArc(
+          Rect.fromCircle(center: center, radius: innerRadius * 0.4),
+          -pi / 2,
+          3 * pi / 2, // 270 degrees
+          false,
+          spinnerPaint,
+        );
+
         canvas.restore();
       }
 
@@ -1261,9 +1397,65 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
     }
   }
 
-  /// Load and cache a moment's media image (network -> raster).
-  /// Similar to _loadAvatarImage but uses a separate cache.
-  ui.Image? _loadMomentImage(String? mediaUrl, {String? momentId}) {
+  /// Load and cache a moment's media image (local file -> network -> raster).
+  ui.Image? _loadMomentImage(
+    String? mediaUrl, {
+    String? momentId,
+    String? localPath,
+  }) {
+    // 1. Try Local File first
+    if (localPath != null && localPath.isNotEmpty) {
+      final file = File(localPath);
+      if (file.existsSync()) {
+        final key = 'local:$localPath';
+        if (_loadedMomentImages.containsKey(key)) {
+          return _loadedMomentImages[key];
+        }
+
+        if (!_loadingMomentImages.contains(key)) {
+          _loadingMomentImages.add(key);
+          // Load local file
+          FileImage(file)
+              .resolve(ImageConfiguration.empty)
+              .addListener(
+                ImageStreamListener(
+                  (info, _) {
+                    if (mounted) {
+                      setState(() {
+                        _loadedMomentImages[key] = info.image;
+                        _loadingMomentImages.remove(key);
+                        // Invalidate to force re-render
+                        _bitmapCache.removeWhere(
+                          (k, _) => k.startsWith('moment_thumb_'),
+                        );
+                        _bitmapCache.removeWhere(
+                          (k, _) => k.startsWith('cluster_'),
+                        );
+                        _lastElementsHash = null;
+                        if (!_updatingAnnotations && _mapboxMap != null) {
+                          _mapboxMap!.getCameraState().then((cam) {
+                            if (mounted) _scheduleViewportUpdate(cam);
+                          });
+                        }
+                      });
+                    }
+                  },
+                  onError: (e, _) {
+                    _log.w(
+                      'Failed to load local moment image ($localPath): $e',
+                    );
+                    if (mounted) {
+                      _loadingMomentImages.remove(key);
+                    }
+                  },
+                ),
+              );
+        }
+        return null; // Loading
+      }
+    }
+
+    // 2. Fallback to Network URL
     if (mediaUrl == null || mediaUrl.isEmpty) return null;
 
     if (_loadedMomentImages.containsKey(mediaUrl)) {
@@ -1288,6 +1480,9 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
                     _bitmapCache.removeWhere(
                       (key, _) => key.startsWith('moment_thumb_'),
                     );
+                    _bitmapCache.removeWhere(
+                      (k, _) => k.startsWith('cluster_'),
+                    );
 
                     _lastElementsHash = null;
                     if (!_updatingAnnotations && _mapboxMap != null) {
@@ -1299,6 +1494,7 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
                 }
               },
               onError: (e, _) {
+                _log.e('Failed to load moment image ($mediaUrl): $e');
                 if (mounted) {
                   _loadingMomentImages.remove(mediaUrl);
                 }
@@ -1345,11 +1541,15 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
                     _loadedAvatars[url] = info.image;
                     _loadingAvatars.remove(url);
 
-                    // Invalidate all avatar and cluster bitmaps so they
-                    // re-render with the now-loaded image.
+                    // Invalidate all avatar bitmaps
                     _bitmapCache.clear();
 
-                    // Force re-evaluation of annotations
+                    // Force re-evaluation of live friends specifically
+                    // to pick up the new avatar
+                    if (_latestLiveFriends.isNotEmpty) {
+                      _updateLiveFriendAnnotations(_latestLiveFriends);
+                    }
+
                     _lastElementsHash = null;
 
                     if (!_updatingAnnotations && _mapboxMap != null) {
@@ -1371,220 +1571,238 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
     return null;
   }
 
-  List<String> _collectClusterUserIds(
+  Future<Uint8List?> _renderCluster(LayerCluster<_MomentPoint> cluster) async {
+    final count = cluster.childPointCount;
+    // Collect the top few moments in this cluster to show as a stack
+    final moments = _collectClusterMoments(cluster, limit: 3);
+
+    // Create a cache key from moment IDs + count
+    final cacheKey =
+        'cluster_${moments.map((m) => m.momentId).join('_')}_$count';
+
+    if (_bitmapCache.containsKey(cacheKey)) {
+      return _bitmapCache[cacheKey];
+    }
+
+    final bitmap = await _renderClusterMomentStack(
+      moments: moments,
+      clusterCount: count,
+      totalMoments: count,
+    );
+
+    if (bitmap != null) {
+      _bitmapCache[cacheKey] = bitmap;
+    }
+    return bitmap;
+  }
+
+  List<_MomentPoint> _collectClusterMoments(
     LayerCluster<_MomentPoint> cluster, {
     int limit = 3,
   }) {
     if (_cluster == null) return [];
-    final userIds = <String>[];
+    final moments = <_MomentPoint>[];
     final pending = <LayerElement<_MomentPoint>>[];
     pending.addAll(_cluster!.childrenOf(cluster));
 
-    while (pending.isNotEmpty && userIds.length < limit) {
+    while (pending.isNotEmpty && moments.length < limit) {
       final element = pending.removeLast();
       element.handle(
         cluster: (c) => pending.addAll(_cluster!.childrenOf(c)),
         point: (p) {
-          final userId = p.originalPoint.userId;
-          if (userId.isNotEmpty && !userIds.contains(userId)) {
-            userIds.add(userId);
+          final m = p.originalPoint;
+          // Avoid duplicates by momentId
+          if (!moments.any((existing) => existing.momentId == m.momentId)) {
+            moments.add(m);
           }
         },
       );
     }
-
-    return userIds;
+    return moments;
   }
 
-  /// Render a cluster marker as an overlapping vertical avatar stack with a
-  /// count badge — similar to story/group avatar stacks in the rest of the app.
-  Future<Uint8List?> _renderClusterAvatarStack({
-    required List<String> userIds,
-    required AvatarCacheService avatarService,
+  /// Render a cluster marker as an overlapping vertical stack of MOMENT images.
+  Future<Uint8List?> _renderClusterMomentStack({
+    required List<_MomentPoint> moments,
     int clusterCount = 0,
-    int totalUniqueUsers = 0,
+    int totalMoments = 0,
   }) async {
-    const double avatarRadius = 50;
-    const double avatarDiameter = avatarRadius * 2; // 100
+    const double radius = 50;
+    const double diameter = radius * 2; // 100
     const double borderWidth = 3.5;
-    const double overlap = 30; // horizontal overlap between circles
-    const double badgeRadius = 16;
+    const double overlap = 30; // horizontal overlap
 
-    final count = userIds.length.clamp(1, 3);
-    final overflowUsers = totalUniqueUsers - count;
-    final hasOverflow = overflowUsers > 0;
-    // Total items: visible avatars + overflow circle (if any)
+    final count = moments.length.clamp(1, 3);
+    final overflowCount = totalMoments - count;
+    final hasOverflow = overflowCount > 0;
+
+    // Total items: visible moments + overflow circle (if any)
     final totalItems = count + (hasOverflow ? 1 : 0);
-    // Total width: avatars + overflow circle + badge space
-    final totalWidth =
-        avatarDiameter + (totalItems - 1) * (avatarDiameter - overlap) + 12;
-    const totalHeight = avatarDiameter + 12; // extra for shadow + badge
+    // Total width
+    final totalWidth = diameter + (totalItems - 1) * (diameter - overlap) + 12;
+    const totalHeight = diameter + 12; // extra for shadow + badge
 
     try {
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
 
-      // Draw avatars right-to-left so the first one is on top
+      // Draw moments right-to-left so the FIRST one (index 0) is on TOP (last drawn)
+      // Actually, standard stack: 0 is top, 1 is behind.
+      // So we must draw in reverse order: 2, then 1, then 0.
       for (int i = count - 1; i >= 0; i--) {
-        final xOffset = i * (avatarDiameter - overlap);
-        final center = Offset(xOffset + avatarRadius + 2, avatarRadius + 4);
+        final moment = moments[i];
+        final xOffset = i * (diameter - overlap);
+        final center = Offset(xOffset + radius + 2, radius + 4);
 
-        // Drop shadow for each avatar
+        // Drop shadow
         canvas.drawCircle(
           Offset(center.dx, center.dy + 3),
-          avatarRadius,
+          radius,
           Paint()
             ..color = Colors.black.withValues(alpha: 0.16)
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
         );
 
-        // White border circle
-        canvas.drawCircle(center, avatarRadius, Paint()..color = Colors.white);
+        // White fill
+        canvas.drawCircle(center, radius, Paint()..color = Colors.white);
 
-        // Blue accent ring
+        // Border
         canvas.drawCircle(
           center,
-          avatarRadius - borderWidth / 2,
+          radius,
           Paint()
-            ..color = i == 0
-                ? AppTheme.primaryBlue
-                : AppTheme.primaryBlue.withValues(alpha: 0.4)
+            ..color = AppTheme.primaryBlue
             ..style = PaintingStyle.stroke
             ..strokeWidth = borderWidth,
         );
 
-        // Avatar image
-        if (i < userIds.length) {
-          final avatarUrl = avatarService.getAvatarUrlSync(userIds[i]);
-          final image = _loadAvatarImage(avatarUrl, userId: userIds[i]);
-          final innerRadius = avatarRadius - borderWidth - 1;
+        // Image
+        final innerRadius = radius - borderWidth - 1;
 
-          if (image != null) {
-            canvas.save();
-            canvas.clipPath(
-              Path()
-                ..addOval(Rect.fromCircle(center: center, radius: innerRadius)),
-            );
-            paintImage(
-              canvas: canvas,
-              rect: Rect.fromCircle(center: center, radius: innerRadius),
-              image: image,
-              fit: BoxFit.cover,
-            );
-            canvas.restore();
-          } else {
-            // Fallback circle
-            canvas.drawCircle(
-              center,
-              innerRadius,
-              Paint()..color = AppTheme.primaryBlue.withValues(alpha: 0.15),
-            );
+        var url = moment.mediaUrl;
+        if (url == null || url.isEmpty) {
+          final storagePath = moment.mediaType == 'video'
+              ? moment.thumbnailUrl
+              : moment.mediaPath;
+          if (storagePath != null &&
+              storagePath.isNotEmpty &&
+              !storagePath.startsWith('http')) {
+            url = await SignedUrlCache.getSignedUrl(storagePath);
           }
+        }
+
+        final ui.Image? image = _loadMomentImage(
+          url,
+          momentId: moment.momentId,
+          localPath: moment.mediaType == 'video'
+              ? moment.localThumbnailPath
+              : moment.localMediaPath,
+        );
+
+        if (image != null) {
+          canvas.save();
+          canvas.clipPath(
+            Path()
+              ..addOval(Rect.fromCircle(center: center, radius: innerRadius)),
+          );
+          paintImage(
+            canvas: canvas,
+            rect: Rect.fromCircle(center: center, radius: innerRadius),
+            image: image,
+            fit: BoxFit.cover,
+          );
+          canvas.restore();
+        } else {
+          // Fallback blue fill
+          canvas.drawCircle(
+            center,
+            innerRadius,
+            Paint()..color = AppTheme.primaryBlue.withValues(alpha: 0.15),
+          );
+
+          // Draw Spinner
+          final spinnerPaint = Paint()
+            ..color = AppTheme.primaryBlue
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.0
+            ..strokeCap = StrokeCap.round;
+
+          canvas.drawArc(
+            Rect.fromCircle(center: center, radius: innerRadius * 0.4),
+            -pi / 2,
+            3 * pi / 2, // 270 degrees
+            false,
+            spinnerPaint,
+          );
         }
       }
 
-      // +N overflow circle for extra users
+      // Draw overflow badge if needed
       if (hasOverflow) {
-        final xOffset = count * (avatarDiameter - overlap);
-        final center = Offset(xOffset + avatarRadius + 2, avatarRadius + 4);
+        // Position it as the last item in the stack (furthest right/bottom)
+        final xOffset = count * (diameter - overlap);
+        final center = Offset(xOffset + radius + 2, radius + 4);
 
         // Shadow
         canvas.drawCircle(
           Offset(center.dx, center.dy + 3),
-          avatarRadius,
+          radius,
           Paint()
             ..color = Colors.black.withValues(alpha: 0.16)
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
         );
 
-        // Grey fill
+        // Background
+        canvas.drawCircle(center, radius, Paint()..color = Colors.white);
         canvas.drawCircle(
           center,
-          avatarRadius,
-          Paint()..color = const Color(0xFF616161),
-        );
-
-        // White border
-        canvas.drawCircle(
-          center,
-          avatarRadius,
+          radius,
           Paint()
-            ..color = Colors.white
+            ..color = AppTheme.primaryBlue.withValues(alpha: 0.1)
+            ..style = PaintingStyle.fill,
+        );
+        // Border
+        canvas.drawCircle(
+          center,
+          radius,
+          Paint()
+            ..color = AppTheme.primaryBlue
             ..style = PaintingStyle.stroke
             ..strokeWidth = borderWidth,
         );
 
-        // "+N" text
-        final overflowText = TextPainter(
-          text: TextSpan(
-            text: '+$overflowUsers',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        overflowText.paint(
-          canvas,
-          Offset(
-            center.dx - overflowText.width / 2,
-            center.dy - overflowText.height / 2,
+        // Text
+        final textSpan = TextSpan(
+          text: '+$overflowCount',
+          style: const TextStyle(
+            color: AppTheme.primaryBlue,
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
           ),
         );
-      }
-
-      // Count badge (top-right corner)
-      if (clusterCount > 1) {
-        final badgeCenter = Offset(
-          totalWidth - badgeRadius - 2,
-          badgeRadius + 1,
-        );
-
-        // Badge shadow
-        canvas.drawCircle(
-          Offset(badgeCenter.dx, badgeCenter.dy + 1),
-          badgeRadius,
-          Paint()
-            ..color = Colors.black.withValues(alpha: 0.15)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-        );
-
-        // Badge fill
-        canvas.drawCircle(
-          badgeCenter,
-          badgeRadius,
-          Paint()..color = AppTheme.coralPink,
-        );
-
-        // Badge text
         final textPainter = TextPainter(
-          text: TextSpan(
-            text: clusterCount > 99 ? '99+' : '$clusterCount',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+          text: textSpan,
           textDirection: TextDirection.ltr,
-        )..layout();
+        );
+        textPainter.layout();
         textPainter.paint(
           canvas,
           Offset(
-            badgeCenter.dx - textPainter.width / 2,
-            badgeCenter.dy - textPainter.height / 2,
+            center.dx - textPainter.width / 2,
+            center.dy - textPainter.height / 2,
           ),
         );
       }
 
       final picture = recorder.endRecording();
-      final img = await picture.toImage(totalWidth.ceil(), totalHeight.ceil());
+      final img = await picture.toImage(
+        totalWidth.toInt(),
+        totalHeight.toInt(),
+      );
       final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
       return byteData?.buffer.asUint8List();
     } catch (e) {
-      _log.w('Cluster avatar stack render failed: $e');
+      _log.w('Cluster stack render failed: $e');
       return null;
     }
   }
@@ -1680,14 +1898,19 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
   }
 
   Future<void> _pickFromCamera({required String mediaType}) async {
-    if (!await _ensureLocation()) return;
-
+    final picker.ImagePicker imagePicker = picker.ImagePicker();
     try {
-      final imagePicker = picker.ImagePicker();
+      if (!await _ensureLocation()) return;
+      if (!mounted) return;
+
       picker.XFile? file;
 
       if (mediaType == 'photo') {
-        file = await imagePicker.pickImage(source: picker.ImageSource.camera);
+        file = await imagePicker.pickImage(
+          source: picker.ImageSource.camera,
+          maxWidth: 1920,
+          maxHeight: 1080,
+        );
       } else {
         file = await imagePicker.pickVideo(
           source: picker.ImageSource.camera,
@@ -1698,6 +1921,7 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
       if (file == null || !mounted) return;
 
       if (!await _ensureLocation()) return;
+      if (!mounted) return;
 
       final result = await Navigator.of(context).push(
         MaterialPageRoute(
@@ -1722,6 +1946,7 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
 
   Future<void> _pickFromGallery() async {
     if (!await _ensureLocation()) return;
+    if (!mounted) return; // Add mounted check
 
     try {
       final List<AssetEntity>? assets = await AssetPicker.pickAssets(
@@ -2262,20 +2487,11 @@ class _GhostModeButtonState extends ConsumerState<_GhostModeButton>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isLive
-                  ? Colors.green.withValues(alpha: 0.15)
+                  ? AppTheme.vibrantGreen.withValues(alpha: 0.15)
                   : AppTheme.backgroundBeige.withValues(alpha: 0.85),
-              boxShadow: [
-                BoxShadow(
-                  color: isLive
-                      ? Colors.green.withValues(alpha: glowOpacity)
-                      : Colors.black.withValues(alpha: 0.1),
-                  blurRadius: isLive ? 16 * scale : 8,
-                  spreadRadius: isLive ? 4 * scale : 0,
-                ),
-              ],
               border: Border.all(
                 color: isLive
-                    ? Colors.green.withValues(alpha: 0.6)
+                    ? AppTheme.vibrantGreen.withValues(alpha: 0.6)
                     : AppTheme.borderGray.withValues(alpha: 0.3),
                 width: isLive ? 2.5 : 1.0,
               ),
@@ -2286,8 +2502,9 @@ class _GhostModeButtonState extends ConsumerState<_GhostModeButton>
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: isLive ? Colors.green : AppTheme.textGray,
+                        color: isLive
+                            ? AppTheme.vibrantGreen
+                            : AppTheme.textGray,
                       ),
                     ),
                   )
@@ -2297,7 +2514,7 @@ class _GhostModeButtonState extends ConsumerState<_GhostModeButton>
                         : CupertinoIcons.location,
                     size: 24,
                     color: isLive
-                        ? Colors.green
+                        ? AppTheme.vibrantGreen
                         : AppTheme.textGray.withValues(alpha: 0.5),
                   ),
           );

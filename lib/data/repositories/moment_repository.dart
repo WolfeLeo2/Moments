@@ -1167,7 +1167,14 @@ class MomentRepository {
     }
   }
 
-  /// Stream comments for a moment (real-time updates)
+  /// Local cache for comment profile data to avoid re-querying on every
+  /// stream emission. Keyed by user_id.
+  final Map<String, Map<String, dynamic>> _commentProfileCache = {};
+
+  /// Stream comments for a moment (real-time updates).
+  ///
+  /// Uses [_commentProfileCache] so that profile data (display_name,
+  /// avatar_url) is only fetched once per user, not on every emission.
   Stream<List<Map<String, dynamic>>> watchCommentsForMoment(String momentId) {
     return SupabaseConfig.client
         .from('moment_comments')
@@ -1175,41 +1182,67 @@ class MomentRepository {
         .eq('moment_id', momentId)
         .order('created_at', ascending: true)
         .asyncMap((data) async {
-          // Enrich each comment with profile data
-          final enriched = <Map<String, dynamic>>[];
+          // Collect user_ids that are not yet cached
+          final unknownIds = <String>{};
           for (final json in data) {
-            final profileResponse = await SupabaseConfig.client
-                .from('profiles')
-                .select('display_name, avatar_url')
-                .eq('id', json['user_id'])
-                .maybeSingle();
-
-            enriched.add({
-              ...json,
-              'display_name': profileResponse?['display_name'],
-              'avatar_url': profileResponse?['avatar_url'],
-            });
+            final uid = json['user_id'] as String?;
+            if (uid != null && !_commentProfileCache.containsKey(uid)) {
+              unknownIds.add(uid);
+            }
           }
-          return enriched;
+
+          // Batch-fetch missing profiles
+          if (unknownIds.isNotEmpty) {
+            try {
+              final profiles = await SupabaseConfig.client
+                  .from('profiles')
+                  .select('id, display_name, avatar_url')
+                  .inFilter('id', unknownIds.toList());
+
+              for (final p in profiles) {
+                _commentProfileCache[p['id'] as String] = p;
+              }
+            } catch (e) {
+              _log.e('Error fetching comment profiles: $e');
+            }
+          }
+
+          // Enrich comments with cached profile data
+          return data.map((json) {
+            final uid = json['user_id'] as String?;
+            final profile = uid != null ? _commentProfileCache[uid] : null;
+            return {
+              ...json,
+              'display_name': profile?['display_name'],
+              'avatar_url': profile?['avatar_url'],
+            };
+          }).toList();
         });
   }
 
   /// Add a comment to a moment
   Future<Map<String, dynamic>> addComment(
     String momentId,
-    String content,
-  ) async {
+    String content, {
+    String? contentType,
+    String? mediaUrl,
+  }) async {
     try {
       final userId = SupabaseConfig.client.auth.currentUser?.id;
       if (userId == null) throw Exception('User not authenticated');
 
+      final data = <String, dynamic>{
+        'moment_id': momentId,
+        'user_id': userId,
+        'content': content.trim(),
+      };
+
+      if (contentType != null) data['content_type'] = contentType;
+      if (mediaUrl != null) data['media_url'] = mediaUrl;
+
       final response = await SupabaseConfig.client
           .from('moment_comments')
-          .insert({
-            'moment_id': momentId,
-            'user_id': userId,
-            'content': content.trim(),
-          });
+          .insert(data);
 
       return response;
     } catch (e) {

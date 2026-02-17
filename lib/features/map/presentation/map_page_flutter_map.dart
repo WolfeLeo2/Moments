@@ -53,7 +53,7 @@ class MapPage extends ConsumerStatefulWidget {
 }
 
 class _MapPageState extends ConsumerState<MapPage> with WidgetsBindingObserver {
-  final AuthService _authService = AuthService();
+  AuthService get _authService => ref.read(authServiceProvider);
   String _cityName = 'Loading...';
   LocationData? _currentPosition;
   final MapCacheService _mapCacheService = MapCacheService();

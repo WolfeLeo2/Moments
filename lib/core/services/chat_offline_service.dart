@@ -75,7 +75,7 @@ class ChatOfflineService {
   // OPTIMISTIC TEXT SENDING
   // ============================================
 
-  /// Send a text message with optimistic UI
+  /// Send a text/gif/sticker message with optimistic UI
   /// Shows message immediately, syncs to server in background
   Future<void> sendTextOptimistic({
     required String conversationId,
@@ -83,16 +83,22 @@ class ChatOfflineService {
     required String content,
     String? replyToMessageId,
     Message? replyToMessage,
+    String messageType = 'text',
   }) async {
     final localId = _uuid.v4();
     final now = DateTime.now();
+
+    final msgType = MessageType.values.firstWhere(
+      (e) => e.name == messageType,
+      orElse: () => MessageType.text,
+    );
 
     final optimisticMessage = Message(
       id: localId,
       conversationId: conversationId,
       senderId: senderId,
       content: content,
-      messageType: MessageType.text,
+      messageType: msgType,
       createdAt: now,
       updatedAt: now,
       replyToMessageId: replyToMessageId,
@@ -103,7 +109,7 @@ class ChatOfflineService {
 
     // Save to Drift immediately (shows in UI instantly)
     await db.saveMessages([optimisticMessage.toCompanion()]);
-    _log.d('Saved optimistic text message: $localId');
+    _log.d('Saved optimistic $messageType message: $localId');
 
     // Send to server in background
     try {
@@ -113,6 +119,7 @@ class ChatOfflineService {
         conversationId: conversationId,
         content: content,
         replyToMessageId: replyToMessageId,
+        messageType: messageType,
       );
 
       // Replace local with server message
@@ -518,8 +525,9 @@ class ChatOfflineService {
 
   Future<bool> _hasNetwork() async {
     try {
-      final result = await InternetAddress.lookup('example.com')
-          .timeout(const Duration(seconds: 2));
+      final result = await InternetAddress.lookup(
+        'example.com',
+      ).timeout(const Duration(seconds: 2));
       return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
     } catch (_) {
       return false;

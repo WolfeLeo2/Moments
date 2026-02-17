@@ -8,7 +8,9 @@ enum MessageType {
   image,
   audio,
   video,
-  file;
+  file,
+  gif,
+  sticker;
 
   static MessageType fromString(String value) {
     return MessageType.values.firstWhere(

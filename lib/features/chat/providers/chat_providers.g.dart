@@ -115,7 +115,7 @@ final class ChatRepositoryProvider
   }
 }
 
-String _$chatRepositoryHash() => r'f4671781f2878a3bdee593e145b6af6c24b86608';
+String _$chatRepositoryHash() => r'2ecd2db14e3b6671096ffde4dc923218b68b78c5';
 
 /// Stream messages for a specific conversation with Drift reactive storage
 
@@ -139,7 +139,7 @@ final class MessagesStreamProvider
   }) : super(
          retry: null,
          name: r'messagesStreamProvider',
-         isAutoDispose: true,
+         isAutoDispose: false,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -177,7 +177,7 @@ final class MessagesStreamProvider
   }
 }
 
-String _$messagesStreamHash() => r'd6dcb14ed7f59ce8358175f8532a2f22dec1b32c';
+String _$messagesStreamHash() => r'e4fa242c5b724039426b8adf04a68471cf95bf8f';
 
 /// Stream messages for a specific conversation with Drift reactive storage
 
@@ -189,7 +189,7 @@ final class MessagesStreamFamily extends $Family
         name: r'messagesStreamProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: true,
+        isAutoDispose: false,
       );
 
   /// Stream messages for a specific conversation with Drift reactive storage
@@ -767,7 +767,7 @@ final class ChatListProvider
         argument: null,
         retry: null,
         name: r'chatListProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -787,7 +787,7 @@ final class ChatListProvider
   }
 }
 
-String _$chatListHash() => r'87a3f596a83dec42a7d776545f3166e6c8135d2c';
+String _$chatListHash() => r'11c890423df4cc3de140b10ac2be4f7583d9d959';
 
 /// Offline-first mark conversation as read
 /// Updates local database immediately, then syncs to server in background

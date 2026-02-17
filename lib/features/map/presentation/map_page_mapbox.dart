@@ -10,7 +10,8 @@ import 'package:location/location.dart';
 import 'package:lottie/lottie.dart' as lottie;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart' as picker;
-import 'package:wechat_assets_picker/wechat_assets_picker.dart' hide LatLng, RequestType;
+import 'package:wechat_assets_picker/wechat_assets_picker.dart'
+    hide LatLng, RequestType;
 import 'package:photo_manager/photo_manager.dart' as pm;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -42,8 +43,8 @@ import '../utils/map_logic_service.dart';
 import '../providers/map_control_provider.dart';
 import 'package:moments/core/services/app_logger.dart';
 
-
 final _log = AppLogger('MapboxMap');
+
 /// Mapbox access token - hardcoded for now
 const String _mapboxAccessToken =
     'pk.eyJ1Ijoid29sZmVsZW8iLCJhIjoiY21oYXRxMW82MW5nNjJqcGc4aDA0YndoeSJ9.gvLhQFM-46KlcUdAKFGMYg';
@@ -57,7 +58,7 @@ class MapPageMapbox extends ConsumerStatefulWidget {
 
 class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
     with WidgetsBindingObserver {
-  final AuthService _authService = AuthService();
+  AuthService get _authService => ref.read(authServiceProvider);
   String _cityName = 'Loading...';
   LocationData? _currentPosition;
   MapboxMap? _mapboxMap;
@@ -243,10 +244,7 @@ class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
           await _mapboxMap!.flyTo(
             CameraOptions(
               center: Point(
-                coordinates: Position(
-                  position.longitude!,
-                  position.latitude!,
-                ),
+                coordinates: Position(position.longitude!, position.latitude!),
               ),
               zoom: 14.0,
             ),
@@ -265,16 +263,18 @@ class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
     _mapboxMap = mapboxMap;
 
     // Create annotation manager
-    _annotationManager =
-        await mapboxMap.annotations.createPointAnnotationManager();
+    _annotationManager = await mapboxMap.annotations
+        .createPointAnnotationManager();
 
     // Set up tap listener
-    _annotationManager!.tapEvents(onTap: (annotation) {
-      final moments = _annotationMoments[annotation.id];
-      if (moments != null && moments.isNotEmpty) {
-        _onMomentMarkerTapped(moments);
-      }
-    });
+    _annotationManager!.tapEvents(
+      onTap: (annotation) {
+        final moments = _annotationMoments[annotation.id];
+        if (moments != null && moments.isNotEmpty) {
+          _onMomentMarkerTapped(moments);
+        }
+      },
+    );
 
     setState(() {
       _isMapReady = true;
@@ -307,12 +307,9 @@ class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
 
     // Debounce geocoding
     _geocodeDebounce?.cancel();
-    _geocodeDebounce = Timer(
-      const Duration(milliseconds: 500),
-      () {
-        _updateLocationFromViewport();
-      },
-    );
+    _geocodeDebounce = Timer(const Duration(milliseconds: 500), () {
+      _updateLocationFromViewport();
+    });
   }
 
   /// Build moment annotations from visible moments
@@ -339,7 +336,7 @@ class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
       // Try to load the moment image directly from URL
       Uint8List? imageBytes;
       final imageUrl = frontMoment.imageUrl;
-      
+
       if (imageUrl != null && imageUrl.isNotEmpty) {
         try {
           final response = await HttpClient()
@@ -369,7 +366,9 @@ class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
   }
 
   /// Create a circular marker image from raw image bytes
-  Future<Uint8List?> _createCircularMarkerFromImage(Uint8List imageBytes) async {
+  Future<Uint8List?> _createCircularMarkerFromImage(
+    Uint8List imageBytes,
+  ) async {
     try {
       // Decode the image
       final codec = await ui.instantiateImageCodec(
@@ -393,18 +392,30 @@ class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
 
       // Clip to inner circle and draw image
       final clipPath = Path()
-        ..addOval(Rect.fromCircle(center: Offset(size / 2, size / 2), radius: size / 2 - 4));
+        ..addOval(
+          Rect.fromCircle(
+            center: Offset(size / 2, size / 2),
+            radius: size / 2 - 4,
+          ),
+        );
       canvas.clipPath(clipPath);
 
       // Draw the image centered
-      final srcRect = Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
+      final srcRect = Rect.fromLTWH(
+        0,
+        0,
+        image.width.toDouble(),
+        image.height.toDouble(),
+      );
       final dstRect = Rect.fromLTWH(4, 4, size - 8, size - 8);
       canvas.drawImageRect(image, srcRect, dstRect, Paint());
 
       // Convert to image bytes
       final picture = recorder.endRecording();
       final outputImage = await picture.toImage(size.toInt(), size.toInt());
-      final byteData = await outputImage.toByteData(format: ui.ImageByteFormat.png);
+      final byteData = await outputImage.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
 
       return byteData?.buffer.asUint8List();
     } catch (e) {
@@ -423,27 +434,27 @@ class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 MomentDetailsPage(
-              locationName: placeName,
-              moments: moments,
-              heroTag: null,
-              initialPage: 0,
-            ),
+                  locationName: placeName,
+                  moments: moments,
+                  heroTag: null,
+                  initialPage: 0,
+                ),
             transitionDuration: const Duration(milliseconds: 200),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeInOut,
-                ),
-                child: child,
-              );
-            },
+                  return FadeTransition(
+                    opacity: CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeInOut,
+                    ),
+                    child: child,
+                  );
+                },
           ),
         )
         .whenComplete(() {
-      ref.invalidate(momentsStreamProvider);
-    });
+          ref.invalidate(momentsStreamProvider);
+        });
   }
 
   Widget _buildFriendsInViewStack(List<Moment> visibleMoments) {
@@ -651,9 +662,7 @@ class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
       if (next != null && _isMapReady && _mapboxMap != null) {
         _mapboxMap!.flyTo(
           CameraOptions(
-            center: Point(
-              coordinates: Position(next.longitude, next.latitude),
-            ),
+            center: Point(coordinates: Position(next.longitude, next.latitude)),
             zoom: 16.0,
           ),
           MapAnimationOptions(duration: 1000),
@@ -772,10 +781,7 @@ class _MapPageMapboxState extends ConsumerState<MapPageMapbox>
                         color: AppTheme.cardWhite,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: AppTheme.textDark,
-                            width: 2,
-                          ),
+                          side: BorderSide(color: AppTheme.textDark, width: 2),
                         ),
                       ),
                       child: Row(
@@ -938,16 +944,13 @@ class _AnimatedFABState extends State<_AnimatedFAB>
 
     _heightAnimation =
         Tween<double>(begin: _collapsedHeight, end: _expandedHeight).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeInOutCubicEmphasized,
-      ),
-    );
+          CurvedAnimation(
+            parent: _controller,
+            curve: Curves.easeInOutCubicEmphasized,
+          ),
+        );
 
-    _widthAnimation = Tween<double>(
-      begin: _collapsedWidth,
-      end: 320.0,
-    ).animate(
+    _widthAnimation = Tween<double>(begin: _collapsedWidth, end: 320.0).animate(
       CurvedAnimation(
         parent: _controller,
         curve: Curves.easeInOutCubicEmphasized,
@@ -1168,8 +1171,9 @@ class _AnimatedFABState extends State<_AnimatedFAB>
                   duration: const Duration(milliseconds: 150),
                   switchInCurve: Curves.easeOut,
                   switchOutCurve: Curves.easeIn,
-                  child:
-                      showExpanded ? _buildExpandedContent() : _buildCollapsedContent(),
+                  child: showExpanded
+                      ? _buildExpandedContent()
+                      : _buildCollapsedContent(),
                 ),
               ),
             ),

@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/services/auth_service.dart';
+
 import '../../core/providers/moments_providers.dart';
 import '../../core/providers/providers.dart';
 import '../../core/providers/sync_provider.dart';
@@ -24,7 +24,7 @@ class ProfilePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authService = AuthService();
+    final authService = ref.read(authServiceProvider);
     final momentsAsync = ref.watch(momentsStreamProvider);
     final userProfileAsync = ref.watch(currentUserProfileProvider);
     final currentYear = DateTime.now().year;

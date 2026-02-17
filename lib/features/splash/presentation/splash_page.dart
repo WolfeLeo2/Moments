@@ -8,7 +8,8 @@ import 'package:moments/core/router/app_router.dart';
 import 'package:moments/core/providers/moments_providers.dart';
 import 'package:moments/core/services/map_cache_service.dart';
 import 'package:moments/core/services/app_logger.dart';
-import 'package:moments/core/services/auth_service.dart';
+
+import 'package:moments/core/providers/providers.dart';
 import 'package:moments/features/mapv2/providers/map_v2_providers.dart';
 import 'package:moments/features/mapv2/presentation/map_style_picker_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -51,7 +52,7 @@ class _SplashPageState extends ConsumerState<SplashPage> {
 
     // If the user is signed in and hasn't seen the map style picker yet,
     // show it as a one-off overlay after navigating to the main scaffold.
-    if (AuthService().isSignedIn) {
+    if (ref.read(authServiceProvider).isSignedIn) {
       final hasSeenPicker = await MapStylePrefs.hasSeenPicker();
       if (!hasSeenPicker && mounted) {
         // Small delay so the main scaffold has time to mount

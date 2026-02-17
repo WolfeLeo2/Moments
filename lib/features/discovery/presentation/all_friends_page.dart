@@ -24,7 +24,7 @@ class AllFriendsPage extends ConsumerStatefulWidget {
 }
 
 class _AllFriendsPageState extends ConsumerState<AllFriendsPage> {
-  final AuthService _authService = AuthService();
+  AuthService get _authService => ref.read(authServiceProvider);
   final Map<String, String> _signedUrls = {};
 
   @override

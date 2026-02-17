@@ -49,7 +49,7 @@ final class StoryRepositoryProvider
   }
 }
 
-String _$storyRepositoryHash() => r'acad042ba42b6f6cd79829778bfe567680e612a7';
+String _$storyRepositoryHash() => r'7020e0e71a7d041f9558434071d2708ef4402329';
 
 /// Fetches all active stories from friends, grouped by user.
 /// Auto-refreshes every 30 seconds.

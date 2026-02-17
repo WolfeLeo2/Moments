@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:moments/core/providers/database_provider.dart';
 
 import '../data/story_repository.dart';
 
@@ -12,7 +13,10 @@ part 'story_providers.g.dart';
 // ═══════════════════════════════════════════════════════════════════
 
 @Riverpod(keepAlive: true)
-StoryRepository storyRepository(Ref ref) => StoryRepository();
+StoryRepository storyRepository(Ref ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return StoryRepository(client);
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // Friends' Stories (grouped by user)

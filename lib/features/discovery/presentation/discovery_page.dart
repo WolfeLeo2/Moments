@@ -43,7 +43,7 @@ class DiscoveryPage extends ConsumerStatefulWidget {
 
 class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
     with AutomaticKeepAliveClientMixin {
-  final AuthService _authService = AuthService();
+  AuthService get _authService => ref.read(authServiceProvider);
 
   /// Resolved signed URLs: mediaPath → signedUrl
   final Map<String, String> _signedUrls = {};

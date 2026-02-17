@@ -5,15 +5,16 @@ import 'package:flutter/painting.dart';
 import 'package:moments/core/services/chat_encryption_service.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/data/models/reaction.dart';
-import 'package:moments/data/sources/supabase_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 final _log = AppLogger('ChatRepository');
 
 /// Repository for chat operations
 class ChatRepository {
-  final SupabaseClient _client = SupabaseConfig.client;
+  final SupabaseClient _client;
   final ChatEncryptionService _encryption = ChatEncryptionService.instance;
+
+  ChatRepository(this._client);
 
   /// Get or create a 1-on-1 conversation with a friend
   /// Uses optimized RPC that does everything in a single DB call
@@ -185,26 +186,30 @@ class ChatRepository {
       }).toList();
     } catch (e) {
       _log.e('Error fetching recent conversations', error: e);
-      return [];
+      rethrow;
     }
   }
 
-  /// Send a text message (with optional reply)
+  /// Send a message (with optional reply and message type)
   Future<Message> sendMessage({
     required String conversationId,
     required String content,
     String? replyToMessageId,
+    String messageType = 'text',
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not authenticated');
 
-    final encryptedContent = _encryption.encrypt(content, conversationId);
+    // Only encrypt text messages; GIF/sticker URLs should not be encrypted
+    final messageContent = messageType == 'text'
+        ? _encryption.encrypt(content, conversationId)
+        : content;
 
     final messageData = {
       'conversation_id': conversationId,
       'sender_id': userId,
-      'content': encryptedContent,
-      'message_type': 'text',
+      'content': messageContent,
+      'message_type': messageType,
     };
 
     if (replyToMessageId != null) {

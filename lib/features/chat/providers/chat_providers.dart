@@ -30,11 +30,12 @@ class CurrentChatId extends _$CurrentChatId {
 /// Chat repository provider - singleton
 @Riverpod(keepAlive: true)
 ChatRepository chatRepository(Ref ref) {
-  return ChatRepository();
+  final client = ref.watch(supabaseClientProvider);
+  return ChatRepository(client);
 }
 
 /// Stream messages for a specific conversation with Drift reactive storage
-@riverpod
+@Riverpod(keepAlive: true)
 Stream<List<Message>> messagesStream(Ref ref, String conversationId) async* {
   final db = ref.watch(appDatabaseProvider);
   final chatRepo = ref.watch(chatRepositoryProvider);
@@ -200,7 +201,7 @@ class IsRecording extends _$IsRecording {
 /// Get list of recent conversations with details (Realtime)
 /// Yields cached data immediately for instant UI, then updates with fresh data.
 /// When offline, the cached layer alone is enough for a usable chat list.
-@riverpod
+@Riverpod(keepAlive: true)
 Stream<List<Map<String, dynamic>>> chatList(Ref ref) async* {
   final chatRepo = ref.watch(chatRepositoryProvider);
   final db = ref.watch(appDatabaseProvider);

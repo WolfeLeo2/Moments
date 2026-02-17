@@ -52,7 +52,7 @@ final class AuthServiceProvider
   }
 }
 
-String _$authServiceHash() => r'21d842d4dceafa3d239c0196a0f2b890d37c0b71';
+String _$authServiceHash() => r'c9861524ac694442ddb96da59d519ffb215bef26';
 
 /// Social repository provider - singleton instance
 
@@ -103,7 +103,7 @@ final class SocialRepositoryProvider
   }
 }
 
-String _$socialRepositoryHash() => r'b2c2010c6c889d26108ea3bd041109f17162110b';
+String _$socialRepositoryHash() => r'341a546c4f2747422d7da38ba7fabafae4d5e8b4';
 
 /// Notification repository provider - singleton instance
 
@@ -156,7 +156,7 @@ final class NotificationRepositoryProvider
 }
 
 String _$notificationRepositoryHash() =>
-    r'65ddb4ec00ee2df2d3ef0d4dca56d54588663626';
+    r'a5591d0da77c528cb80738b61fb2eda7ad0faeca';
 
 /// Avatar cache service provider - receives database via constructor injection
 

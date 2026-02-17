@@ -7,6 +7,7 @@ import 'firebase_options.dart';
 import 'core/services/firebase_messaging_service.dart';
 import 'core/services/notification_navigator.dart';
 import 'core/services/chat_offline_service.dart';
+import 'core/services/giphy_service.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/services/map_cache_service.dart';
@@ -29,6 +30,9 @@ void main() async {
 
   // Initialize Supabase
   await SupabaseConfig.initialize();
+
+  // Log Giphy availability (no SDK init needed with giphy_get)
+  GiphyService.logAvailability();
 
   // Initialize Firebase Messaging — must happen before widget tree
   // because it sets up background handlers and foreground listeners

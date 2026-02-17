@@ -1,12 +1,13 @@
 import 'package:moments/core/services/app_logger.dart';
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../sources/supabase_config.dart';
 
 final _log = AppLogger('NotificationRepository');
 
 class NotificationRepository {
-  final SupabaseClient _client = SupabaseConfig.client;
+  final SupabaseClient _client;
+
+  NotificationRepository(this._client);
 
   // Reusable stream infrastructure to prevent channel leaks
   StreamController<int>? _countController;

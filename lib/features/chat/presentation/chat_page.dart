@@ -25,7 +25,8 @@ import 'package:moments/features/chat/widgets/message_context_menu.dart';
 import 'package:swipe_to/swipe_to.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:icon_button_m3e/icon_button_m3e.dart';
+import 'package:moments/core/services/giphy_picker_helper.dart';
+import 'package:moments/features/chat/widgets/gif_sticker_message_bubble.dart';
 
 import 'package:moments/core/services/firebase_messaging_service.dart';
 import 'package:moments/core/services/app_logger.dart';
@@ -56,6 +57,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
   // Reply/Edit state
   Message? _replyingToMessage;
 
+  final FocusNode _messageFocusNode = FocusNode();
+
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -74,6 +77,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     _messageController.dispose();
     _searchController.dispose();
     _scrollController.dispose();
+    _messageFocusNode.dispose();
     _typingTimer?.cancel();
     FirebaseMessagingService.currentChatId = null; // Clear static var
     super.dispose();
@@ -214,6 +218,50 @@ class _ChatPageState extends ConsumerState<ChatPage>
       replyToMessageId: replyTo?.id,
       replyToMessage: replyTo,
     );
+  }
+
+  Future<void> _sendGifMessage(String conversationId, String gifUrl) async {
+    final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
+    if (currentUserId == null) return;
+
+    final offlineService = ref.read(chatOfflineServiceProvider);
+    await offlineService.sendTextOptimistic(
+      conversationId: conversationId,
+      senderId: currentUserId,
+      content: gifUrl,
+      messageType: 'gif',
+    );
+    _scrollToBottom();
+  }
+
+  Future<void> _sendStickerMessage(
+    String conversationId,
+    String stickerUrl,
+  ) async {
+    final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
+    if (currentUserId == null) return;
+
+    final offlineService = ref.read(chatOfflineServiceProvider);
+    await offlineService.sendTextOptimistic(
+      conversationId: conversationId,
+      senderId: currentUserId,
+      content: stickerUrl,
+      messageType: 'sticker',
+    );
+    _scrollToBottom();
+  }
+
+  /// Opens the giphy_get built-in picker sheet for GIFs/stickers.
+  Future<void> _openGifPicker(String conversationId) async {
+    _messageFocusNode.unfocus();
+    final result = await GiphyPickerHelper.pickGif(context);
+    if (result == null || !mounted) return;
+
+    if (result.type == 'sticker') {
+      _sendStickerMessage(conversationId, result.url);
+    } else {
+      _sendGifMessage(conversationId, result.url);
+    }
   }
 
   /// Retry a failed message
@@ -829,6 +877,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                   message: message,
                                   isMe: isMe,
                                 );
+                              } else if (message.messageType ==
+                                      MessageType.gif ||
+                                  message.messageType == MessageType.sticker) {
+                                bubble = GifStickerMessageBubble(
+                                  message: message,
+                                  isMe: isMe,
+                                  onRetry:
+                                      message.sendStatus ==
+                                          MessageSendStatus.failed
+                                      ? () => _retryFailedMessage(message.id)
+                                      : null,
+                                );
                               } else {
                                 String? replySenderName;
                                 if (message.replyToMessage != null) {
@@ -983,253 +1043,312 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 ),
               ),
 
-              // Glassmorphism Message Input
+              // WhatsApp-style Message Input
               Align(
                 alignment: Alignment.bottomCenter,
-                child: ClipRRect(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        // Just the blur, no added color as requested
-                        color: Colors.white.withValues(alpha: 0.3),
-                        border: Border(
-                          top: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.3),
-                            width: 0.5,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Input bar
+                    ClipRRect(
+                      /*child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),*/
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          border: Border(
+                            top: BorderSide(
+                              color: Colors.transparent,
+                              width: 0.5,
+                            ),
                           ),
                         ),
-                      ),
-                      padding: EdgeInsets.only(
-                        left: 8,
-                        right: 8,
-                        top: 8,
-                        bottom: 8 + MediaQuery.of(context).padding.bottom,
-                      ),
-                      child: Consumer(
-                        builder: (context, ref, child) {
-                          final isRecording = ref.watch(
-                            isRecordingProvider(conversationId),
-                          );
+                        padding: EdgeInsets.only(
+                          left: 6,
+                          right: 6,
+                          top: 8,
+                          bottom: 8 + MediaQuery.of(context).padding.bottom,
+                        ),
+                        child: Consumer(
+                          builder: (context, ref, child) {
+                            final isRecording = ref.watch(
+                              isRecordingProvider(conversationId),
+                            );
 
-                          return isRecording
-                              ? AudioRecorderWidget(
-                                  onRecordingComplete: (path, duration) =>
-                                      _sendAudioMessage(
-                                        conversationId,
-                                        path,
-                                        duration,
-                                      ),
-                                  onCancel: () {
-                                    ref
-                                        .read(
-                                          isRecordingProvider(
-                                            conversationId,
-                                          ).notifier,
-                                        )
-                                        .stop();
-                                  },
-                                )
-                              : Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // Reply/Edit preview
-                                    if (_replyingToMessage != null)
-                                      ReplyPreview(
-                                        message: _replyingToMessage!,
-                                        senderName:
-                                            _replyingToMessage!.senderId ==
-                                                SupabaseConfig
-                                                    .client
-                                                    .auth
-                                                    .currentUser
-                                                    ?.id
-                                            ? 'You'
-                                            : widget.friendName,
-                                        onCancel: _cancelReplyOrEdit,
-                                      ),
-                                    if (_editingMessage != null)
-                                      Container(
-                                        margin: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 8,
+                            return isRecording
+                                ? AudioRecorderWidget(
+                                    onRecordingComplete: (path, duration) =>
+                                        _sendAudioMessage(
+                                          conversationId,
+                                          path,
+                                          duration,
                                         ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 8,
+                                    onCancel: () {
+                                      ref
+                                          .read(
+                                            isRecordingProvider(
+                                              conversationId,
+                                            ).notifier,
+                                          )
+                                          .stop();
+                                    },
+                                  )
+                                : Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // Reply/Edit preview
+                                      if (_replyingToMessage != null)
+                                        ReplyPreview(
+                                          message: _replyingToMessage!,
+                                          senderName:
+                                              _replyingToMessage!.senderId ==
+                                                  SupabaseConfig
+                                                      .client
+                                                      .auth
+                                                      .currentUser
+                                                      ?.id
+                                              ? 'You'
+                                              : widget.friendName,
+                                          onCancel: _cancelReplyOrEdit,
                                         ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.amber.withValues(
-                                            alpha: 0.15,
+                                      if (_editingMessage != null)
+                                        Container(
+                                          margin: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 8,
                                           ),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
                                           ),
-                                          border: const Border(
-                                            left: BorderSide(
-                                              color: Colors.amber,
-                                              width: 3,
+                                          decoration: BoxDecoration(
+                                            color: AppTheme.orangeAccent
+                                                .withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
                                             ),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.edit,
-                                              size: 16,
-                                              color: Colors.amber,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            const Expanded(
-                                              child: Text(
-                                                'Editing message',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.amber,
-                                                ),
+                                            border: const Border(
+                                              left: BorderSide(
+                                                color: AppTheme.orangeAccent,
+                                                width: 3,
                                               ),
                                             ),
-                                            GestureDetector(
-                                              onTap: _cancelReplyOrEdit,
-                                              child: const Icon(
-                                                Icons.close,
-                                                size: 18,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        IconButtonM3E(
-                                          variant: IconButtonM3EVariant.filled,
-                                          shape:
-                                              IconButtonM3EShapeVariant.square,
-                                          icon: const Icon(
-                                            Icons.add,
-                                            color: Colors.white,
                                           ),
-                                          onPressed: () =>
-                                              _pickMedia(conversationId),
-                                        ),
-                                        Expanded(
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                    AppTheme.radiusLarge + 2,
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.edit,
+                                                size: 16,
+                                                color: AppTheme.orangeAccent,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              const Expanded(
+                                                child: Text(
+                                                  'Editing message',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color:
+                                                        AppTheme.orangeAccent,
                                                   ),
-                                              border: Border.all(
-                                                color: Colors.grey.withValues(
-                                                  alpha: 0.2,
                                                 ),
                                               ),
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                Expanded(
-                                                  child: TextField(
-                                                    controller:
-                                                        _messageController,
-                                                    style: const TextStyle(
-                                                      color: Colors.black87,
+                                              GestureDetector(
+                                                onTap: _cancelReplyOrEdit,
+                                                child: const Icon(
+                                                  Icons.close,
+                                                  size: 18,
+                                                  color: AppTheme.textGray,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      // WhatsApp-style input row
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          // Rounded text field container with emoji, text, attach, camera
+                                          Expanded(
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: AppTheme.cardWhite,
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                      AppTheme.radiusLarge + 4,
                                                     ),
-                                                    decoration: InputDecoration(
-                                                      hintText: 'Message...',
-                                                      hintStyle: TextStyle(
-                                                        color: Colors.grey[500],
-                                                      ),
-                                                      border: InputBorder.none,
-                                                      contentPadding:
-                                                          const EdgeInsets.symmetric(
-                                                            vertical: 10,
-                                                          ),
+                                                border: Border.all(
+                                                  color: AppTheme.borderGray
+                                                      .withValues(alpha: 0.3),
+                                                ),
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 2,
+                                                  ),
+                                              child: Row(
+                                                children: [
+                                                  // GIF/Sticker picker button
+                                                  IconButton(
+                                                    icon: const Icon(
+                                                      CupertinoIcons.gift,
+                                                      color: AppTheme.textGray,
+                                                      size: 24,
                                                     ),
-                                                    maxLines: null,
-                                                    textCapitalization:
-                                                        TextCapitalization
-                                                            .sentences,
-                                                    onSubmitted: (_) =>
-                                                        _sendMessage(
+                                                    onPressed: () =>
+                                                        _openGifPicker(
                                                           conversationId,
                                                         ),
+                                                    padding: EdgeInsets.zero,
+                                                    constraints:
+                                                        const BoxConstraints(
+                                                          minWidth: 36,
+                                                          minHeight: 36,
+                                                        ),
+                                                    splashRadius: 20,
                                                   ),
-                                                ),
-                                                IconButton(
-                                                  icon: Icon(
-                                                    Icons
-                                                        .sticky_note_2_outlined,
-                                                    color: Colors.grey[600],
-                                                    size: 24,
+                                                  // Text field
+                                                  Expanded(
+                                                    child: TextField(
+                                                      controller:
+                                                          _messageController,
+                                                      focusNode:
+                                                          _messageFocusNode,
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .bodyMedium
+                                                          ?.copyWith(
+                                                            color:
+                                                                Colors.black87,
+                                                          ),
+                                                      decoration: InputDecoration(
+                                                        hintText: 'Message...',
+                                                        hintStyle:
+                                                            Theme.of(context)
+                                                                .textTheme
+                                                                .bodyMedium
+                                                                ?.copyWith(
+                                                                  color: Colors
+                                                                      .grey[400],
+                                                                ),
+                                                        border:
+                                                            InputBorder.none,
+                                                        contentPadding:
+                                                            const EdgeInsets.symmetric(
+                                                              vertical: 10,
+                                                            ),
+                                                      ),
+                                                      maxLines: 5,
+                                                      minLines: 1,
+                                                      textCapitalization:
+                                                          TextCapitalization
+                                                              .sentences,
+                                                      onSubmitted: (_) =>
+                                                          _sendMessage(
+                                                            conversationId,
+                                                          ),
+                                                    ),
                                                   ),
-                                                  onPressed:
-                                                      () {}, // TODO: Stickers
-                                                  padding: EdgeInsets.zero,
-                                                  constraints:
-                                                      const BoxConstraints(),
-                                                ),
-                                              ],
+                                                  // Attachment button (inside field)
+                                                  IconButton(
+                                                    icon: Icon(
+                                                      Icons.attach_file,
+                                                      color: AppTheme.textGray,
+                                                      size: 22,
+                                                    ),
+                                                    onPressed: () => _pickMedia(
+                                                      conversationId,
+                                                    ),
+                                                    padding: EdgeInsets.zero,
+                                                    constraints:
+                                                        const BoxConstraints(
+                                                          minWidth: 32,
+                                                          minHeight: 32,
+                                                        ),
+                                                    splashRadius: 18,
+                                                  ),
+                                                  // Camera button (inside field)
+                                                  IconButton(
+                                                    icon: Icon(
+                                                      Icons.camera_alt_outlined,
+                                                      color: AppTheme.textGray,
+                                                      size: 22,
+                                                    ),
+                                                    onPressed: () =>
+                                                        _pickCameraImage(
+                                                          conversationId,
+                                                        ),
+                                                    padding: EdgeInsets.zero,
+                                                    constraints:
+                                                        const BoxConstraints(
+                                                          minWidth: 32,
+                                                          minHeight: 32,
+                                                        ),
+                                                    splashRadius: 18,
+                                                  ),
+                                                ],
+                                              ),
                                             ),
                                           ),
-                                        ),
-
-                                        IconButtonM3E(
-                                          variant: IconButtonM3EVariant.filled,
-                                          icon: const Icon(
-                                            Icons.camera_alt_outlined,
-                                            color: Colors.white,
-                                          ),
-                                          onPressed: () =>
-                                              _pickCameraImage(conversationId),
-                                        ),
-                                        Consumer(
-                                          builder: (context, ref, child) {
-                                            final showSend = ref.watch(
-                                              showSendButtonProvider(
-                                                conversationId,
-                                              ),
-                                            );
-
-                                            return IconButtonM3E(
-                                              variant:
-                                                  IconButtonM3EVariant.filled,
-                                              icon: Icon(
-                                                showSend
-                                                    ? Icons.send
-                                                    : Icons.mic_none_outlined,
-                                                color: Colors.white,
-                                              ),
-                                              onPressed: showSend
-                                                  ? () => _sendMessage(
-                                                      conversationId,
-                                                    )
-                                                  : () {
-                                                      ref
-                                                          .read(
-                                                            isRecordingProvider(
-                                                              conversationId,
-                                                            ).notifier,
+                                          const SizedBox(width: 6),
+                                          // Floating send/mic button (outside field)
+                                          Consumer(
+                                            builder: (context, ref, child) {
+                                              final showSend = ref.watch(
+                                                showSendButtonProvider(
+                                                  conversationId,
+                                                ),
+                                              );
+                                              return Container(
+                                                width: 48,
+                                                height: 48,
+                                                decoration: BoxDecoration(
+                                                  color: showSend
+                                                      ? AppTheme.primaryBlue
+                                                      : AppTheme.vibrantGreen,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Material(
+                                                  color: Colors.transparent,
+                                                  shape: const CircleBorder(),
+                                                  child: InkWell(
+                                                    customBorder:
+                                                        const CircleBorder(),
+                                                    onTap: showSend
+                                                        ? () => _sendMessage(
+                                                            conversationId,
                                                           )
-                                                          .start();
-                                                    },
-                                            );
-                                          },
-                                        ),
-                                      ],
-                                    ), // Close Row
-                                  ],
-                                ); // Close Column
-                        },
+                                                        : () {
+                                                            ref
+                                                                .read(
+                                                                  isRecordingProvider(
+                                                                    conversationId,
+                                                                  ).notifier,
+                                                                )
+                                                                .start();
+                                                          },
+                                                    child: Icon(
+                                                      showSend
+                                                          ? CupertinoIcons
+                                                                .paperplane
+                                                          : CupertinoIcons.mic,
+                                                      color: Colors.white,
+                                                      size: 22,
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  );
+                          },
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
               // Scroll to bottom button
