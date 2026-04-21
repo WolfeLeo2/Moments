@@ -25,7 +25,6 @@ import '../../../widgets/invite_contributors_sheet.dart';
 import '../../../widgets/music_indicator.dart';
 import '../../../widgets/collaborative_audio_list.dart';
 import '../../../widgets/spring_button.dart';
-import 'comments_sheet.dart';
 
 import 'dart:math' as math;
 import 'package:google_fonts/google_fonts.dart';
@@ -286,7 +285,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => InviteContributorsSheet(
+      builder: (sheetContext) => InviteContributorsSheet(
         momentId: groupId,
         existingContributorIds: _contributors.map((c) => c.userId).toList(),
         onInvite: (profiles) async {
@@ -303,11 +302,10 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
           }
           // Reload contributors
           await _loadContributors();
-          if (mounted) {
-            context.showSuccessSnackBar(
-              'Invitation${profiles.length > 1 ? 's' : ''} sent!',
-            );
-          }
+          if (!mounted) return;
+          this.context.showSuccessSnackBar(
+            'Invitation${profiles.length > 1 ? 's' : ''} sent!',
+          );
         },
       ),
     );
@@ -955,69 +953,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
       moment: moment,
       imageUrl: imageUrl,
       localImagePath: _localPaths[moment.id],
-    );
-  }
-
-  /// Show comments bottom sheet for a moment
-  void _showCommentsSheet(String momentId) {
-    HapticService.lightTap();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => CommentsSheet(momentId: momentId),
-    );
-  }
-
-  /// Inline engagement row: comment icon+count | share button
-  Widget _buildEngagementRow() {
-    final moment = _moments[_currentPage];
-    final tt = Theme.of(context).textTheme;
-    final repo = ref.watch(momentRepositoryProvider);
-
-    return Row(
-      children: [
-        // ── Comment button with count ──
-        GestureDetector(
-          onTap: () => _showCommentsSheet(moment.id),
-          child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: repo.watchCommentsForMoment(moment.id),
-            builder: (context, snapshot) {
-              final count = snapshot.data?.length ?? 0;
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    CupertinoIcons.chat_bubble,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    count > 0 ? '$count' : '',
-                    style: tt.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-        const SizedBox(width: 20),
-        // ── Share button ──
-        GestureDetector(
-          onTap: () {
-            HapticService.lightTap();
-            ShareBottomSheet.show(
-              context: context,
-              moment: moment,
-              imageUrl: _imageUrls[moment.id],
-              localImagePath: _localPaths[moment.id],
-            );
-          },
-          child: HugeIcon(icon: HugeIcons.strokeRoundedShare01, size: 20),
-        ),
-      ],
     );
   }
 
@@ -1796,9 +1731,27 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
   // ─── HEADER ───────────────────────────────────────────────────────
 
-  /// Action buttons (save) used in the app bar — share moved to inline row
+  /// Action buttons (share + save) used in the app bar
   List<Widget> _buildAppBarActions() {
     return [
+      IconButton(
+        onPressed: () {
+          if (_moments.isEmpty) return;
+          HapticService.lightTap();
+          final m = _moments[_currentPage];
+          ShareBottomSheet.show(
+            context: context,
+            moment: m,
+            imageUrl: _imageUrls[m.id],
+            localImagePath: _localPaths[m.id],
+          );
+        },
+        icon: HugeIcon(
+          icon: HugeIcons.strokeRoundedShare01,
+          size: 22.sp,
+          color: AppTheme.textDark,
+        ),
+      ),
       IconButton(
         onPressed: _isSavingOffline ? null : _saveAllOffline,
         icon: _isSavingOffline
@@ -1841,10 +1794,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 12),
-            // ── Inline engagement row: comment + share ──
-            if (_moments.isNotEmpty) _buildEngagementRow(),
-            const SizedBox(height: 14),
+            const SizedBox(height: 20),
             // ── Editorial title ──
             if (_moments.isNotEmpty && _moments[_currentPage].isPrivate)
               Padding(
@@ -1923,7 +1873,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             const SizedBox(height: 14),
             // ── Contributors row ──
             _buildContributorRowInline(),
-            const SizedBox(height: 12),
             const SizedBox(height: 8),
           ],
         ),

@@ -103,7 +103,7 @@ final class SocialRepositoryProvider
   }
 }
 
-String _$socialRepositoryHash() => r'341a546c4f2747422d7da38ba7fabafae4d5e8b4';
+String _$socialRepositoryHash() => r'b2c2010c6c889d26108ea3bd041109f17162110b';
 
 /// Notification repository provider - singleton instance
 
@@ -257,17 +257,17 @@ final class AiServiceProvider
 
 String _$aiServiceHash() => r'f3676f4c3d527135c19190275905b7fddc88471a';
 
-/// Current authenticated user — typed as User? for safety
+/// Current authenticated user
 
 @ProviderFor(currentUser)
 const currentUserProvider = CurrentUserProvider._();
 
-/// Current authenticated user — typed as User? for safety
+/// Current authenticated user
 
 final class CurrentUserProvider
     extends $FunctionalProvider<AsyncValue<User?>, User?, Stream<User?>>
     with $FutureModifier<User?>, $StreamProvider<User?> {
-  /// Current authenticated user — typed as User? for safety
+  /// Current authenticated user
   const CurrentUserProvider._()
     : super(
         from: null,
@@ -493,7 +493,7 @@ final class NotificationsListProvider
   NotificationsList create() => NotificationsList();
 }
 
-String _$notificationsListHash() => r'a34a22475fe479e3bb793a8ad668c7fce782eac5';
+String _$notificationsListHash() => r'f83251bcce82ac7827e3b9f94c87d9e32f198d83';
 
 /// Provider for the list of notifications with pagination support
 /// No auto-mark-as-read, user must interact with notifications to mark them read
@@ -1058,71 +1058,3 @@ final class MomentStorageServiceProvider
 
 String _$momentStorageServiceHash() =>
     r'd1d57948a08e6caa59e4ce88cfdd25e948ea24cc';
-
-/// Tracks which notification IDs have been dismissed (swiped away) in the
-/// current session. Using a keepAlive provider so dismissals survive page
-/// pops and re-pushes — unlike a Set on widget State.
-
-@ProviderFor(DismissedNotificationIds)
-const dismissedNotificationIdsProvider = DismissedNotificationIdsProvider._();
-
-/// Tracks which notification IDs have been dismissed (swiped away) in the
-/// current session. Using a keepAlive provider so dismissals survive page
-/// pops and re-pushes — unlike a Set on widget State.
-final class DismissedNotificationIdsProvider
-    extends $NotifierProvider<DismissedNotificationIds, Set<String>> {
-  /// Tracks which notification IDs have been dismissed (swiped away) in the
-  /// current session. Using a keepAlive provider so dismissals survive page
-  /// pops and re-pushes — unlike a Set on widget State.
-  const DismissedNotificationIdsProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'dismissedNotificationIdsProvider',
-        isAutoDispose: false,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$dismissedNotificationIdsHash();
-
-  @$internal
-  @override
-  DismissedNotificationIds create() => DismissedNotificationIds();
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(Set<String> value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<Set<String>>(value),
-    );
-  }
-}
-
-String _$dismissedNotificationIdsHash() =>
-    r'd1257b1a748b9bbec1be1564dc4e64e19a1c0274';
-
-/// Tracks which notification IDs have been dismissed (swiped away) in the
-/// current session. Using a keepAlive provider so dismissals survive page
-/// pops and re-pushes — unlike a Set on widget State.
-
-abstract class _$DismissedNotificationIds extends $Notifier<Set<String>> {
-  Set<String> build();
-  @$mustCallSuper
-  @override
-  void runBuild() {
-    final created = build();
-    final ref = this.ref as $Ref<Set<String>, Set<String>>;
-    final element =
-        ref.element
-            as $ClassProviderElement<
-              AnyNotifier<Set<String>, Set<String>>,
-              Set<String>,
-              Object?,
-              Object?
-            >;
-    element.handleValue(ref, created);
-  }
-}

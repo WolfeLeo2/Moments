@@ -104,8 +104,8 @@ class _StoryCameraPageState extends ConsumerState<StoryCameraPage> {
             : null,
       );
 
-      // Refresh stories list
-      ref.invalidate(friendsStoriesProvider);
+      // Refresh stories list via explicit event signal.
+      ref.read(storiesRefreshSignalProvider.notifier).bump();
 
       if (mounted) {
         Navigator.pop(context);
@@ -140,10 +140,7 @@ class _StoryCameraPageState extends ConsumerState<StoryCameraPage> {
               const SizedBox(height: 16),
               Text(
                 'Opening camera...',
-                style: GoogleFonts.inter(
-                  color: Colors.white70,
-                  fontSize: 15,
-                ),
+                style: GoogleFonts.inter(color: Colors.white70, fontSize: 15),
               ),
             ],
           ),
@@ -241,10 +238,7 @@ class _StoryCameraPageState extends ConsumerState<StoryCameraPage> {
                       color: Colors.white38,
                       fontSize: 15,
                     ),
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 15,
-                    ),
+                    style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 12,

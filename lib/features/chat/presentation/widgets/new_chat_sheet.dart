@@ -75,9 +75,9 @@ class NewChatSheet extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     CupertinoIcons.search,
-                    color: Colors.grey[400]!,
+                    color: Colors.grey,
                     size: 24,
                   ),
                   const SizedBox(width: 12),
@@ -104,10 +104,10 @@ class NewChatSheet extends ConsumerWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          CupertinoIcons.person_3,
+                        const Icon(
+                          CupertinoIcons.person_2,
                           size: 48,
-                          color: AppTheme.borderGray,
+                          color: Colors.grey,
                         ),
                         const SizedBox(height: 16),
                         Text(

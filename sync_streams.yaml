@@ -1,0 +1,97 @@
+# DEPRECATED reference file.
+# Canonical active PowerSync config is: powersync/sync-config.yaml
+# Keep this file for migration notes only.
+# PowerSync Sync Streams for Moments (chat-only)
+#
+# This config intentionally syncs only chat-related data:
+# - profiles (chat participants + current user)
+# - conversations
+# - conversation_participants
+# - messages
+# - message_reactions
+#
+# All other domains remain on their existing data paths.
+
+config:
+  edition: 3
+
+streams:
+  chat_membership:
+    auto_subscribe: true
+    priority: 1
+    queries:
+      - |
+        SELECT c.*
+        FROM conversations c
+        JOIN conversation_participants cp
+          ON cp.conversation_id = c.id
+        WHERE cp.user_id = auth.user_id()
+      - |
+        SELECT c.*
+        FROM conversations c
+        WHERE c.created_by = auth.user_id()
+      - |
+        SELECT cp.*
+        FROM conversation_participants cp
+        JOIN conversation_participants mine
+          ON mine.conversation_id = cp.conversation_id
+        WHERE mine.user_id = auth.user_id()
+      - |
+        SELECT cp.*
+        FROM conversation_participants cp
+        JOIN conversations c
+          ON c.id = cp.conversation_id
+        WHERE c.created_by = auth.user_id()
+      - |
+        SELECT p.*
+        FROM profiles p
+        WHERE p.id = auth.user_id()
+      - |
+        SELECT p.*
+        FROM profiles p
+        JOIN conversation_participants cp
+          ON cp.user_id = p.id
+        JOIN conversation_participants mine
+          ON mine.conversation_id = cp.conversation_id
+        WHERE mine.user_id = auth.user_id()
+      - |
+        SELECT p.*
+        FROM profiles p
+        JOIN conversation_participants cp
+          ON cp.user_id = p.id
+        JOIN conversations c
+          ON c.id = cp.conversation_id
+        WHERE c.created_by = auth.user_id()
+
+  chat_messages:
+    auto_subscribe: true
+    priority: 2
+    queries:
+      - |
+        SELECT m.*
+        FROM messages m
+        JOIN conversation_participants cp
+          ON cp.conversation_id = m.conversation_id
+        WHERE cp.user_id = auth.user_id()
+      - |
+        SELECT m.*
+        FROM messages m
+        JOIN conversations c
+          ON c.id = m.conversation_id
+        WHERE c.created_by = auth.user_id()
+      - |
+        SELECT mr.*
+        FROM message_reactions mr
+        JOIN messages m
+          ON m.id = mr.message_id
+        JOIN conversation_participants cp
+          ON cp.conversation_id = m.conversation_id
+        WHERE cp.user_id = auth.user_id()
+      - |
+        SELECT mr.*
+        FROM message_reactions mr
+        JOIN messages m
+          ON m.id = mr.message_id
+        JOIN conversations c
+          ON c.id = m.conversation_id
+        WHERE c.created_by = auth.user_id()

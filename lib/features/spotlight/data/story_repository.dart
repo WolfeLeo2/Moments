@@ -116,10 +116,8 @@ class StoryViewer {
 }
 
 class StoryRepository {
-  final SupabaseClient _client;
+  final _client = Supabase.instance.client;
   final _uuid = const Uuid();
-
-  StoryRepository(this._client);
 
   // ── Fetch ───────────────────────────────────────────────────────
 
@@ -133,7 +131,8 @@ class StoryRepository {
       params: {'requesting_user_id': userId},
     );
 
-    final stories = (result as List).map((e) => Story.fromJson(e)).toList();
+    final stories =
+        (result as List).map((e) => Story.fromJson(e)).toList();
 
     // Group by user
     final grouped = <String, List<Story>>{};
@@ -191,14 +190,15 @@ class StoryRepository {
     double? longitude,
     int? durationMs,
   }) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('User must be authenticated to create a story');
+    }
     final ext = p.extension(mediaFile.path).replaceFirst('.', '');
     final storagePath = '$userId/${_uuid.v4()}.$ext';
 
     // Upload to storage
-    await _client.storage
-        .from('stories')
-        .upload(
+    await _client.storage.from('stories').upload(
           storagePath,
           mediaFile,
           fileOptions: FileOptions(
@@ -206,7 +206,8 @@ class StoryRepository {
           ),
         );
 
-    final mediaUrl = _client.storage.from('stories').getPublicUrl(storagePath);
+    final mediaUrl =
+        _client.storage.from('stories').getPublicUrl(storagePath);
 
     // Insert story record
     final data = {
@@ -220,7 +221,8 @@ class StoryRepository {
       if (durationMs != null) 'duration_ms': durationMs,
     };
 
-    final result = await _client.from('stories').insert(data).select().single();
+    final result =
+        await _client.from('stories').insert(data).select().single();
 
     _log.i('Created story: ${result['id']}');
     return Story.fromJson(result);
@@ -236,12 +238,13 @@ class StoryRepository {
     double? latitude,
     double? longitude,
   }) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('User must be authenticated to create a story');
+    }
     final storagePath = '$userId/${_uuid.v4()}.$extension';
 
-    await _client.storage
-        .from('stories')
-        .uploadBinary(
+    await _client.storage.from('stories').uploadBinary(
           storagePath,
           bytes,
           fileOptions: FileOptions(
@@ -249,7 +252,8 @@ class StoryRepository {
           ),
         );
 
-    final mediaUrl = _client.storage.from('stories').getPublicUrl(storagePath);
+    final mediaUrl =
+        _client.storage.from('stories').getPublicUrl(storagePath);
 
     final data = {
       'user_id': userId,
@@ -261,7 +265,8 @@ class StoryRepository {
       if (longitude != null) 'longitude': longitude,
     };
 
-    final result = await _client.from('stories').insert(data).select().single();
+    final result =
+        await _client.from('stories').insert(data).select().single();
 
     _log.i('Created story from bytes: ${result['id']}');
     return Story.fromJson(result);
@@ -274,17 +279,20 @@ class StoryRepository {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
-    await _client.from('story_views').upsert({
-      'story_id': storyId,
-      'viewer_id': userId,
-    }, onConflict: 'story_id,viewer_id');
+    await _client.from('story_views').upsert(
+      {
+        'story_id': storyId,
+        'viewer_id': userId,
+      },
+      onConflict: 'story_id,viewer_id',
+    );
 
     // Increment view count
-    await _client
-        .rpc('increment_story_view_count', params: {'p_story_id': storyId})
-        .catchError((_) {
-          // Non-critical — ignore if RPC doesn't exist yet
-        });
+    await _client.rpc('increment_story_view_count', params: {
+      'p_story_id': storyId,
+    }).catchError((_) {
+      // Non-critical — ignore if RPC doesn't exist yet
+    });
   }
 
   /// Send a reaction to a story.
@@ -292,11 +300,14 @@ class StoryRepository {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
-    await _client.from('story_views').upsert({
-      'story_id': storyId,
-      'viewer_id': userId,
-      'reaction': reaction,
-    }, onConflict: 'story_id,viewer_id');
+    await _client.from('story_views').upsert(
+      {
+        'story_id': storyId,
+        'viewer_id': userId,
+        'reaction': reaction,
+      },
+      onConflict: 'story_id,viewer_id',
+    );
   }
 
   // ── Delete ──────────────────────────────────────────────────────

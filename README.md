@@ -13,6 +13,7 @@ A Flutter app that allows users to create location-based photo moments and view 
 ## Setup Instructions
 
 ### 1. Prerequisites
+
 - Flutter 3.10+
 - Dart 3.0+
 - Android Studio / Xcode for device testing
@@ -38,10 +39,12 @@ A Flutter app that allows users to create location-based photo moments and view 
 ### 4. Google Maps Setup
 
 #### Android
+
 - API key is already configured in `android/app/src/main/AndroidManifest.xml`
 - Make sure your API key has Android restrictions enabled
 
 #### iOS
+
 - Add your API key to `ios/Runner/AppDelegate.swift`:
   ```swift
   GMSServices.provideAPIKey("YOUR_API_KEY")
@@ -85,18 +88,21 @@ lib/
 ## Key Components
 
 ### Map Page
+
 - Interactive Google Maps
 - Moment markers with preview
 - Current location detection
 - Floating "New Moment" button
 
 ### Moment Creation
+
 - Camera/Gallery photo selection
 - Title and location input
 - Description (optional)
 - GPS location capture
 
 ### Moment Details
+
 - Full-screen photo view
 - Location information
 - Preview functionality
@@ -112,16 +118,19 @@ lib/
 ## Design System
 
 ### Colors
+
 - Primary Blue: `#306BFF`
 - Background Beige: `#FAF8F6`
 - Text Dark: `#2D3748`
 - Card White: `#FFFFFF`
 
 ### Typography
+
 - Headers: Bebas Neue (bold, condensed)
 - Body: Inter (readable, modern)
 
 ### Animations
+
 - Bouncy button interactions
 - Smooth page transitions
 - Physics-based motion
@@ -129,12 +138,14 @@ lib/
 ## API Integration
 
 ### Supabase Features Used
+
 - **Database**: PostgreSQL with PostGIS for geospatial queries
 - **Storage**: Image upload and hosting
 - **Real-time**: Live updates (future feature)
 - **Row Level Security**: Data protection
 
 ### Google Maps Features
+
 - Interactive map display
 - Marker clustering
 - Current location
@@ -143,6 +154,7 @@ lib/
 ## Permissions
 
 ### Android
+
 - `ACCESS_FINE_LOCATION`
 - `ACCESS_COARSE_LOCATION`
 - `CAMERA`
@@ -150,6 +162,7 @@ lib/
 - `INTERNET`
 
 ### iOS
+
 - `NSLocationWhenInUseUsageDescription`
 - `NSCameraUsageDescription`
 - `NSPhotoLibraryUsageDescription`

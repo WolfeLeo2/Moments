@@ -1,13 +1,10 @@
-import 'dart:async';
-
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/data/repositories/moment_repository.dart';
 import 'package:moments/data/models/moment.dart';
 import 'package:moments/data/models/moment_contributor.dart';
 import 'package:moments/data/models/moment_reaction.dart';
-import 'package:moments/core/database/database.dart';
-import 'package:moments/core/providers/database_provider.dart';
+import 'package:moments/core/providers/powersync_provider.dart';
 import 'package:moments/core/services/app_logger.dart';
 
 part 'moments_providers.g.dart';
@@ -18,65 +15,67 @@ final _log = AppLogger('MomentsProviders');
 @Riverpod(keepAlive: true)
 MomentRepository momentRepository(Ref ref) => MomentRepository();
 
-/// Stream of all moments with offline-first approach using Drift
-/// 1. Immediately yields cached moments from Drift
-/// 2. Watches Drift for reactive updates
-/// 3. Syncs with Supabase in parallel
+Future<void> _ensurePowerSyncReady(Ref ref, String context) async {
+  final powerSync = ref.watch(chatPowerSyncServiceProvider);
+  final initialized = await powerSync.ensureInitialized();
+  if (!initialized) {
+    throw Exception('PowerSync failed to initialize for $context.');
+  }
+}
+
+/// Stream of all moments from PowerSync local SQLite.
 @riverpod
 Stream<List<Moment>> momentsStream(Ref ref) async* {
-  final db = ref.watch(appDatabaseProvider);
-  final repo = ref.watch(momentRepositoryProvider);
-
-  final remoteSub = repo.streamAllMoments().listen(
-    (moments) {
-      unawaited(db.saveMoments(moments.map((m) => m.toCompanion()).toList()));
-    },
-    onError: (e, stack) {
-      _log.e('Error in moments stream', error: e, stackTrace: stack);
-    },
-  );
-  ref.onDispose(remoteSub.cancel);
-
-  yield* db.watchMoments().map(
-    (entries) => entries.map((e) => e.toModel()).toList(),
-  );
+  await _ensurePowerSyncReady(ref, 'moments stream');
+  final powerSync = ref.watch(chatPowerSyncServiceProvider);
+  yield* powerSync.watchMoments();
 }
 
-/// Stream of shared moments (realtime - moments user is contributor to)
+/// Stream of shared moments from PowerSync local SQLite.
 @riverpod
-Stream<List<Moment>> sharedMomentsStream(Ref ref) {
-  final repo = ref.watch(momentRepositoryProvider);
-  return repo.streamSharedMoments();
+Stream<List<Moment>> sharedMomentsStream(Ref ref) async* {
+  await _ensurePowerSyncReady(ref, 'shared moments stream');
+  final powerSync = ref.watch(chatPowerSyncServiceProvider);
+  yield* powerSync.watchSharedMoments();
 }
 
-/// Stream of pending moment invitations (realtime)
+/// Stream of pending moment invitations from PowerSync local SQLite.
 @riverpod
-Stream<List<MomentContributor>> pendingMomentInvitationsStream(Ref ref) {
-  final repo = ref.watch(momentRepositoryProvider);
-  return repo.watchPendingInvitations();
+Stream<List<MomentContributor>> pendingMomentInvitationsStream(Ref ref) async* {
+  await _ensurePowerSyncReady(ref, 'pending invitations stream');
+  final powerSync = ref.watch(chatPowerSyncServiceProvider);
+  yield* powerSync.watchPendingMomentInvitations();
 }
 
-/// Stream moments by group ID (realtime for moment details page)
+/// Stream moments by group ID from PowerSync local SQLite.
 @riverpod
-Stream<List<Moment>> momentsByGroupStream(Ref ref, String groupId) {
-  final repo = ref.watch(momentRepositoryProvider);
-  return repo.streamMomentsByGroup(groupId);
+Stream<List<Moment>> momentsByGroupStream(Ref ref, String groupId) async* {
+  await _ensurePowerSyncReady(ref, 'moments by group stream');
+  final powerSync = ref.watch(chatPowerSyncServiceProvider);
+  yield* powerSync.watchMomentsByGroup(groupId);
 }
 
-/// Single moment details - Drift first, then remote
+/// Single moment details from PowerSync local SQLite.
 @riverpod
 Future<Moment?> momentDetails(Ref ref, String momentId) async {
-  final db = ref.watch(appDatabaseProvider);
+  await _ensurePowerSyncReady(ref, 'moment details');
+  final powerSync = ref.watch(chatPowerSyncServiceProvider);
   final repo = ref.watch(momentRepositoryProvider);
 
-  // Try local Drift first
-  final cached = await db.getMomentById(momentId);
-  if (cached != null) {
-    return cached.toModel();
-  }
+  final local = await powerSync.getMomentById(momentId);
+  if (local != null) return local;
 
-  // Fallback to remote
-  return repo.getMomentById(momentId);
+  // Emergency online fallback without reintroducing manual sync loop.
+  try {
+    return await repo.getMomentById(momentId);
+  } catch (e, stack) {
+    _log.e(
+      'Failed to resolve moment details fallback',
+      error: e,
+      stackTrace: stack,
+    );
+    rethrow;
+  }
 }
 
 /// Helper to invalidate moments cache
@@ -85,10 +84,13 @@ void invalidateMomentsCache(WidgetRef ref) {
   ref.invalidate(sharedMomentsStreamProvider);
 }
 
-/// Realtime stream of reactions for a specific moment
-/// Used by MomentDetailsPage for instant reaction updates
+/// Realtime stream of reactions for a specific moment from PowerSync local SQLite.
 @riverpod
-Stream<List<MomentReaction>> reactionsForMoment(Ref ref, String momentId) {
-  final repo = ref.watch(momentRepositoryProvider);
-  return repo.watchReactionsForMoment(momentId);
+Stream<List<MomentReaction>> reactionsForMoment(
+  Ref ref,
+  String momentId,
+) async* {
+  await _ensurePowerSyncReady(ref, 'moment reactions stream');
+  final powerSync = ref.watch(chatPowerSyncServiceProvider);
+  yield* powerSync.watchMomentReactionsForMoment(momentId);
 }

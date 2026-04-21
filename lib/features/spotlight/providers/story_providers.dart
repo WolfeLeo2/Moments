@@ -1,8 +1,5 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:moments/core/providers/database_provider.dart';
 
 import '../data/story_repository.dart';
 
@@ -13,9 +10,16 @@ part 'story_providers.g.dart';
 // ═══════════════════════════════════════════════════════════════════
 
 @Riverpod(keepAlive: true)
-StoryRepository storyRepository(Ref ref) {
-  final client = ref.watch(supabaseClientProvider);
-  return StoryRepository(client);
+StoryRepository storyRepository(Ref ref) => StoryRepository();
+
+/// Explicit refresh signal for stories.
+/// Bumped by bounded app events (post/delete/view lifecycle), not timers.
+@Riverpod(keepAlive: true)
+class StoriesRefreshSignal extends _$StoriesRefreshSignal {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -23,21 +27,13 @@ StoryRepository storyRepository(Ref ref) {
 // ═══════════════════════════════════════════════════════════════════
 
 /// Fetches all active stories from friends, grouped by user.
-/// Auto-refreshes every 30 seconds.
+/// Refreshes explicitly via [storiesRefreshSignalProvider].
 @riverpod
 class FriendsStories extends _$FriendsStories {
-  Timer? _refreshTimer;
-
   @override
   FutureOr<List<StoryGroup>> build() async {
-    // Set up periodic refresh
-    _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      ref.invalidateSelf();
-    });
-
-    // Clean up on dispose
-    ref.onDispose(() => _refreshTimer?.cancel());
+    // Recompute only when an explicit event bumps this signal.
+    ref.watch(storiesRefreshSignalProvider);
 
     final repo = ref.watch(storyRepositoryProvider);
     return repo.getFriendsStories();
@@ -45,7 +41,7 @@ class FriendsStories extends _$FriendsStories {
 
   /// Force refresh stories (e.g., after posting a new story).
   Future<void> refresh() async {
-    ref.invalidateSelf();
+    ref.read(storiesRefreshSignalProvider.notifier).bump();
   }
 }
 

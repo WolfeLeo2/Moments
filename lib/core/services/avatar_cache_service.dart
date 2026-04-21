@@ -9,8 +9,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/database.dart';
 import 'package:moments/core/services/app_logger.dart';
 
-
 final _log = AppLogger('AvatarCache');
+
 /// Centralized avatar caching service
 /// Provides in-memory cache with Drift persistence for fast avatar loading
 ///
@@ -41,6 +41,9 @@ class AvatarCacheService {
 
   /// Creates an AvatarCacheService with the required database dependency.
   AvatarCacheService(this._database);
+
+  /// Exposed for explicit lifecycle checks in app startup and tests.
+  bool get isInitialized => _initialized;
 
   /// Initialize the cache from Drift storage
   /// Call this early in app startup
@@ -107,9 +110,7 @@ class AvatarCacheService {
 
   /// Get avatar URL for a single user (sync - returns cached or null)
   String? getAvatarUrlSync(String userId) {
-    if (!_initialized && !_initializing) {
-      initialize();
-    }
+    if (!_initialized) return null;
     return _memoryCache[userId];
   }
 
@@ -360,10 +361,12 @@ class AvatarCacheService {
   /// Get ImageProvider for a user ID (fetches from cache or downloads)
   ImageProvider? getAvatarImageProviderForUser(String userId) {
     final url = getAvatarUrlSync(userId);
-    if (url == null) {
-      unawaited(getAvatarUrl(userId));
-    }
     return getAvatarImageProvider(url);
+  }
+
+  /// Explicitly fetch and cache one user avatar.
+  Future<String?> preloadAvatarForUser(String userId) async {
+    return getAvatarUrl(userId);
   }
 
   /// Clean up old avatar files that haven't been accessed recently
@@ -392,9 +395,7 @@ class AvatarCacheService {
       }
 
       if (deletedCount > 0) {
-        _log.d(
-          '🧹 AvatarCacheService: Cleaned up $deletedCount old avatars',
-        );
+        _log.d('🧹 AvatarCacheService: Cleaned up $deletedCount old avatars');
       }
     } catch (e) {
       _log.e('AvatarCacheService: Error cleaning up old avatars: $e');

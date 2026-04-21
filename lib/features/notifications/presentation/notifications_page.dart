@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,8 +5,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/providers/moments_providers.dart';
+import 'package:moments/core/providers/powersync_provider.dart';
 import 'package:moments/core/utils/extensions.dart';
 import 'package:moments/data/models/friendship.dart';
+import 'package:moments/data/models/moment.dart';
 import 'package:moments/data/models/moment_contributor.dart';
 import 'package:moments/core/widgets/time_ago_text.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -16,8 +17,8 @@ import 'package:lottie/lottie.dart';
 import 'package:moments/core/services/firebase_messaging_service.dart';
 import 'package:moments/features/moments/presentation/moment_details_page.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:moments/features/map/providers/map_control_provider.dart';
-import 'package:moments/data/models/moment.dart';
+import 'package:moments/features/mapv2/providers/map_control_provider.dart';
+import 'package:flutter/cupertino.dart';
 
 enum NotificationType {
   friendRequest,
@@ -76,7 +77,7 @@ class _NotificationTypeConfig {
         return _NotificationTypeConfig(
           accentColor: AppTheme.primaryBlue,
           backgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.08),
-          icon: CupertinoIcons.person_add,
+          icon: CupertinoIcons.person_add_solid,
           label: 'Friend Request',
         );
       case NotificationType.collaborationInvite:
@@ -84,7 +85,7 @@ class _NotificationTypeConfig {
         return _NotificationTypeConfig(
           accentColor: AppTheme.electricPurple,
           backgroundColor: AppTheme.electricPurple.withValues(alpha: 0.08),
-          icon: CupertinoIcons.person_3,
+          icon: CupertinoIcons.person_2,
           label: 'Collaboration',
         );
       case NotificationType.momentLike:
@@ -137,8 +138,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   String _selectedFilter = 'All';
   final List<String> _filters = ['All', 'Requests', 'Activity', 'System'];
 
-  // Dismissed notification IDs tracked via provider (persists across page pops)
-  // see dismissedNotificationIdsProvider in providers.dart
+  // Track dismissed items for animation
+  final Set<String> _dismissedIds = {};
 
   @override
   void initState() {
@@ -150,11 +151,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       // Wait a tick for the list to begin loading before marking as read
       await Future.delayed(const Duration(milliseconds: 100));
       if (mounted) {
-        await ref.read(notificationsListProvider.notifier).markAllAsRead();
-        // Explicitly refresh badge count so it drops to 0 immediately
-        if (mounted) {
-          ref.invalidate(notificationCountProvider);
-        }
+        ref.read(notificationsListProvider.notifier).markAllAsRead();
       }
     });
   }
@@ -180,14 +177,13 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
+        title: const Text(
           'Notifications',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontFamily: 'GoogleSansFlex',
+          style: TextStyle(
+            fontSize: 24,
             fontWeight: FontWeight.w900,
-            fontVariations: const [FontVariation('wght', 900)],
-            color: AppTheme.textDark,
-            letterSpacing: -1.5,
+            color: Colors.black87,
+            letterSpacing: -0.5,
           ),
         ),
         centerTitle: false,
@@ -211,7 +207,6 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   label: Text(
                     filter,
                     style: TextStyle(
-                      fontFamily: 'GoogleSansFlex',
                       color: isSelected ? Colors.white : Colors.grey[700],
                       fontWeight: FontWeight.w600,
                     ),
@@ -225,12 +220,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   },
                   backgroundColor: Colors.white,
                   selectedColor: AppTheme.primaryBlue,
-                  showCheckmark: false,
+                  showCheckmark: true,
                   side: BorderSide(
-                    color: isSelected ? Colors.transparent : AppTheme.softIvory,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    color: isSelected ? Colors.transparent : Colors.grey[500]!,
                   ),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -397,8 +389,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final seenIds = <String>{};
     final deduplicatedItems = <NotificationItem>[];
     for (final item in items) {
-      if (!seenIds.contains(item.id) &&
-          !ref.read(dismissedNotificationIdsProvider).contains(item.id)) {
+      if (!seenIds.contains(item.id) && !_dismissedIds.contains(item.id)) {
         seenIds.add(item.id);
         deduplicatedItems.add(item);
       }
@@ -517,9 +508,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   ? null
                   : () {
                       HapticFeedback.mediumImpact();
-                      ref
-                          .read(dismissedNotificationIdsProvider.notifier)
-                          .add(item.id);
+                      setState(() => _dismissedIds.add(item.id));
                       ref
                           .read(notificationsListProvider.notifier)
                           .removeNotification(item.id);
@@ -911,8 +900,7 @@ class _NotificationCard extends ConsumerWidget {
     String momentId,
   ) async {
     try {
-      final repo = ref.read(momentRepositoryProvider);
-      final moment = await repo.getMomentById(momentId);
+      final moment = await _getMomentLocalFirst(ref, momentId);
 
       if (moment != null && context.mounted) {
         Navigator.pop(context);
@@ -933,11 +921,13 @@ class _NotificationCard extends ConsumerWidget {
     String momentId,
   ) async {
     try {
-      final repo = ref.read(momentRepositoryProvider);
-      final moment = await repo.getMomentById(momentId);
+      final moment = await _getMomentLocalFirst(ref, momentId);
 
       if (moment != null && context.mounted) {
-        final moments = await repo.getMomentsByGroup(moment.momentGroupId);
+        final moments = await _getMomentsByGroupLocalFirst(
+          ref,
+          moment.momentGroupId,
+        );
         int initialPage = moments.indexWhere((m) => m.id == momentId);
         if (initialPage < 0) initialPage = 0;
 
@@ -993,9 +983,10 @@ class _NotificationCard extends ConsumerWidget {
 
           // Navigate to the moment
           try {
-            final moments = await ref
-                .read(momentRepositoryProvider)
-                .getMomentsByGroup(invite.momentId);
+            final moments = await _getMomentsByGroupLocalFirst(
+              ref,
+              invite.momentId,
+            );
 
             if (context.mounted && moments.isNotEmpty) {
               Navigator.push(
@@ -1053,6 +1044,35 @@ class _NotificationCard extends ConsumerWidget {
         }
       }
     }
+  }
+
+  Future<Moment?> _getMomentLocalFirst(WidgetRef ref, String momentId) async {
+    final powerSync = ref.read(chatPowerSyncServiceProvider);
+    final initialized = await powerSync.ensureInitialized();
+    if (initialized) {
+      final local = await powerSync.getMomentById(momentId);
+      if (local != null) {
+        return local;
+      }
+    }
+
+    return ref.read(momentRepositoryProvider).getMomentById(momentId);
+  }
+
+  Future<List<Moment>> _getMomentsByGroupLocalFirst(
+    WidgetRef ref,
+    String groupId,
+  ) async {
+    final powerSync = ref.read(chatPowerSyncServiceProvider);
+    final initialized = await powerSync.ensureInitialized();
+    if (initialized) {
+      final local = await powerSync.getMomentsByGroup(groupId);
+      if (local.isNotEmpty) {
+        return local;
+      }
+    }
+
+    return ref.read(momentRepositoryProvider).getMomentsByGroup(groupId);
   }
 }
 

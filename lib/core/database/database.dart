@@ -380,226 +380,6 @@ class AppDatabase extends _$AppDatabase {
   // MESSAGE QUERIES
   // ============================================
 
-  /// Get messages for a conversation (newest first)
-  Future<List<MessageEntry>> getMessages(String conversationId) async {
-    return (select(messages)
-          ..where((m) => m.conversationId.equals(conversationId))
-          ..where((m) => m.isDeleted.equals(false))
-          ..orderBy([(m) => OrderingTerm.desc(m.createdAt)]))
-        .get();
-  }
-
-  /// Watch messages for a conversation (reactive stream)
-  Stream<List<MessageEntry>> watchMessages(String conversationId) {
-    return (select(messages)
-          ..where((m) => m.conversationId.equals(conversationId))
-          ..where((m) => m.isDeleted.equals(false))
-          ..orderBy([(m) => OrderingTerm.desc(m.createdAt)]))
-        .watch();
-  }
-
-  /// Get last message for a conversation
-  Future<MessageEntry?> getLastMessage(String conversationId) async {
-    return (select(messages)
-          ..where((m) => m.conversationId.equals(conversationId))
-          ..where((m) => m.isDeleted.equals(false))
-          ..orderBy([(m) => OrderingTerm.desc(m.createdAt)])
-          ..limit(1))
-        .getSingleOrNull();
-  }
-
-  /// Save or update messages (batch upsert)
-  Future<void> saveMessages(List<MessagesCompanion> entries) async {
-    await batch((b) {
-      b.insertAllOnConflictUpdate(messages, entries);
-    });
-  }
-
-  /// Save messages from server with smart merge
-  /// Preserves local sendStatus for pending/sending/failed messages
-  /// This prevents server sync from overwriting optimistic UI state
-  Future<void> saveMessagesWithMerge(List<MessagesCompanion> entries) async {
-    if (entries.isEmpty) return;
-
-    // Get IDs of incoming messages
-    final ids = entries
-        .map((e) => e.id.value)
-        .where((id) => id.isNotEmpty)
-        .toList();
-
-    if (ids.isEmpty) {
-      await saveMessages(entries);
-      return;
-    }
-
-    // Check which messages exist locally with pending/sending/failed status
-    final localPendingMessages =
-        await (select(messages)
-              ..where((m) => m.id.isIn(ids))
-              ..where(
-                (m) => m.sendStatus.isIn(['pending', 'sending', 'failed']),
-              ))
-            .get();
-
-    final pendingIds = localPendingMessages.map((m) => m.id).toSet();
-
-    // Filter entries to:
-    // 1. Insert new messages (not in pending)
-    // 2. For pending messages, only update if server confirms sent
-    final entriesToSave = <MessagesCompanion>[];
-
-    for (final entry in entries) {
-      final id = entry.id.value;
-      if (pendingIds.contains(id)) {
-        // Message exists locally with pending/sending/failed status
-        // Update it but preserve that the server confirmed it (mark as sent)
-        entriesToSave.add(
-          entry.copyWith(
-            sendStatus: const Value('sent'),
-            localOnly: const Value(false),
-          ),
-        );
-      } else {
-        // New message from server or already synced - save as-is
-        entriesToSave.add(entry);
-      }
-    }
-
-    await batch((b) {
-      b.insertAllOnConflictUpdate(messages, entriesToSave);
-    });
-  }
-
-  /// Delete a single message by ID
-  Future<void> deleteMessage(String messageId) async {
-    await (delete(messages)..where((m) => m.id.equals(messageId))).go();
-  }
-
-  /// Get a single message by ID
-  Future<MessageEntry?> getMessageById(String messageId) async {
-    return (select(
-      messages,
-    )..where((m) => m.id.equals(messageId))).getSingleOrNull();
-  }
-
-  /// Update message send status
-  Future<void> updateMessageStatus(String messageId, String status) async {
-    await (update(messages)..where((m) => m.id.equals(messageId))).write(
-      MessagesCompanion(sendStatus: Value(status)),
-    );
-  }
-
-  /// Get all pending/failed messages for retry
-  Future<List<MessageEntry>> getPendingMessages() async {
-    return (select(messages)
-          ..where((m) => m.sendStatus.isIn(['pending', 'failed']))
-          ..where((m) => m.localOnly.equals(true))
-          ..orderBy([(m) => OrderingTerm.asc(m.createdAt)]))
-        .get();
-  }
-
-  /// Clear messages for a conversation
-  Future<void> clearConversation(String conversationId) async {
-    await (delete(
-      messages,
-    )..where((m) => m.conversationId.equals(conversationId))).go();
-  }
-
-  /// Clear all messages
-  Future<void> clearAllMessages() async {
-    await delete(messages).go();
-  }
-
-  /// Mark all messages in a conversation as read (locally)
-  /// Returns the count of messages that were updated
-  Future<int> markConversationAsReadLocally(
-    String conversationId,
-    String currentUserId,
-  ) async {
-    final affectedRows =
-        await (update(messages)
-              ..where((m) => m.conversationId.equals(conversationId))
-              ..where((m) => m.senderId.isNotValue(currentUserId))
-              ..where((m) => m.isRead.equals(false)))
-            .write(const MessagesCompanion(isRead: Value(true)));
-    return affectedRows;
-  }
-
-  /// Update unread count in chat list cache
-  Future<void> updateChatListUnreadCount(
-    String conversationId,
-    int unreadCount,
-  ) async {
-    await (update(chatListCache)
-          ..where((c) => c.conversationId.equals(conversationId)))
-        .write(ChatListCacheCompanion(unreadCount: Value(unreadCount)));
-  }
-
-  // ============================================
-  // OFFLINE-FIRST MESSAGE OPERATIONS
-  // ============================================
-
-  /// Update message content locally (for optimistic edit)
-  Future<void> updateMessageContent(String messageId, String newContent) async {
-    await (update(messages)..where((m) => m.id.equals(messageId))).write(
-      MessagesCompanion(
-        content: Value(newContent),
-        isEdited: const Value(true),
-      ),
-    );
-  }
-
-  /// Mark message as deleted locally (for optimistic delete)
-  Future<void> markMessageDeletedLocally(
-    String messageId, {
-    required String deletedFor,
-  }) async {
-    if (deletedFor == 'everyone') {
-      await (update(messages)..where((m) => m.id.equals(messageId))).write(
-        const MessagesCompanion(
-          isDeleted: Value(true),
-          deletedFor: Value('everyone'),
-          content: Value(''), // Clear content for privacy
-        ),
-      );
-    } else {
-      await (update(messages)..where((m) => m.id.equals(messageId))).write(
-        MessagesCompanion(deletedFor: Value(deletedFor)),
-      );
-    }
-  }
-
-  /// Update message reactions locally (for optimistic reaction)
-  Future<void> updateMessageReactions(
-    String messageId,
-    String reactionsJson,
-  ) async {
-    await (update(messages)..where((m) => m.id.equals(messageId))).write(
-      MessagesCompanion(reactions: Value(reactionsJson)),
-    );
-  }
-
-  /// Update message media URL after upload completes
-  Future<void> updateMessageMediaUrl(String messageId, String mediaUrl) async {
-    await (update(messages)..where((m) => m.id.equals(messageId))).write(
-      MessagesCompanion(
-        mediaUrl: Value(mediaUrl),
-        sendStatus: const Value('sent'),
-        localOnly: const Value(false),
-      ),
-    );
-  }
-
-  /// Get pending media messages (for background upload)
-  Future<List<MessageEntry>> getPendingMediaMessages() async {
-    return (select(messages)
-          ..where((m) => m.localOnly.equals(true))
-          ..where((m) => m.messageType.isIn(['image', 'audio', 'video']))
-          ..where((m) => m.sendStatus.isIn(['pending', 'failed']))
-          ..orderBy([(m) => OrderingTerm.asc(m.createdAt)]))
-        .get();
-  }
-
   // ============================================
   // CONVERSATION ID CACHE QUERIES
   // ============================================
@@ -624,29 +404,6 @@ class AppDatabase extends _$AppDatabase {
         cachedAt: DateTime.now().millisecondsSinceEpoch,
       ),
     );
-  }
-
-  // ============================================
-  // CHAT LIST CACHE QUERIES
-  // ============================================
-
-  /// Save chat list to cache
-  Future<void> saveChatList(List<ChatListCacheCompanion> entries) async {
-    await batch((b) {
-      b.insertAllOnConflictUpdate(chatListCache, entries);
-    });
-  }
-
-  /// Load chat list from cache (ordered by most recent)
-  Future<List<ChatListEntry>> loadChatList() async {
-    return (select(
-      chatListCache,
-    )..orderBy([(c) => OrderingTerm.desc(c.updatedAt)])).get();
-  }
-
-  /// Clear chat list cache
-  Future<void> clearChatListCache() async {
-    await delete(chatListCache).go();
   }
 
   // ============================================
@@ -1016,12 +773,13 @@ class AppDatabase extends _$AppDatabase {
       String extension = '.jpg';
       final contentType = response.headers['content-type'];
       if (contentType != null) {
-        if (contentType.contains('video'))
+        if (contentType.contains('video')) {
           extension = '.mp4';
-        else if (contentType.contains('png'))
+        } else if (contentType.contains('png')) {
           extension = '.png';
-        else if (contentType.contains('webp'))
+        } else if (contentType.contains('webp')) {
           extension = '.webp';
+        }
       }
 
       // Save to local file

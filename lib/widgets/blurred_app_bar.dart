@@ -1,11 +1,10 @@
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_m3shapes_extended/flutter_m3shapes_extended.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:flutter_m3shapes_extended/flutter_m3shapes_extended.dart';
 
 import '../core/theme/app_theme.dart';
 
@@ -57,14 +56,14 @@ class BlurredAppBar extends StatelessWidget implements PreferredSizeWidget {
         style: const TextStyle(
           color: Colors.white,
           fontSize: 9,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
         ),
       ),
-      backgroundColor: AppTheme.emergencyRed,
+      backgroundColor: AppTheme.coralPink,
       child: IconButton(
         onPressed: onNotificationsPressed,
-        icon: const Icon(
-          CupertinoIcons.bell,
+        icon: const HugeIcon(
+          icon: HugeIcons.strokeRoundedNotification01,
           color: Colors.black87,
           size: 24,
         ),
@@ -84,7 +83,7 @@ class BlurredAppBar extends StatelessWidget implements PreferredSizeWidget {
 
     return GestureDetector(
       onTap: onProfilePressed,
-      child: M3Container.l8LeafClover(
+      child: M3EContainer.l8LeafClover(
         width: 38,
         height: 38,
         border: BorderSide(
@@ -92,7 +91,7 @@ class BlurredAppBar extends StatelessWidget implements PreferredSizeWidget {
           width: 1,
         ),
         child: profileImageUrl != null
-            ? M3Container.l8LeafClover(
+            ? M3EContainer.l8LeafClover(
                 child: CachedNetworkImage(
                   imageUrl: profileImageUrl!,
                   fit: BoxFit.cover,
@@ -100,7 +99,7 @@ class BlurredAppBar extends StatelessWidget implements PreferredSizeWidget {
                   errorWidget: (_, __, ___) => placeholder,
                 ),
               )
-            : M3Container.l8LeafClover(
+            : M3EContainer.l8LeafClover(
                 child: HugeIcon(
                   icon: HugeIcons.strokeRoundedUser02,
                   size: 22,
@@ -167,10 +166,7 @@ class BlurredAppBar extends StatelessWidget implements PreferredSizeWidget {
       // ── actions: Notifications + Avatar ──
       actions: [
         _notificationIcon(notificationCount),
-        Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: _avatar(),
-        ),
+        Padding(padding: const EdgeInsets.only(right: 12), child: _avatar()),
       ],
     );
   }

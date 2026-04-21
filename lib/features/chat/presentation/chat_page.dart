@@ -1,16 +1,15 @@
 import 'dart:async';
-import 'dart:ui';
 import 'dart:io';
+import 'package:chat_bubbles/chat_bubbles.dart' as cb;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/utils/extensions.dart';
 import 'package:moments/core/providers/providers.dart';
-import 'package:moments/core/services/chat_offline_service.dart';
+import 'package:moments/core/services/chat_mutation_service.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/data/sources/supabase_config.dart';
 import 'package:moments/features/chat/providers/chat_providers.dart';
@@ -22,7 +21,6 @@ import 'package:moments/features/chat/widgets/audio_recorder_widget.dart';
 import 'package:moments/features/chat/widgets/typing_indicator_bubble.dart';
 import 'package:moments/features/chat/widgets/reply_preview.dart';
 import 'package:moments/features/chat/widgets/message_context_menu.dart';
-import 'package:swipe_to/swipe_to.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:moments/core/services/giphy_picker_helper.dart';
@@ -64,6 +62,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
   String _searchQuery = '';
   bool _showScrollToBottomButton = false;
   Timer? _typingTimer;
+  StreamSubscription<String>? _typingSubscription;
+  String? _typingConversationId;
+  DateTime? _lastTypingSentAt;
+  static const _typingSendThrottle = Duration(milliseconds: 800);
   int _unreadCount = 0;
 
   @override
@@ -79,6 +81,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
     _scrollController.dispose();
     _messageFocusNode.dispose();
     _typingTimer?.cancel();
+    _typingSubscription?.cancel();
+    if (_typingConversationId != null) {
+      unawaited(
+        ref
+            .read(chatRepositoryProvider)
+            .closeTypingChannel(_typingConversationId!),
+      );
+    }
     FirebaseMessagingService.currentChatId = null; // Clear static var
     super.dispose();
   }
@@ -97,6 +107,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
 
         // Mark messages as read (offline-first)
         ref.read(markAsReadActionProvider.notifier).markAsRead(id);
+
+        // Keep a single typing subscription per active conversation.
+        _subscribeToTyping(id);
       });
     }, fireImmediately: true);
   }
@@ -146,9 +159,15 @@ class _ChatPageState extends ConsumerState<ChatPage>
     // Cancel existing timer
     _typingTimer?.cancel();
 
-    // Send typing event on every keystroke
-    // This ensures the indicator stays alive while actively typing
-    ref.read(chatRepositoryProvider).sendTyping(conversationId);
+    // Throttle typing emits to avoid spamming realtime channel joins/messages.
+    final now = DateTime.now();
+    final shouldEmit =
+        _lastTypingSentAt == null ||
+        now.difference(_lastTypingSentAt!) >= _typingSendThrottle;
+    if (shouldEmit) {
+      ref.read(chatRepositoryProvider).sendTyping(conversationId);
+      _lastTypingSentAt = now;
+    }
 
     // Auto-clear after 2 seconds of inactivity (no more keystrokes)
     _typingTimer = Timer(const Duration(seconds: 2), () {
@@ -157,27 +176,49 @@ class _ChatPageState extends ConsumerState<ChatPage>
   }
 
   void _subscribeToTyping(String conversationId) {
-    ref.read(chatRepositoryProvider).subscribeToTyping(conversationId).listen((
-      userId,
-    ) {
-      if (mounted) {
-        // Update typing users map with current timestamp
-        ref
-            .read(typingUsersProvider(conversationId).notifier)
-            .addTypingUser(userId);
+    if (_typingConversationId == conversationId &&
+        _typingSubscription != null) {
+      return;
+    }
 
-        // Clear typing indicator after 5 seconds of inactivity
-        // This gives a smooth experience as typing events are sent every ~2 seconds
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) {
-            // Clear old typing indicators
-            ref
-                .read(typingUsersProvider(conversationId).notifier)
-                .clearOldTypingIndicators(const Duration(seconds: 2));
-          }
-        });
-      }
-    });
+    _typingSubscription?.cancel();
+    if (_typingConversationId != null &&
+        _typingConversationId != conversationId) {
+      unawaited(
+        ref
+            .read(chatRepositoryProvider)
+            .closeTypingChannel(_typingConversationId!),
+      );
+    }
+
+    _typingConversationId = conversationId;
+    _typingSubscription = ref
+        .read(chatRepositoryProvider)
+        .subscribeToTyping(conversationId)
+        .listen(
+          (userId) {
+            if (mounted) {
+              // Update typing users map with current timestamp
+              ref
+                  .read(typingUsersProvider(conversationId).notifier)
+                  .addTypingUser(userId);
+
+              // Clear typing indicator after 5 seconds of inactivity
+              // This gives a smooth experience as typing events are sent every ~2 seconds
+              Future.delayed(const Duration(seconds: 2), () {
+                if (mounted) {
+                  // Clear old typing indicators
+                  ref
+                      .read(typingUsersProvider(conversationId).notifier)
+                      .clearOldTypingIndicators(const Duration(seconds: 2));
+                }
+              });
+            }
+          },
+          onError: (e, s) {
+            _log.w('Typing subscription error for $conversationId', error: e);
+          },
+        );
   }
 
   Future<void> _sendMessage(String conversationId) async {
@@ -193,7 +234,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return;
     }
 
-    final offlineService = ref.read(chatOfflineServiceProvider);
+    final offlineService = ref.read(chatMutationServiceProvider);
 
     if (_editingMessage != null) {
       // Edit existing message (optimistic - updates local DB immediately)
@@ -224,12 +265,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
     if (currentUserId == null) return;
 
-    final offlineService = ref.read(chatOfflineServiceProvider);
+    final offlineService = ref.read(chatMutationServiceProvider);
     await offlineService.sendTextOptimistic(
       conversationId: conversationId,
       senderId: currentUserId,
       content: gifUrl,
-      messageType: 'gif',
+      messageType: MessageType.gif,
     );
     _scrollToBottom();
   }
@@ -241,12 +282,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
     if (currentUserId == null) return;
 
-    final offlineService = ref.read(chatOfflineServiceProvider);
+    final offlineService = ref.read(chatMutationServiceProvider);
     await offlineService.sendTextOptimistic(
       conversationId: conversationId,
       senderId: currentUserId,
       content: stickerUrl,
-      messageType: 'sticker',
+      messageType: MessageType.sticker,
     );
     _scrollToBottom();
   }
@@ -266,7 +307,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
 
   /// Retry a failed message
   Future<void> _retryFailedMessage(String messageId) async {
-    final offlineService = ref.read(chatOfflineServiceProvider);
+    final offlineService = ref.read(chatMutationServiceProvider);
     final success = await offlineService.retryMessage(messageId);
 
     if (!success && mounted) {
@@ -320,7 +361,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
       case MessageAction.deleteForSelf:
         final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
         if (currentUserId != null) {
-          final offlineService = ref.read(chatOfflineServiceProvider);
+          final offlineService = ref.read(chatMutationServiceProvider);
           await offlineService.deleteForSelfOptimistic(
             messageId: message.id,
             currentUserId: currentUserId,
@@ -329,7 +370,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
         break;
 
       case MessageAction.deleteForEveryone:
-        final offlineService = ref.read(chatOfflineServiceProvider);
+        final offlineService = ref.read(chatMutationServiceProvider);
         await offlineService.deleteForEveryoneOptimistic(messageId: message.id);
         break;
     }
@@ -347,7 +388,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (currentUserId == null) return;
 
     // Use offline-first service for optimistic audio sending
-    final offlineService = ref.read(chatOfflineServiceProvider);
+    final offlineService = ref.read(chatMutationServiceProvider);
     await offlineService.sendAudioOptimistic(
       conversationId: conversationId,
       senderId: currentUserId,
@@ -416,7 +457,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (currentUserId == null) return;
 
     // Use offline-first service for optimistic image sending
-    final offlineService = ref.read(chatOfflineServiceProvider);
+    final offlineService = ref.read(chatMutationServiceProvider);
     await offlineService.sendImageOptimistic(
       conversationId: conversationId,
       senderId: currentUserId,
@@ -430,7 +471,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (currentUserId == null) return;
 
     // Use offline-first service for optimistic video sending
-    final offlineService = ref.read(chatOfflineServiceProvider);
+    final offlineService = ref.read(chatMutationServiceProvider);
     await offlineService.sendVideoOptimistic(
       conversationId: conversationId,
       senderId: currentUserId,
@@ -449,29 +490,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
       }
     } catch (e) {
       _log.e('Error picking camera image: $e');
-    }
-  }
-
-  String _formatDateHeader(DateTime date) {
-    // Ensure we're working with local time
-    final localDate = date.toLocal();
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final messageDate = DateTime(
-      localDate.year,
-      localDate.month,
-      localDate.day,
-    );
-
-    final timestring = DateFormat('h:mm a').format(localDate);
-
-    if (messageDate == today) {
-      return 'Today $timestring';
-    } else if (messageDate == yesterday) {
-      return 'Yesterday $timestring';
-    } else {
-      return '${DateFormat('d MMM').format(date)} $timestring';
     }
   }
 
@@ -584,13 +602,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
         ),
         error: (error, stack) => Center(child: Text('Error: $error')),
         data: (conversationId) {
-          // Initialize typing subscription once we have the ID
-          // We use a post-frame callback to avoid build-phase side effects
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            // This is safe to call repeatedly as it handles its own subscription state
-            _subscribeToTyping(conversationId);
-          });
-
           // Listen to message updates to mark them as read in real-time
           ref.listen<
             AsyncValue<List<Message>>
@@ -678,6 +689,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                     ),
                                   )
                                   .toList();
+
+                        final groupInfos = cb.MessageGroupHelper.compute(
+                          senderIds: filteredMessages
+                              .map((m) => m.senderId)
+                              .toList(growable: false),
+                          timestamps: filteredMessages
+                              .map((m) => m.createdAt)
+                              .toList(growable: false),
+                          threshold: const Duration(minutes: 1),
+                        );
 
                         if (messages.isEmpty) {
                           return Center(
@@ -810,7 +831,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
                               // adjacent messages. In reverse order:
                               // - "next" visually (above) is messageIndex + 1
                               // - "prev" visually (below) is messageIndex - 1
-                              final isNewest = messageIndex == 0;
                               final isOldest =
                                   messageIndex == filteredMessages.length - 1;
 
@@ -836,27 +856,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                 }
                               }
 
-                              // Tail Logic - show tail if this is the last in a group
-                              // iMessage-style: group messages within ~1 minute from same sender
-                              bool tail = false;
-                              if (isNewest) {
-                                tail = true;
-                              } else {
-                                final newerMessage =
-                                    filteredMessages[messageIndex - 1];
-                                // Different sender = new group, show tail
-                                if (newerMessage.senderId != message.senderId) {
-                                  tail = true;
-                                }
-                                // Same sender but >1 minute gap = show tail (iMessage grouping)
-                                final diff = newerMessage.createdAt
-                                    .difference(message.createdAt)
-                                    .inSeconds
-                                    .abs();
-                                if (diff > 60) {
-                                  tail = true;
-                                }
-                              }
+                              final tail = groupInfos[messageIndex].showTail;
 
                               // Build Message Bubble
                               Widget bubble;
@@ -883,6 +883,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                 bubble = GifStickerMessageBubble(
                                   message: message,
                                   isMe: isMe,
+                                  currentUserId: currentUserId,
                                   onRetry:
                                       message.sendStatus ==
                                           MessageSendStatus.failed
@@ -904,6 +905,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                   isMe: isMe,
                                   tail: tail,
                                   replySenderName: replySenderName,
+                                  currentUserId: currentUserId,
                                   onRetry:
                                       message.sendStatus ==
                                           MessageSendStatus.failed
@@ -912,16 +914,19 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                 );
                               }
 
-                              // Wrap with SwipeTo for swipe-to-reply
+                              // Wrap with package-provided swipe-to-reply
                               final bubbleKey = GlobalKey();
-                              bubble = SwipeTo(
+                              bubble = cb.SwipeableBubble(
                                 key: ValueKey('swipe_${message.id}'),
-                                iconOnLeftSwipe: Icons.reply,
-                                iconColor: Colors.blue,
-                                onLeftSwipe: (details) {
+                                onSwipeRight: () {
                                   HapticFeedback.mediumImpact();
                                   _startReply(message);
                                 },
+                                rightActionColor: AppTheme.primaryBlue,
+                                rightActionIcon: const Icon(
+                                  Icons.reply,
+                                  color: Colors.white,
+                                ),
                                 child: GestureDetector(
                                   key: bubbleKey,
                                   onLongPress: () {
@@ -958,7 +963,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
 
                                         // Use offline-first service for optimistic reactions
                                         final offlineService = ref.read(
-                                          chatOfflineServiceProvider,
+                                          chatMutationServiceProvider,
                                         );
                                         await offlineService
                                             .addReactionOptimistic(
@@ -985,15 +990,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                         vertical: 16,
                                       ),
                                       child: Center(
-                                        child: Text(
-                                          _formatDateHeader(message.createdAt),
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodyMedium
-                                              ?.copyWith(
-                                                color: Colors.grey[600],
-                                                fontWeight: FontWeight.w500,
-                                              ),
+                                        child: cb.DateChip(
+                                          date: message.createdAt,
+                                          color: AppTheme.backgroundBeige
+                                              .withValues(alpha: 0.75),
                                         ),
                                       ),
                                     ),

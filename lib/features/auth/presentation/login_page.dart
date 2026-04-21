@@ -3,7 +3,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import '../../../core/theme/app_theme.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/router/app_router.dart';
 import '../../../data/sources/supabase_config.dart';
@@ -19,9 +18,8 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  late final AuthService _authService = AuthService(Supabase.instance.client);
+  final _authService = AuthService(SupabaseConfig.client);
   bool _isLoading = false;
-  bool _isSignUp = false;
 
   @override
   void dispose() {
@@ -73,6 +71,8 @@ class _LoginPageState extends State<LoginPage> {
           .eq('id', user.id)
           .maybeSingle();
 
+      if (!mounted) return;
+
       if (profile != null && profile['phone_hash'] != null) {
         AppRouter.goToMap(context);
       } else {
@@ -97,17 +97,10 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _isLoading = true);
     try {
-      if (_isSignUp) {
-        await _authService.signUpWithEmail(
-          _emailController.text.trim(),
-          _passwordController.text,
-        );
-      } else {
-        await _authService.signInWithEmail(
-          _emailController.text.trim(),
-          _passwordController.text,
-        );
-      }
+      await _authService.signInWithEmail(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
       if (mounted) {
         await _navigateAfterAuth();
       }
@@ -115,9 +108,7 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Failed to ${_isSignUp ? 'sign up' : 'sign in'}: ${e.toString()}',
-            ),
+            content: Text('Failed to sign in: ${e.toString()}'),
             backgroundColor: AppTheme.neonPink,
           ),
         );
@@ -135,13 +126,13 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: AppTheme.backgroundBeige,
       body: SafeArea(
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Lottie Animation
-                Lottie.asset(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Lottie Animation
+                  Lottie.asset(
                   'assets/animations/login.json',
                   width: 320,
                   height: 320,
@@ -163,57 +154,53 @@ class _LoginPageState extends State<LoginPage> {
 
                 const SizedBox(height: 48),
 
-                // Email/Password Fields (if needed)
-                if (_isSignUp || _emailController.text.isNotEmpty) ...[
-                  _buildTextField(
-                    controller: _emailController,
-                    hintText: 'Email',
-                    icon: Icons.email,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    controller: _passwordController,
-                    hintText: 'Password',
-                    icon: Icons.lock,
-                    isPassword: true,
-                  ),
-                  const SizedBox(height: 24),
+                // Email/Password Fields
+                _buildTextField(
+                  controller: _emailController,
+                  hintText: 'Email',
+                  icon: Icons.email,
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  controller: _passwordController,
+                  hintText: 'Password',
+                  icon: Icons.lock,
+                  isPassword: true,
+                ),
+                const SizedBox(height: 24),
 
-                  // Email Sign In Button
-                  SpringButton(
-                    onTap: _isLoading ? null : _signInWithEmail,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.electricPurple,
-                        border: Border.all(color: Colors.black, width: 3),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black,
-                            offset: Offset(4, 4),
-                            blurRadius: 0,
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        _isLoading
-                            ? 'LOADING...'
-                            : (_isSignUp ? 'SIGN UP' : 'SIGN IN'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5,
+                // Email Sign In Button
+                SpringButton(
+                  onTap: _isLoading ? null : _signInWithEmail,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.electricPurple,
+                      border: Border.all(color: Colors.black, width: 3),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black,
+                          offset: Offset(4, 4),
+                          blurRadius: 0,
                         ),
+                      ],
+                    ),
+                    child: Text(
+                      _isLoading ? 'LOADING...' : 'SIGN IN',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
                       ),
                     ),
                   ),
+                ),
 
-                  const SizedBox(height: 16),
-                ],
+                const SizedBox(height: 16),
 
                 // Google Sign In Button
                 SpringButton(
@@ -236,11 +223,8 @@ class _LoginPageState extends State<LoginPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        SvgPicture.asset(
-                          'assets/icons/google.svg',
-                          width: 24,
-                          height: 24,
-                        ),
+                        SvgPicture.asset('assets/icons/google.svg',
+                            width: 24, height: 24),
                         const SizedBox(width: 12),
                         const Text(
                           'CONTINUE WITH GOOGLE',
@@ -252,25 +236,6 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Toggle Sign Up / Sign In
-                TextButton(
-                  onPressed: () {
-                    setState(() => _isSignUp = !_isSignUp);
-                  },
-                  child: Text(
-                    _isSignUp
-                        ? 'Already have an account? Sign In'
-                        : 'Don\'t have an account? Sign Up',
-                    style: const TextStyle(
-                      color: AppTheme.primaryBlue,
-                      fontWeight: FontWeight.w700,
-                      decoration: TextDecoration.underline,
                     ),
                   ),
                 ),

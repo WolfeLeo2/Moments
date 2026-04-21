@@ -6,9 +6,11 @@ import 'package:moments/features/notifications/presentation/notifications_page.d
 import 'package:moments/features/chat/presentation/chat_page.dart';
 import 'package:moments/features/chat/presentation/chat_list_page.dart';
 import 'package:moments/core/services/firebase_messaging_service.dart';
-import 'package:moments/features/map/providers/map_control_provider.dart';
+import 'package:moments/features/mapv2/providers/map_control_provider.dart';
 import 'package:moments/core/providers/providers.dart';
 import 'package:moments/core/providers/moments_providers.dart';
+import 'package:moments/core/providers/powersync_provider.dart';
+import 'package:moments/data/models/moment.dart';
 
 import 'package:moments/features/moments/presentation/moment_details_page.dart';
 import 'package:moments/core/services/app_logger.dart';
@@ -137,9 +139,10 @@ class NotificationNavigator {
   ) async {
     try {
       final container = ProviderScope.containerOf(context, listen: false);
-      final momentRepo = container.read(momentRepositoryProvider);
-
-      final moments = await momentRepo.getMomentsByGroup(momentGroupId);
+      final moments = await _getMomentsByGroupLocalFirst(
+        container,
+        momentGroupId,
+      );
       if (moments.isNotEmpty && context.mounted) {
         _pushPage(
           context,
@@ -167,10 +170,12 @@ class NotificationNavigator {
   ) async {
     try {
       final container = ProviderScope.containerOf(context, listen: false);
-      final momentRepo = container.read(momentRepositoryProvider);
 
-      // Get moments for this group to find the location
-      final moments = await momentRepo.getMomentsByGroup(momentGroupId);
+      // Get moments for this group to find the location.
+      final moments = await _getMomentsByGroupLocalFirst(
+        container,
+        momentGroupId,
+      );
       if (moments.isNotEmpty && context.mounted) {
         final moment = moments.first;
 
@@ -190,5 +195,22 @@ class NotificationNavigator {
         _pushPage(context, const NotificationsPage());
       }
     }
+  }
+
+  static Future<List<Moment>> _getMomentsByGroupLocalFirst(
+    ProviderContainer container,
+    String groupId,
+  ) async {
+    final powerSync = container.read(chatPowerSyncServiceProvider);
+    final initialized = await powerSync.ensureInitialized();
+    if (initialized) {
+      final local = await powerSync.getMomentsByGroup(groupId);
+      if (local.isNotEmpty) {
+        return local;
+      }
+    }
+
+    final momentRepo = container.read(momentRepositoryProvider);
+    return momentRepo.getMomentsByGroup(groupId);
   }
 }

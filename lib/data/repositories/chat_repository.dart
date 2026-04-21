@@ -5,16 +5,34 @@ import 'package:flutter/painting.dart';
 import 'package:moments/core/services/chat_encryption_service.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/data/models/reaction.dart';
+import 'package:moments/data/sources/supabase_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 final _log = AppLogger('ChatRepository');
 
 /// Repository for chat operations
 class ChatRepository {
-  final SupabaseClient _client;
+  final SupabaseClient _client = SupabaseConfig.client;
   final ChatEncryptionService _encryption = ChatEncryptionService.instance;
+  final Map<String, RealtimeChannel> _typingChannels = {};
 
-  ChatRepository(this._client);
+  RealtimeChannel _getOrCreateTypingChannel(String conversationId) {
+    return _typingChannels.putIfAbsent(conversationId, () {
+      final channel = _client.channel('chat:$conversationId');
+      channel.subscribe((status, _) {
+        _log.d('Typing channel [$conversationId] status: $status');
+      });
+      return channel;
+    });
+  }
+
+  /// Dispose a typing channel when the conversation screen is closed.
+  Future<void> closeTypingChannel(String conversationId) async {
+    final channel = _typingChannels.remove(conversationId);
+    if (channel != null) {
+      await _client.removeChannel(channel);
+    }
+  }
 
   /// Get or create a 1-on-1 conversation with a friend
   /// Uses optimized RPC that does everything in a single DB call
@@ -186,30 +204,29 @@ class ChatRepository {
       }).toList();
     } catch (e) {
       _log.e('Error fetching recent conversations', error: e);
-      rethrow;
+      return [];
     }
   }
 
-  /// Send a message (with optional reply and message type)
+  /// Send a text-like message (text, gif, sticker) with optional reply.
   Future<Message> sendMessage({
     required String conversationId,
     required String content,
     String? replyToMessageId,
-    String messageType = 'text',
+    MessageType messageType = MessageType.text,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not authenticated');
 
-    // Only encrypt text messages; GIF/sticker URLs should not be encrypted
-    final messageContent = messageType == 'text'
+    final outgoingContent = messageType == MessageType.text
         ? _encryption.encrypt(content, conversationId)
         : content;
 
     final messageData = {
       'conversation_id': conversationId,
       'sender_id': userId,
-      'content': messageContent,
-      'message_type': messageType,
+      'content': outgoingContent,
+      'message_type': messageType.name,
     };
 
     if (replyToMessageId != null) {
@@ -222,7 +239,9 @@ class ChatRepository {
         .select()
         .single();
 
-    return Message.fromJson(response).copyWith(content: content);
+    final serverMessage = Message.fromJson(response);
+    // Keep UI content readable immediately; realtime stream will still reconcile.
+    return serverMessage.copyWith(content: content, messageType: messageType);
   }
 
   /// Edit a message (only own messages, within 15 minutes)
@@ -611,7 +630,7 @@ class ChatRepository {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
-    final channel = _client.channel('chat:$conversationId');
+    final channel = _getOrCreateTypingChannel(conversationId);
 
     try {
       await channel.sendBroadcastMessage(
@@ -628,7 +647,7 @@ class ChatRepository {
     final controller = StreamController<String>.broadcast();
     final userId = _client.auth.currentUser?.id;
 
-    final channel = _client.channel('chat:$conversationId');
+    final channel = _getOrCreateTypingChannel(conversationId);
 
     channel
         .onBroadcast(
@@ -643,8 +662,12 @@ class ChatRepository {
               controller.add(typingUserId);
             }
           },
-        )
-        .subscribe();
+        );
+
+    controller.onCancel = () async {
+      await closeTypingChannel(conversationId);
+      await controller.close();
+    };
 
     return controller.stream;
   }

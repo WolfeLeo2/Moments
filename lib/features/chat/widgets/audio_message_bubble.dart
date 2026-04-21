@@ -1,3 +1,4 @@
+import 'package:chat_bubbles/chat_bubbles.dart' as cb;
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -7,12 +8,10 @@ import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/services/audio_note_service.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/features/chat/providers/media_cache_provider.dart';
-import 'package:moments/features/chat/widgets/custom_bubble_special_three.dart';
-import 'package:moments/widgets/audio_waveform_widget.dart';
 import 'package:moments/core/services/app_logger.dart';
 
-
 final _log = AppLogger('AudioMessage');
+
 class AudioMessageBubble extends ConsumerStatefulWidget {
   final Message message;
   final bool isMe;
@@ -31,6 +30,7 @@ class _AudioMessageBubbleState extends ConsumerState<AudioMessageBubble>
     with AutomaticKeepAliveClientMixin {
   AudioPlayer? _audioPlayer;
   bool _isPlaying = false;
+  double _playbackSpeed = 1.0;
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
   StreamSubscription? _positionSubscription;
@@ -124,86 +124,90 @@ class _AudioMessageBubbleState extends ConsumerState<AudioMessageBubble>
     }
   }
 
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$minutes:$seconds';
+  Future<void> _changeSeek(double seconds) async {
+    if (_audioPlayer == null) return;
+    await _audioPlayer!.seek(Duration(milliseconds: (seconds * 1000).round()));
+  }
+
+  Future<void> _changePlaybackSpeed(double speed) async {
+    if (_audioPlayer == null) return;
+    await _audioPlayer!.setSpeed(speed);
+    if (!mounted) return;
+    setState(() => _playbackSpeed = speed);
+  }
+
+  String _formatTimestamp(BuildContext context) {
+    return MaterialLocalizations.of(
+      context,
+    ).formatTimeOfDay(TimeOfDay.fromDateTime(widget.message.createdAt));
+  }
+
+  _MessageStatusFlags _statusFromSendStatus() {
+    switch (widget.message.sendStatus) {
+      case MessageSendStatus.read:
+        return const _MessageStatusFlags(
+          sent: true,
+          delivered: true,
+          seen: true,
+        );
+      case MessageSendStatus.delivered:
+        return const _MessageStatusFlags(
+          sent: true,
+          delivered: true,
+          seen: false,
+        );
+      case MessageSendStatus.sent:
+        return const _MessageStatusFlags(
+          sent: true,
+          delivered: false,
+          seen: false,
+        );
+      case MessageSendStatus.pending:
+      case MessageSendStatus.sending:
+      case MessageSendStatus.failed:
+        return const _MessageStatusFlags(
+          sent: false,
+          delivered: false,
+          seen: false,
+        );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final color = widget.isMe ? Colors.white : Colors.black87;
+    final bubbleColor = widget.isMe ? AppTheme.primaryBlue : Colors.white;
+    final textColor = widget.isMe ? Colors.white : Colors.black87;
+    final status = _statusFromSendStatus();
 
-    return CustomBubbleSpecialThree(
+    return cb.BubbleNormalAudio(
+      color: bubbleColor,
       isSender: widget.isMe,
-      color: widget.isMe ? AppTheme.primaryBlue : Colors.white,
       tail: true,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Play/Pause button
-            GestureDetector(
-              onTap: _togglePlayback,
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _isPlaying ? Icons.pause : Icons.play_arrow,
-                  color: color,
-                  size: 24,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-
-            // Waveform visualization
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Audio waveform
-                  SizedBox(
-                    height: 28,
-                    child: AudioWaveformWidget(
-                      amplitudes: AudioNoteService.generateFakeWaveform(
-                        _duration.inSeconds > 0 ? _duration.inSeconds : 10,
-                      ),
-                      mode: WaveformMode.playback,
-                      progress: _duration.inMilliseconds > 0
-                          ? _position.inMilliseconds / _duration.inMilliseconds
-                          : 0.0,
-                      activeColor: color,
-                      inactiveColor: color.withValues(alpha: 0.25),
-                      height: 28,
-                      barWidth: 2.5,
-                      barSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-
-                  // Time display
-                  Text(
-                    '${_formatDuration(_position)} / ${_formatDuration(_duration)}',
-                    style: TextStyle(
-                      color: color.withValues(alpha: 0.7),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+      duration: _duration.inSeconds.toDouble(),
+      position: _position.inSeconds.toDouble(),
+      isPlaying: _isPlaying,
+      isLoading: _audioPlayer == null,
+      isPause: !_isPlaying && _position > Duration.zero,
+      onSeekChanged: _changeSeek,
+      onPlayPauseButtonClick: _togglePlayback,
+      textStyle: TextStyle(
+        color: textColor.withValues(alpha: 0.75),
+        fontSize: 12,
       ),
+      timestamp: _formatTimestamp(context),
+      isEdited: widget.message.isEdited,
+      sent: status.sent,
+      delivered: status.delivered,
+      seen: status.seen,
+      waveformData: AudioNoteService.generateFakeWaveform(
+        _duration.inSeconds > 0 ? _duration.inSeconds : 10,
+      ),
+      waveformActiveColor: widget.isMe ? Colors.white : AppTheme.primaryBlue,
+      waveformInactiveColor: textColor.withValues(alpha: 0.25),
+      showPlaybackSpeed: true,
+      playbackSpeed: _playbackSpeed,
+      onPlaybackSpeedChanged: _changePlaybackSpeed,
     );
   }
 
@@ -215,4 +219,16 @@ class _AudioMessageBubbleState extends ConsumerState<AudioMessageBubble>
     _audioPlayer?.dispose();
     super.dispose();
   }
+}
+
+class _MessageStatusFlags {
+  final bool sent;
+  final bool delivered;
+  final bool seen;
+
+  const _MessageStatusFlags({
+    required this.sent,
+    required this.delivered,
+    required this.seen,
+  });
 }

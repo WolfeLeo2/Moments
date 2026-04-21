@@ -14,8 +14,17 @@ migrate_working_dir/
 .env
 firebase.json
 firebase_options.dart
-.supabase/
 .sql
+.agents
+.agent
+.vscode
+docs/plans
+docs/product
+docs/review
+docs/powersync
+supabase/functions/**/service-account.json
+powersync
+scripts
 /curated-tracks/
 # IntelliJ related
 *.iml

@@ -9,11 +9,6 @@ import 'package:moments/core/providers/moments_providers.dart';
 import 'package:moments/core/services/map_cache_service.dart';
 import 'package:moments/core/services/app_logger.dart';
 
-import 'package:moments/core/providers/providers.dart';
-import 'package:moments/features/mapv2/providers/map_v2_providers.dart';
-import 'package:moments/features/mapv2/presentation/map_style_picker_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 final _log = AppLogger('SplashPage');
 
 class SplashPage extends ConsumerStatefulWidget {
@@ -50,30 +45,11 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     // Navigate to map; router will redirect to login if not authenticated
     context.go(AppRouter.mapRoute);
 
-    // If the user is signed in and hasn't seen the map style picker yet,
-    // show it as a one-off overlay after navigating to the main scaffold.
-    if (ref.read(authServiceProvider).isSignedIn) {
-      final hasSeenPicker = await MapStylePrefs.hasSeenPicker();
-      if (!hasSeenPicker && mounted) {
-        // Small delay so the main scaffold has time to mount
-        await Future.delayed(const Duration(milliseconds: 300));
-        if (mounted) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const MapStylePickerPage(isOnboarding: true),
-            ),
-          );
-        }
-      }
-    }
   }
 
   /// Preloads essential app data to minimize wait time on the home screen.
   Future<void> _preloadApp() async {
     final futures = <Future>[];
-
-    // 0. Load saved map style preference from SharedPreferences
-    futures.add(_loadMapStylePref());
 
     // 1. Warm up Moments Stream (SQLite load + Supabase connection)
     try {
@@ -89,16 +65,6 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     futures.add(_warmUpLocation());
 
     await Future.wait(futures);
-  }
-
-  Future<void> _loadMapStylePref() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final useV2 = prefs.getBool('map_style_v2_enabled') ?? true;
-      ref.read(useMapV2Provider.notifier).set(useV2);
-    } catch (e) {
-      _log.w('Error loading map style pref', error: e);
-    }
   }
 
   Future<void> _warmUpLocation() async {

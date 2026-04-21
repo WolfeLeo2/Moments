@@ -1,11 +1,9 @@
 import 'package:moments/core/services/app_logger.dart';
-import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:crypto/crypto.dart';
-import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import '../../data/sources/supabase_config.dart';
 
 final _log = AppLogger('MapCacheService');
@@ -13,7 +11,6 @@ final _log = AppLogger('MapCacheService');
 class MapCacheService {
   static const String _tileCacheDir = 'mapbox_tiles';
   static const String _imageCacheDir = 'moment_images';
-  static const String _fmtcStoreName = 'momentsMapTiles';
   static const int _maxCacheAge = 7; // days
   static const int _maxCacheSize = 100 * 1024 * 1024; // 100MB
 
@@ -26,15 +23,6 @@ class MapCacheService {
   late Directory _tileDir;
   late Directory _imageDir;
   bool _isInitialized = false;
-  bool _fmtcInitialized = false;
-  FMTCTileProvider? _tileProvider;
-
-  /// Gets the FMTC tile provider for flutter_map TileLayer.
-  /// Returns null if FMTC hasn't been initialized yet.
-  FMTCTileProvider? get tileProvider => _tileProvider;
-
-  /// Whether the tile caching system is ready.
-  bool get isTileCachingReady => _fmtcInitialized && _tileProvider != null;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -52,9 +40,6 @@ class MapCacheService {
 
       _isInitialized = true;
 
-      // Initialize FMTC for tile caching
-      await _initializeFMTC();
-
       // Clean up old cache entries
       await _cleanupOldCache();
     } catch (e) {
@@ -62,67 +47,28 @@ class MapCacheService {
     }
   }
 
-  /// Initialize Flutter Map Tile Caching (FMTC) for efficient tile storage.
-  /// Uses runZonedGuarded to catch all async errors from ObjectBox backend.
-  Future<void> _initializeFMTC() async {
-    if (_fmtcInitialized) return;
-
-    final completer = Completer<void>();
-
-    runZonedGuarded(
-      () async {
-        try {
-          await FMTCObjectBoxBackend().initialise();
-          final store = FMTCStore(_fmtcStoreName);
-          await store.manage.create();
-          _tileProvider = FMTCTileProvider(
-            stores: const {
-              _fmtcStoreName: BrowseStoreStrategy.readUpdateCreate,
-            },
-          );
-          _fmtcInitialized = true;
-          _log.i('FMTC tile caching initialized successfully');
-          if (!completer.isCompleted) completer.complete();
-        } catch (e) {
-          _log.w(
-            'FMTC initialization failed (map will work without caching): $e',
-          );
-          _fmtcInitialized = false;
-          _tileProvider = null;
-          if (!completer.isCompleted) completer.complete();
-        }
-      },
-      (error, stack) {
-        _log.w(
-          'FMTC async error caught (map will work without caching): $error',
-        );
-        _fmtcInitialized = false;
-        _tileProvider = null;
-        if (!completer.isCompleted) completer.complete();
-      },
-    );
-
-    await completer.future;
-  }
-
   /// Get statistics about the tile cache.
   Future<Map<String, dynamic>> getTileCacheStats() async {
-    if (!_fmtcInitialized) {
-      return {'initialized': false};
-    }
+    await initialize();
 
     try {
-      final store = FMTCStore(_fmtcStoreName);
-      final stats = await store.stats.all;
+      int tileSize = 0;
+      int tileCount = 0;
+
+      if (await _tileDir.exists()) {
+        await for (final entity in _tileDir.list(recursive: true)) {
+          if (entity is File) {
+            tileCount++;
+            tileSize += await entity.length();
+          }
+        }
+      }
 
       return {
         'initialized': true,
-        'storeName': _fmtcStoreName,
-        'tileCount': stats.length,
-        'sizeKB': stats.size / 1024,
-        'sizeMB': stats.size / (1024 * 1024),
-        'hits': stats.hits,
-        'misses': stats.misses,
+        'tileCount': tileCount,
+        'sizeKB': tileSize / 1024,
+        'sizeMB': tileSize / (1024 * 1024),
       };
     } catch (e) {
       return {'initialized': true, 'error': e.toString()};
@@ -131,11 +77,13 @@ class MapCacheService {
 
   /// Clear only the tile cache (not moment images).
   Future<void> clearTileCache() async {
-    if (!_fmtcInitialized) return;
+    await initialize();
 
     try {
-      final store = FMTCStore(_fmtcStoreName);
-      await store.manage.reset();
+      if (await _tileDir.exists()) {
+        await _tileDir.delete(recursive: true);
+      }
+      await _tileDir.create(recursive: true);
       _log.i('Tile cache cleared');
     } catch (e) {
       _log.e('Failed to clear tile cache: $e');

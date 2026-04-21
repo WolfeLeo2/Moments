@@ -1,298 +1,220 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:chat_bubbles/chat_bubbles.dart' as cb;
+import 'package:flutter/material.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/data/models/message.dart';
-import 'package:hugeicons/hugeicons.dart';
 
-/// Renders a GIF or sticker as a floating media bubble (no message bubble background).
-///
-/// GIFs display with rounded corners + GIPHY attribution badge.
-/// Stickers display with transparent background, no border.
 class GifStickerMessageBubble extends StatelessWidget {
   const GifStickerMessageBubble({
     super.key,
     required this.message,
     required this.isMe,
+    this.currentUserId,
     this.onRetry,
   });
 
   final Message message;
   final bool isMe;
+  final String? currentUserId;
   final VoidCallback? onRetry;
 
   bool get _isSticker => message.messageType == MessageType.sticker;
 
   @override
   Widget build(BuildContext context) {
-    final maxWidth = MediaQuery.of(context).size.width * 0.65;
-    final mediaUrl = message.content;
-    final hasReactions = message.reactions.isNotEmpty;
+    final status = _statusFromSendStatus(message.sendStatus);
+    final reactions = _buildReactionModels();
 
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: isMe ? 64 : 8,
-          right: isMe ? 8 : 64,
-          top: 2,
-          bottom: hasReactions ? 14 : 2,
+    return Column(
+      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        cb.BubbleNormalImage(
+          id: 'gif_sticker_${message.id}',
+          image: _buildMedia(message.content),
+          isSender: isMe,
+          color: isMe ? AppTheme.primaryBlue : Colors.white,
+          tail: true,
+          sent: status.sent,
+          delivered: status.delivered,
+          seen: status.seen,
+          timestamp: MaterialLocalizations.of(context).formatTimeOfDay(
+            TimeOfDay.fromDateTime(message.createdAt),
+          ),
+          messageId: message.id,
+          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
         ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: isMe ? Alignment.bottomRight : Alignment.bottomLeft,
-          children: [
-            Column(
-              crossAxisAlignment: isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // The media itself
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: maxWidth,
-                    maxHeight: _isSticker ? 150 : 250,
-                  ),
-                  child: _buildMedia(mediaUrl),
-                ),
-
-                // Status row for sent messages
-                if (isMe)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2, right: 4),
-                    child: _buildStatusRow(context),
-                  ),
-              ],
-            ),
-
-            // Reactions
-            if (hasReactions)
-              Positioned(
-                bottom: -10,
-                right: isMe ? 12 : null,
-                left: isMe ? null : 12,
-                child: _buildReactions(context),
-              ),
-          ],
-        ),
-      ),
+        if (reactions.isNotEmpty)
+          cb.BubbleReaction(
+            reactions: reactions,
+            showAddButton: false,
+            alignRight: isMe,
+            backgroundColor: Colors.white,
+            userReactionColor: AppTheme.primaryBlue.withValues(alpha: 0.15),
+            textColor: Colors.black87,
+            borderColor: Colors.grey.withValues(alpha: 0.2),
+            emojiSize: 14,
+            chipPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            spacing: 4,
+            borderRadius: 12,
+          ),
+        if (isMe && _hasUploadHint(message.sendStatus))
+          Padding(
+            padding: const EdgeInsets.only(right: 12, top: 2, bottom: 6),
+            child: _buildUploadHint(context),
+          ),
+      ],
     );
   }
 
   Widget _buildMedia(String url) {
     if (_isSticker) {
-      // Stickers: transparent background, no border
-      return CachedNetworkImage(
-        imageUrl: url,
-        fit: BoxFit.contain,
-        placeholder: (context, url) => const SizedBox(
-          width: 120,
-          height: 120,
-          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        ),
-        errorWidget: (context, url, error) => Container(
-          width: 120,
-          height: 120,
-          decoration: BoxDecoration(
-            color: Colors.grey[200],
-            borderRadius: BorderRadius.circular(12),
+      return SizedBox(
+        width: 140,
+        height: 140,
+        child: CachedNetworkImage(
+          imageUrl: url,
+          fit: BoxFit.contain,
+          placeholder: (context, _) => const Center(
+            child: CircularProgressIndicator(strokeWidth: 2),
           ),
-          child: const Icon(Icons.broken_image, color: Colors.grey),
+          errorWidget: (context, _, __) => Container(
+            color: Colors.grey[200],
+            child: const Icon(Icons.broken_image, color: Colors.grey),
+          ),
         ),
       );
     }
 
-    // GIF: rounded corners, GIPHY attribution
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Stack(
-        children: [
-          CachedNetworkImage(
-            imageUrl: url,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => Container(
-              width: 200,
-              height: 150,
-              decoration: BoxDecoration(
+    return SizedBox(
+      width: 220,
+      height: 220,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CachedNetworkImage(
+              imageUrl: url,
+              fit: BoxFit.cover,
+              placeholder: (context, _) => Container(
                 color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(16),
+                child: const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
               ),
-              child: const Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
+              errorWidget: (context, _, __) => Container(
+                color: Colors.grey[200],
+                child: const Icon(Icons.broken_image, color: Colors.grey),
               ),
             ),
-            errorWidget: (context, url, error) => Container(
-              width: 200,
-              height: 150,
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.broken_image, color: Colors.grey),
-            ),
-          ),
-          // GIPHY attribution badge (bottom-left like WhatsApp)
-          Positioned(
-            bottom: 6,
-            left: 6,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                'GIPHY',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
+            Positioned(
+              bottom: 6,
+              left: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'GIPHY',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildStatusRow(BuildContext context) {
-    final statusColor = AppTheme.textGray.withValues(alpha: 0.5);
-    const iconSize = 13.0;
+  List<cb.Reaction> _buildReactionModels() {
+    final grouped = <String, int>{};
+    final reactedByMe = <String, bool>{};
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [_buildStatusIcon(statusColor, iconSize)],
-    );
+    for (final reaction in message.reactions) {
+      grouped[reaction.emoji] = (grouped[reaction.emoji] ?? 0) + 1;
+      if (reaction.userId == currentUserId) {
+        reactedByMe[reaction.emoji] = true;
+      }
+    }
+
+    return grouped.entries
+        .map(
+          (entry) => cb.Reaction(
+            emoji: entry.key,
+            count: entry.value,
+            isUserReacted: reactedByMe[entry.key] ?? false,
+          ),
+        )
+        .toList(growable: false);
   }
 
-  Widget _buildStatusIcon(Color statusColor, double iconSize) {
+  bool _hasUploadHint(MessageSendStatus status) {
+    return status == MessageSendStatus.pending ||
+        status == MessageSendStatus.sending ||
+        status == MessageSendStatus.failed;
+  }
+
+  Widget _buildUploadHint(BuildContext context) {
     switch (message.sendStatus) {
       case MessageSendStatus.pending:
       case MessageSendStatus.sending:
-        return SizedBox(
-          width: iconSize,
-          height: iconSize,
-          child: CircularProgressIndicator(
-            strokeWidth: 1.5,
-            color: statusColor,
-          ),
+        return Text(
+          'Sending...',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Colors.grey[500],
+                fontWeight: FontWeight.w500,
+              ),
         );
       case MessageSendStatus.failed:
         return GestureDetector(
           onTap: onRetry,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              HugeIcon(
-                icon: HugeIcons.strokeRoundedAlertCircle,
-                color: AppTheme.emergencyRed,
-                size: iconSize,
-              ),
-              const SizedBox(width: 4),
-              const Text(
-                'Tap to retry',
-                style: TextStyle(
+          child: Text(
+            'Tap to retry',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: AppTheme.emergencyRed,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                 ),
-              ),
-            ],
           ),
         );
       case MessageSendStatus.sent:
-        return HugeIcon(
-          icon: HugeIcons.strokeRoundedTick01,
-          color: statusColor,
-          size: iconSize,
-        );
       case MessageSendStatus.delivered:
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            HugeIcon(
-              icon: HugeIcons.strokeRoundedTick01,
-              color: statusColor,
-              size: iconSize - 2,
-            ),
-            Transform.translate(
-              offset: const Offset(-4, 0),
-              child: HugeIcon(
-                icon: HugeIcons.strokeRoundedTick01,
-                color: statusColor,
-                size: iconSize - 2,
-              ),
-            ),
-          ],
-        );
       case MessageSendStatus.read:
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            HugeIcon(
-              icon: HugeIcons.strokeRoundedTick01,
-              color: AppTheme.primaryBlue,
-              size: iconSize - 2,
-            ),
-            Transform.translate(
-              offset: const Offset(-4, 0),
-              child: HugeIcon(
-                icon: HugeIcons.strokeRoundedTick01,
-                color: AppTheme.primaryBlue,
-                size: iconSize - 2,
-              ),
-            ),
-          ],
-        );
+        return const SizedBox.shrink();
     }
   }
 
-  Widget _buildReactions(BuildContext context) {
-    final emojiCounts = <String, int>{};
-    for (final reaction in message.reactions) {
-      emojiCounts[reaction.emoji] = (emojiCounts[reaction.emoji] ?? 0) + 1;
+  _MessageStatusFlags _statusFromSendStatus(MessageSendStatus status) {
+    switch (status) {
+      case MessageSendStatus.read:
+        return const _MessageStatusFlags(sent: true, delivered: true, seen: true);
+      case MessageSendStatus.delivered:
+        return const _MessageStatusFlags(sent: true, delivered: true, seen: false);
+      case MessageSendStatus.sent:
+        return const _MessageStatusFlags(sent: true, delivered: false, seen: false);
+      case MessageSendStatus.pending:
+      case MessageSendStatus.sending:
+      case MessageSendStatus.failed:
+        return const _MessageStatusFlags(sent: false, delivered: false, seen: false);
     }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-        border: Border.all(
-          color: Colors.grey.withValues(alpha: 0.1),
-          width: 0.5,
-        ),
-      ),
-      child: Wrap(
-        spacing: 4,
-        children: emojiCounts.entries.map((entry) {
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(entry.key, style: const TextStyle(fontSize: 12)),
-              if (entry.value > 1) ...[
-                const SizedBox(width: 2),
-                Text(
-                  '${entry.value}',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Colors.black54,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ],
-          );
-        }).toList(),
-      ),
-    );
   }
+}
+
+class _MessageStatusFlags {
+  final bool sent;
+  final bool delivered;
+  final bool seen;
+
+  const _MessageStatusFlags({
+    required this.sent,
+    required this.delivered,
+    required this.seen,
+  });
 }

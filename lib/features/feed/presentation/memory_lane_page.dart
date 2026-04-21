@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pull_down_button/pull_down_button.dart';
 import 'package:moments/core/theme/app_theme.dart';
+import 'package:moments/core/router/app_router.dart';
 import 'package:moments/core/services/signed_url_cache.dart';
 import 'package:moments/data/models/moment.dart';
 import 'package:moments/core/providers/moments_providers.dart';
@@ -17,6 +18,27 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:moments/widgets/offline_image.dart';
 import 'package:moments/core/providers/providers.dart';
 import 'package:moments/features/notifications/presentation/notifications_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+enum MemoryLaneStyleMode { quiet, scrapbook }
+
+class _ChapterSection {
+  const _ChapterSection({
+    required this.title,
+    required this.subtitle,
+    required this.summary,
+    required this.anchorDate,
+    required this.motifSeed,
+    required this.moments,
+  });
+
+  final String title;
+  final String subtitle;
+  final String summary;
+  final DateTime anchorDate;
+  final int motifSeed;
+  final List<Moment> moments;
+}
 
 /// Memory Lane - An emotional, timeline-based view of memories
 /// Replaces the traditional feed with a journal-like experience
@@ -39,6 +61,17 @@ class MemoryLanePage extends ConsumerStatefulWidget {
 class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
     with AutomaticKeepAliveClientMixin {
   late ScrollController _scrollController;
+  MemoryLaneStyleMode _styleMode = MemoryLaneStyleMode.quiet;
+
+  static const _memoryLaneStylePrefKey = 'memory_lane_style_mode';
+  static const int _clusterWindowMinutes = 120;
+  static const List<Color> _chapterPalette = [
+    AppTheme.coralPink,
+    AppTheme.skyBlue,
+    AppTheme.mintGreen,
+    AppTheme.sunsetOrange,
+    AppTheme.lavenderPop,
+  ];
 
   /// Signed URLs resolved for anniversary mini-cards
   final Map<String, String> _miniCardUrls = {};
@@ -50,6 +83,7 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
   void initState() {
     super.initState();
     _scrollController = widget.scrollController ?? ScrollController();
+    _loadStyleMode();
   }
 
   @override
@@ -66,8 +100,42 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
     ).push(MaterialPageRoute(builder: (context) => const NotificationsPage()));
   }
 
-  /// Groups moments into temporal chapters
-  Map<String, List<Moment>> _groupIntoChapters(List<Moment> moments) {
+  Future<void> _loadStyleMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_memoryLaneStylePrefKey);
+    if (!mounted) return;
+
+    setState(() {
+      _styleMode = saved == MemoryLaneStyleMode.scrapbook.name
+          ? MemoryLaneStyleMode.scrapbook
+          : MemoryLaneStyleMode.quiet;
+    });
+  }
+
+  Future<void> _setStyleMode(MemoryLaneStyleMode mode) async {
+    if (_styleMode == mode) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_memoryLaneStylePrefKey, mode.name);
+    if (!mounted) return;
+
+    HapticFeedback.selectionClick();
+    setState(() => _styleMode = mode);
+  }
+
+  bool get _isQuietMode => _styleMode == MemoryLaneStyleMode.quiet;
+
+  String _styleModeLabel(MemoryLaneStyleMode mode) {
+    return mode == MemoryLaneStyleMode.quiet ? 'Quiet Journal' : 'Scrapbook';
+  }
+
+  Color _accentForSeed(int seed) {
+    return _chapterPalette[seed.abs() % _chapterPalette.length];
+  }
+
+  List<_ChapterSection> _buildChapterSections(List<Moment> moments) {
+    final sortedMoments = List<Moment>.from(moments)
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
@@ -76,78 +144,141 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
     final thisMonthStart = DateTime(now.year, now.month, 1);
     final lastMonthStart = DateTime(now.year, now.month - 1, 1);
 
-    final chapters = <String, List<Moment>>{
-      'Today': [],
-      'Yesterday': [],
-      'This Week': [],
-      'Last Week': [],
-      'This Month': [],
-      'Last Month': [],
-    };
+    final buckets = <String, List<Moment>>{};
+    final anchors = <String, DateTime>{};
 
-    // For older moments, group by season/year
-    final olderChapters = <String, List<Moment>>{};
-
-    for (final moment in moments) {
+    for (final moment in sortedMoments) {
       final momentDate = DateTime(
         moment.timestamp.year,
         moment.timestamp.month,
         moment.timestamp.day,
       );
 
+      late final String chapterTitle;
+      late final DateTime chapterAnchor;
+
       if (momentDate.isAtSameMomentAs(today)) {
-        chapters['Today']!.add(moment);
+        chapterTitle = 'Today';
+        chapterAnchor = today;
       } else if (momentDate.isAtSameMomentAs(yesterday)) {
-        chapters['Yesterday']!.add(moment);
+        chapterTitle = 'Yesterday';
+        chapterAnchor = yesterday;
       } else if (momentDate.isAfter(thisWeekStart) ||
           momentDate.isAtSameMomentAs(thisWeekStart)) {
-        chapters['This Week']!.add(moment);
+        chapterTitle = 'This Week';
+        chapterAnchor = thisWeekStart;
       } else if (momentDate.isAfter(lastWeekStart) ||
           momentDate.isAtSameMomentAs(lastWeekStart)) {
-        chapters['Last Week']!.add(moment);
+        chapterTitle = 'Last Week';
+        chapterAnchor = lastWeekStart;
       } else if (momentDate.isAfter(thisMonthStart) ||
           momentDate.isAtSameMomentAs(thisMonthStart)) {
-        chapters['This Month']!.add(moment);
+        chapterTitle = 'This Month';
+        chapterAnchor = thisMonthStart;
       } else if (momentDate.isAfter(lastMonthStart) ||
           momentDate.isAtSameMomentAs(lastMonthStart)) {
-        chapters['Last Month']!.add(moment);
+        chapterTitle = 'Last Month';
+        chapterAnchor = lastMonthStart;
       } else {
-        // Group by season + year for older moments
-        final chapterName = _getSeasonalChapter(moment.timestamp);
-        olderChapters.putIfAbsent(chapterName, () => []);
-        olderChapters[chapterName]!.add(moment);
+        chapterTitle =
+            '${_getSeason(moment.timestamp.month)} ${moment.timestamp.year}';
+        chapterAnchor = _seasonAnchor(moment.timestamp);
+      }
+
+      buckets.putIfAbsent(chapterTitle, () => <Moment>[]).add(moment);
+      final existingAnchor = anchors[chapterTitle];
+      if (existingAnchor == null || chapterAnchor.isAfter(existingAnchor)) {
+        anchors[chapterTitle] = chapterAnchor;
       }
     }
 
-    // Remove empty recent chapters
-    chapters.removeWhere((key, value) => value.isEmpty);
+    final sections =
+        buckets.entries
+            .map(
+              (entry) => _ChapterSection(
+                title: entry.key,
+                subtitle: _chapterSubtitle(entry.value),
+                summary: _chapterSummary(entry.value),
+                anchorDate: anchors[entry.key] ?? entry.value.first.timestamp,
+                motifSeed: entry.key.hashCode,
+                moments: entry.value,
+              ),
+            )
+            .toList(growable: false)
+          ..sort((a, b) => b.anchorDate.compareTo(a.anchorDate));
 
-    // Sort older chapters by date descending
-    final sortedOlderKeys = olderChapters.keys.toList()
-      ..sort((a, b) => b.compareTo(a));
-
-    for (final key in sortedOlderKeys) {
-      chapters[key] = olderChapters[key]!;
-    }
-
-    return chapters;
+    return sections;
   }
 
-  /// Returns a seasonal chapter name like "Summer 2023" or "Two winters ago"
-  String _getSeasonalChapter(DateTime date) {
-    final now = DateTime.now();
-    final yearsAgo = now.year - date.year;
-    final season = _getSeason(date.month);
+  DateTime _seasonAnchor(DateTime date) {
+    final month = date.month;
+    if (month >= 3 && month <= 5) return DateTime(date.year, 3, 1);
+    if (month >= 6 && month <= 8) return DateTime(date.year, 6, 1);
+    if (month >= 9 && month <= 11) return DateTime(date.year, 9, 1);
+    return DateTime(date.year, 12, 1);
+  }
 
-    if (yearsAgo == 0) {
-      return season;
-    } else if (yearsAgo == 1) {
-      return 'Last $season';
-    } else if (yearsAgo == 2) {
-      return 'Two ${season.toLowerCase()}s ago';
-    } else {
-      return '$season ${date.year}';
+  String _chapterSubtitle(List<Moment> moments) {
+    if (moments.isEmpty) return '';
+    final sorted = List<Moment>.from(moments)
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    final first = sorted.first.timestamp;
+    final last = sorted.last.timestamp;
+
+    if (first.year == last.year &&
+        first.month == last.month &&
+        first.day == last.day) {
+      return '${_formatShortDate(first)} · ${moments.length} memories';
     }
+
+    return '${_formatShortDate(last)} - ${_formatShortDate(first)} · ${moments.length} memories';
+  }
+
+  String _chapterSummary(List<Moment> moments) {
+    if (moments.isEmpty) return 'A quiet page of memories.';
+
+    final locationCounts = <String, int>{};
+    var captionCount = 0;
+    for (final moment in moments) {
+      if (moment.caption != null && moment.caption!.trim().isNotEmpty) {
+        captionCount++;
+      }
+      final location = moment.location.trim();
+      if (location.isEmpty) continue;
+      locationCounts[location] = (locationCounts[location] ?? 0) + 1;
+    }
+
+    final topLocation = locationCounts.entries.isEmpty
+        ? 'different places'
+        : (locationCounts.entries.toList()
+                ..sort((a, b) => b.value.compareTo(a.value)))
+              .first
+              .key;
+
+    if (captionCount > 0) {
+      return '$captionCount notes, centered around $topLocation.';
+    }
+
+    return 'Snapshots centered around $topLocation.';
+  }
+
+  String _formatShortDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+
+    return '${months[date.month - 1]} ${date.day}';
   }
 
   String _getSeason(int month) {
@@ -172,15 +303,28 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
       final current = sorted[i];
       final previous = sorted[i - 1];
 
-      // Cluster if same momentGroupId, same location, or within 30 min
+      // Cluster if same non-empty momentGroupId, or same-location moments
+      // captured within a short same-day window.
       final timeDiff = previous.timestamp
           .difference(current.timestamp)
           .inMinutes
           .abs();
-      final sameGroup = current.momentGroupId == previous.momentGroupId;
-      final sameLocation = current.location == previous.location;
+      final currentGroup = current.momentGroupId.trim();
+      final previousGroup = previous.momentGroupId.trim();
+      final sameGroup =
+          currentGroup.isNotEmpty &&
+          previousGroup.isNotEmpty &&
+          currentGroup == previousGroup;
+      final sameLocation =
+          current.location.trim().toLowerCase() ==
+          previous.location.trim().toLowerCase();
+      final sameDay =
+          current.timestamp.year == previous.timestamp.year &&
+          current.timestamp.month == previous.timestamp.month &&
+          current.timestamp.day == previous.timestamp.day;
 
-      if (sameGroup || (sameLocation && timeDiff < 30)) {
+      if (sameGroup ||
+          (sameLocation && sameDay && timeDiff <= _clusterWindowMinutes)) {
         currentCluster.add(current);
       } else {
         clusters.add(currentCluster);
@@ -247,6 +391,40 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
                 ),
               ),
         actions: [
+          PopupMenuButton<MemoryLaneStyleMode>(
+            tooltip: 'Timeline style',
+            initialValue: _styleMode,
+            onSelected: _setStyleMode,
+            icon: Icon(
+              _isQuietMode
+                  ? CupertinoIcons.book
+                  : CupertinoIcons.photo_on_rectangle,
+              color: AppTheme.textDark,
+              size: 22,
+            ),
+            itemBuilder: (context) => MemoryLaneStyleMode.values
+                .map(
+                  (mode) => PopupMenuItem<MemoryLaneStyleMode>(
+                    value: mode,
+                    child: Row(
+                      children: [
+                        Icon(
+                          mode == MemoryLaneStyleMode.quiet
+                              ? CupertinoIcons.book
+                              : CupertinoIcons.photo_on_rectangle,
+                          size: 18,
+                          color: _styleMode == mode
+                              ? AppTheme.primaryBlue
+                              : AppTheme.textGray,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(_styleModeLabel(mode)),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+          ),
           Badge(
             isLabelVisible: (notificationCount.value ?? 0) > 0,
             label: Text(
@@ -291,18 +469,30 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
       return _buildEmptyState();
     }
 
-    final chapters = _groupIntoChapters(moments);
-    final chapterKeys = chapters.keys.toList();
+    final chapters = _buildChapterSections(moments);
+    final isQuietMode = _isQuietMode;
 
     return Stack(
       children: [
-        // Subtle ruled-lines background for notebook feel
         Positioned.fill(
-          child: RuledLinesBackground(
-            lineColor: AppTheme.textGray.withValues(alpha: 0.04),
-            lineSpacing: 28,
-            child: const SizedBox.expand(),
-          ),
+          child: isQuietMode
+              ? DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.96),
+                        AppTheme.backgroundBeige,
+                      ],
+                    ),
+                  ),
+                )
+              : RuledLinesBackground(
+                  lineColor: AppTheme.textGray.withValues(alpha: 0.04),
+                  lineSpacing: 28,
+                  child: const SizedBox.expand(),
+                ),
         ),
 
         // Main scroll content
@@ -320,16 +510,11 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
               padding: const EdgeInsets.symmetric(horizontal: 16),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate((context, index) {
-                  final chapterName = chapterKeys[index];
-                  final chapterMoments = chapters[chapterName]!;
-                  final clusters = _clusterByLocation(chapterMoments);
+                  final chapter = chapters[index];
+                  final clusters = _clusterByLocation(chapter.moments);
 
-                  return _buildChapterSection(
-                    chapterName,
-                    clusters,
-                    index == 0,
-                  );
-                }, childCount: chapterKeys.length),
+                  return _buildChapterSection(chapter, clusters, index == 0);
+                }, childCount: chapters.length),
               ),
             ),
 
@@ -398,7 +583,8 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: anniversaries.take(5).length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(width: 12),
                       itemBuilder: (context, index) {
                         final moment = anniversaries[index];
                         return _buildMiniMemoryCard(moment);
@@ -448,15 +634,15 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: OfflineImage(
-              localPath: moment.localMediaPath,
-              networkUrl: imageUrl,
-              cacheKey: moment.mediaPath ?? moment.id,
-              fit: BoxFit.cover,
-              errorWidget: Container(
-                color: AppTheme.dustyRose.withValues(alpha: 0.2),
-                child: const Icon(Icons.photo, color: AppTheme.dustyRose),
-              ),
+            localPath: moment.localMediaPath,
+            networkUrl: imageUrl,
+            cacheKey: moment.mediaPath ?? moment.id,
+            fit: BoxFit.cover,
+            errorWidget: Container(
+              color: AppTheme.dustyRose.withValues(alpha: 0.2),
+              child: const Icon(Icons.photo, color: AppTheme.dustyRose),
             ),
+          ),
         ),
       ),
     );
@@ -472,15 +658,26 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
   }
 
   Widget _buildChapterSection(
-    String chapterName,
+    _ChapterSection chapter,
     List<List<Moment>> clusters,
     bool isFirst,
   ) {
+    final accent = _accentForSeed(chapter.motifSeed);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Chapter header
-        ChapterHeader(title: chapterName, isFirst: isFirst),
+        ChapterHeader(
+          title: chapter.title,
+          subtitle: chapter.subtitle,
+          memoryCount: chapter.moments.length,
+          isFirst: isFirst,
+          quietMode: _isQuietMode,
+          accentColor: accent,
+        ),
+
+        _buildChapterIntroCard(chapter, accent),
 
         // Memory clusters with timeline
         ...clusters.asMap().entries.map((entry) {
@@ -489,8 +686,12 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
 
           return TimelineConnector(
             isLast: isLast,
+            quietMode: _isQuietMode,
+            accentColor: accent,
             child: MemoryCard(
               moments: cluster,
+              quietMode: _isQuietMode,
+              accentColor: accent,
               onTap: () => _openMemoryDetail(cluster),
             ),
           );
@@ -498,6 +699,33 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
 
         const SizedBox(height: 24),
       ],
+    );
+  }
+
+  Widget _buildChapterIntroCard(_ChapterSection chapter, Color accent) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: _isQuietMode
+            ? Colors.white.withValues(alpha: 0.88)
+            : accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: accent.withValues(alpha: _isQuietMode ? 0.20 : 0.26),
+          width: 1,
+        ),
+      ),
+      child: Text(
+        chapter.summary,
+        style: (_isQuietMode ? GoogleFonts.inter : GoogleFonts.caveat)(
+          fontSize: _isQuietMode ? 13 : 19,
+          fontWeight: _isQuietMode ? FontWeight.w400 : FontWeight.w500,
+          color: AppTheme.textDark.withValues(alpha: 0.82),
+          height: 1.35,
+        ),
+      ),
     );
   }
 
@@ -543,7 +771,7 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
             height: 12,
             margin: const EdgeInsets.only(top: 8, right: 16),
             decoration: BoxDecoration(
-              color: AppTheme.dustyRose.withOpacity(0.3),
+              color: AppTheme.dustyRose.withValues(alpha: 0.3),
               shape: BoxShape.circle,
             ),
           ),
@@ -573,7 +801,7 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
               width: 120,
               height: 120,
               decoration: BoxDecoration(
-                color: AppTheme.dustyRose.withOpacity(0.1),
+                color: AppTheme.dustyRose.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -598,30 +826,21 @@ class _MemoryLanePageState extends ConsumerState<MemoryLanePage>
               ).textTheme.bodyLarge?.copyWith(color: AppTheme.textGray),
             ),
             const SizedBox(height: 32),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppTheme.sageGreen.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(50),
-                border: Border.all(color: AppTheme.sageGreen.withOpacity(0.3)),
+            FilledButton.icon(
+              onPressed: () => AppRouter.goToAddMoment(context),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.sageGreen,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.camera_alt_outlined,
-                    color: AppTheme.sageGreen,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Capture a moment',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleSmall?.copyWith(color: AppTheme.sageGreen),
-                  ),
-                ],
-              ),
+              icon: const Icon(Icons.camera_alt_outlined, size: 20),
+              label: const Text('Capture a moment'),
             ),
           ],
         ),

@@ -45,8 +45,10 @@ class GiphyPickerHelper {
       if (gif == null) return null;
 
       // Determine the best URL to use
-      final url =
-          gif.images?.original?.url ?? gif.images?.fixedWidth?.url ?? gif.url;
+        final images = gif.images;
+      final originalUrl = images?.original?.url;
+      final fixedWidthUrl = images?.fixedWidth.url;
+      final url = originalUrl ?? fixedWidthUrl ?? gif.url;
 
       if (url == null || url.isEmpty) return null;
 

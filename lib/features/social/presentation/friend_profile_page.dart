@@ -2,8 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/providers/database_provider.dart';
@@ -12,7 +11,6 @@ import '../../../core/providers/providers.dart';
 import '../../../data/models/moment.dart';
 import '../../chat/presentation/chat_page.dart';
 import '../../moments/presentation/moment_details_page.dart';
-import '../../map/widgets/stacked_moment_marker.dart';
 import '../../../widgets/offline_image.dart';
 import '../../../widgets/avatar_image.dart';
 
@@ -35,7 +33,6 @@ class FriendProfilePage extends ConsumerStatefulWidget {
 class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final MapController _mapController = MapController();
   int _selectedTabIndex = 0;
 
   @override
@@ -82,10 +79,7 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(CupertinoIcons.back, color: Colors.black87),
               ),
-              actions: [
-                _buildMoreButton(),
-                const SizedBox(width: 8),
-              ],
+              actions: [_buildMoreButton(), const SizedBox(width: 8)],
             ),
             // ── Avatar + Name + Bio ──
             SliverToBoxAdapter(child: _buildProfileHeader(profileAsync)),
@@ -225,8 +219,9 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
         children: [
           Consumer(
             builder: (context, ref, _) {
-              final momentsCountAsync =
-                  ref.watch(userMomentsCountProvider(widget.friendId));
+              final momentsCountAsync = ref.watch(
+                userMomentsCountProvider(widget.friendId),
+              );
               return _buildStatColumn(
                 momentsCountAsync.when(
                   data: (count) => count.toString(),
@@ -240,8 +235,9 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
           Container(width: 1, height: 32, color: Colors.grey.shade200),
           Consumer(
             builder: (context, ref, _) {
-              final mutualAsync =
-                  ref.watch(mutualFriendsCountProvider(widget.friendId));
+              final mutualAsync = ref.watch(
+                mutualFriendsCountProvider(widget.friendId),
+              );
               return _buildStatColumn(
                 mutualAsync.when(
                   data: (count) => count.toString(),
@@ -287,8 +283,9 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
   Widget _buildMutualFriendsRow() {
     return Consumer(
       builder: (context, ref, _) {
-        final mutualAsync =
-            ref.watch(mutualFriendsCountProvider(widget.friendId));
+        final mutualAsync = ref.watch(
+          mutualFriendsCountProvider(widget.friendId),
+        );
         return mutualAsync.when(
           data: (count) {
             if (count <= 0) return const SizedBox(height: 8);
@@ -485,7 +482,11 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
   Widget _buildMoreButton() {
     return IconButton(
       onPressed: _showActionsSheet,
-      icon: const Icon(CupertinoIcons.ellipsis, color: Colors.black87, size: 22),
+      icon: const Icon(
+        CupertinoIcons.ellipsis,
+        color: Colors.black87,
+        size: 22,
+      ),
     );
   }
 
@@ -569,14 +570,14 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
   void _showRemoveFriendConfirmation() {
     showCupertinoDialog(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
+      builder: (dialogContext) => CupertinoAlertDialog(
         title: const Text('Remove Friend?'),
         content: Text(
           'You\'ll need to send a new friend request to reconnect with ${widget.friendName}.',
         ),
         actions: [
           CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           CupertinoDialogAction(
@@ -584,10 +585,9 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
             onPressed: () async {
               final repo = ref.read(socialRepositoryProvider);
               await repo.removeFriend(widget.friendId);
-              if (mounted) {
-                Navigator.pop(context);
-                Navigator.pop(context);
-              }
+              if (!mounted || !dialogContext.mounted) return;
+              Navigator.pop(dialogContext);
+              Navigator.pop(this.context);
             },
             child: const Text('Remove'),
           ),
@@ -730,11 +730,7 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  CupertinoIcons.map,
-                  size: 48,
-                  color: Colors.grey[300],
-                ),
+                Icon(CupertinoIcons.map, size: 48, color: Colors.grey[300]),
                 const SizedBox(height: 16),
                 Text(
                   'No locations to show',
@@ -749,57 +745,135 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
           );
         }
 
-        double lat = 0, lng = 0;
+        double lat = 0;
+        double lng = 0;
         for (var m in friendMoments) {
           lat += m.latitude;
           lng += m.longitude;
         }
-        final center = LatLng(
-          lat / friendMoments.length,
-          lng / friendMoments.length,
-        );
+        final centerLat = lat / friendMoments.length;
+        final centerLng = lng / friendMoments.length;
 
         return Padding(
           padding: const EdgeInsets.all(10),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(initialCenter: center, initialZoom: 12),
-                children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/512/{z}/{x}/{y}@2x?access_token=pk.eyJ1Ijoid29sZmVsZW8iLCJhIjoiY21oYXRxMW82MW5nNjJqcGc4aDA0YndoeSJ9.gvLhQFM-46KlcUdAKFGMYg',
-                    userAgentPackageName: 'com.moments.app',
-                  ),
-                  MarkerLayer(
-                    markers: friendMoments
-                        .map(
-                          (m) => Marker(
-                            point: LatLng(m.latitude, m.longitude),
-                            width: 60,
-                            height: 60,
-                            child: StackedMomentMarker(
-                              moments: [m],
-                              onTap: () => _navigateToDetails(m, allMoments),
-                              heroTag: 'map_marker_${m.id}',
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ],
-              ),
-            ),
+          child: _FriendMomentsMap(
+            moments: friendMoments,
+            centerLatitude: centerLat,
+            centerLongitude: centerLng,
+            onMomentTap: (moment) => _navigateToDetails(moment, allMoments),
           ),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (_, __) => const SizedBox(),
+    );
+  }
+}
+
+class _FriendMomentsMap extends StatefulWidget {
+  const _FriendMomentsMap({
+    required this.moments,
+    required this.centerLatitude,
+    required this.centerLongitude,
+    required this.onMomentTap,
+  });
+
+  final List<Moment> moments;
+  final double centerLatitude;
+  final double centerLongitude;
+  final ValueChanged<Moment> onMomentTap;
+
+  @override
+  State<_FriendMomentsMap> createState() => _FriendMomentsMapState();
+}
+
+class _FriendMomentsMapState extends State<_FriendMomentsMap> {
+  static const String _mapboxAccessToken =
+      'pk.eyJ1Ijoid29sZmVsZW8iLCJhIjoiY21oYXRxMW82MW5nNjJqcGc4aDA0YndoeSJ9.gvLhQFM-46KlcUdAKFGMYg';
+
+  MapboxMap? _mapboxMap;
+  PointAnnotationManager? _annotationManager;
+  bool _tapListenerAttached = false;
+  final Map<String, Moment> _annotationMomentById = {};
+
+  @override
+  void initState() {
+    super.initState();
+    MapboxOptions.setAccessToken(_mapboxAccessToken);
+  }
+
+  @override
+  void didUpdateWidget(covariant _FriendMomentsMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_mapboxMap != null && oldWidget.moments != widget.moments) {
+      _renderMomentAnnotations();
+    }
+  }
+
+  void _onMapCreated(MapboxMap mapboxMap) {
+    _mapboxMap = mapboxMap;
+  }
+
+  Future<void> _onStyleLoaded(StyleLoadedEventData _) async {
+    await _renderMomentAnnotations();
+  }
+
+  Future<void> _renderMomentAnnotations() async {
+    if (_mapboxMap == null) return;
+
+    _annotationManager ??= await _mapboxMap!.annotations
+        .createPointAnnotationManager();
+
+    if (!_tapListenerAttached) {
+      _annotationManager!.tapEvents(
+        onTap: (annotation) {
+          final moment = _annotationMomentById[annotation.id];
+          if (moment != null) {
+            widget.onMomentTap(moment);
+          }
+        },
+      );
+      _tapListenerAttached = true;
+    }
+
+    await _annotationManager!.deleteAll();
+    _annotationMomentById.clear();
+
+    for (final moment in widget.moments) {
+      final annotation = await _annotationManager!.create(
+        PointAnnotationOptions(
+          geometry: Point(
+            coordinates: Position(moment.longitude, moment.latitude),
+          ),
+          iconImage: 'marker-15',
+          iconSize: 1.5,
+          iconAnchor: IconAnchor.BOTTOM,
+        ),
+      );
+
+      _annotationMomentById[annotation.id] = moment;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: MapWidget(
+        key: const ValueKey('friend_profile_mapbox_widget'),
+        styleUri: MapboxStyles.MAPBOX_STREETS,
+        cameraOptions: CameraOptions(
+          center: Point(
+            coordinates: Position(
+              widget.centerLongitude,
+              widget.centerLatitude,
+            ),
+          ),
+          zoom: 12,
+        ),
+        onMapCreated: _onMapCreated,
+        onStyleLoadedListener: _onStyleLoaded,
+      ),
     );
   }
 }

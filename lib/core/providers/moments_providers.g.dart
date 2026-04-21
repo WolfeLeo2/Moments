@@ -59,18 +59,12 @@ final class MomentRepositoryProvider
 
 String _$momentRepositoryHash() => r'e3a4e7611614ce44fd3dfadea702a6d9febc256b';
 
-/// Stream of all moments with offline-first approach using Drift
-/// 1. Immediately yields cached moments from Drift
-/// 2. Watches Drift for reactive updates
-/// 3. Syncs with Supabase in parallel
+/// Stream of all moments from PowerSync local SQLite.
 
 @ProviderFor(momentsStream)
 const momentsStreamProvider = MomentsStreamProvider._();
 
-/// Stream of all moments with offline-first approach using Drift
-/// 1. Immediately yields cached moments from Drift
-/// 2. Watches Drift for reactive updates
-/// 3. Syncs with Supabase in parallel
+/// Stream of all moments from PowerSync local SQLite.
 
 final class MomentsStreamProvider
     extends
@@ -80,10 +74,7 @@ final class MomentsStreamProvider
           Stream<List<Moment>>
         >
     with $FutureModifier<List<Moment>>, $StreamProvider<List<Moment>> {
-  /// Stream of all moments with offline-first approach using Drift
-  /// 1. Immediately yields cached moments from Drift
-  /// 2. Watches Drift for reactive updates
-  /// 3. Syncs with Supabase in parallel
+  /// Stream of all moments from PowerSync local SQLite.
   const MomentsStreamProvider._()
     : super(
         from: null,
@@ -110,14 +101,14 @@ final class MomentsStreamProvider
   }
 }
 
-String _$momentsStreamHash() => r'5f3ea0cc4b67dc8b6293f69d2e617ffa1bd24214';
+String _$momentsStreamHash() => r'de0aee042823ce4be71a4b3314eeaecda312ba0b';
 
-/// Stream of shared moments (realtime - moments user is contributor to)
+/// Stream of shared moments from PowerSync local SQLite.
 
 @ProviderFor(sharedMomentsStream)
 const sharedMomentsStreamProvider = SharedMomentsStreamProvider._();
 
-/// Stream of shared moments (realtime - moments user is contributor to)
+/// Stream of shared moments from PowerSync local SQLite.
 
 final class SharedMomentsStreamProvider
     extends
@@ -127,7 +118,7 @@ final class SharedMomentsStreamProvider
           Stream<List<Moment>>
         >
     with $FutureModifier<List<Moment>>, $StreamProvider<List<Moment>> {
-  /// Stream of shared moments (realtime - moments user is contributor to)
+  /// Stream of shared moments from PowerSync local SQLite.
   const SharedMomentsStreamProvider._()
     : super(
         from: null,
@@ -155,15 +146,15 @@ final class SharedMomentsStreamProvider
 }
 
 String _$sharedMomentsStreamHash() =>
-    r'e7d6a3bbec33565c35bf903caac695a1e2601e80';
+    r'bd993b53dc9075ec0a33ae75114421d3b8cb058c';
 
-/// Stream of pending moment invitations (realtime)
+/// Stream of pending moment invitations from PowerSync local SQLite.
 
 @ProviderFor(pendingMomentInvitationsStream)
 const pendingMomentInvitationsStreamProvider =
     PendingMomentInvitationsStreamProvider._();
 
-/// Stream of pending moment invitations (realtime)
+/// Stream of pending moment invitations from PowerSync local SQLite.
 
 final class PendingMomentInvitationsStreamProvider
     extends
@@ -175,7 +166,7 @@ final class PendingMomentInvitationsStreamProvider
     with
         $FutureModifier<List<MomentContributor>>,
         $StreamProvider<List<MomentContributor>> {
-  /// Stream of pending moment invitations (realtime)
+  /// Stream of pending moment invitations from PowerSync local SQLite.
   const PendingMomentInvitationsStreamProvider._()
     : super(
         from: null,
@@ -203,14 +194,14 @@ final class PendingMomentInvitationsStreamProvider
 }
 
 String _$pendingMomentInvitationsStreamHash() =>
-    r'ea94e663106843875fc7d166901bbb67105d17c2';
+    r'aee8adcb66020ad6b86deebd36f224f75be19fc0';
 
-/// Stream moments by group ID (realtime for moment details page)
+/// Stream moments by group ID from PowerSync local SQLite.
 
 @ProviderFor(momentsByGroupStream)
 const momentsByGroupStreamProvider = MomentsByGroupStreamFamily._();
 
-/// Stream moments by group ID (realtime for moment details page)
+/// Stream moments by group ID from PowerSync local SQLite.
 
 final class MomentsByGroupStreamProvider
     extends
@@ -220,7 +211,7 @@ final class MomentsByGroupStreamProvider
           Stream<List<Moment>>
         >
     with $FutureModifier<List<Moment>>, $StreamProvider<List<Moment>> {
-  /// Stream moments by group ID (realtime for moment details page)
+  /// Stream moments by group ID from PowerSync local SQLite.
   const MomentsByGroupStreamProvider._({
     required MomentsByGroupStreamFamily super.from,
     required String super.argument,
@@ -266,9 +257,9 @@ final class MomentsByGroupStreamProvider
 }
 
 String _$momentsByGroupStreamHash() =>
-    r'f81251f0c23557e405824d49c75fdbea95a8f8d1';
+    r'0b1add544561ce14616d456c5c686a5206714910';
 
-/// Stream moments by group ID (realtime for moment details page)
+/// Stream moments by group ID from PowerSync local SQLite.
 
 final class MomentsByGroupStreamFamily extends $Family
     with $FunctionalFamilyOverride<Stream<List<Moment>>, String> {
@@ -281,7 +272,7 @@ final class MomentsByGroupStreamFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Stream moments by group ID (realtime for moment details page)
+  /// Stream moments by group ID from PowerSync local SQLite.
 
   MomentsByGroupStreamProvider call(String groupId) =>
       MomentsByGroupStreamProvider._(argument: groupId, from: this);
@@ -290,17 +281,17 @@ final class MomentsByGroupStreamFamily extends $Family
   String toString() => r'momentsByGroupStreamProvider';
 }
 
-/// Single moment details - Drift first, then remote
+/// Single moment details from PowerSync local SQLite.
 
 @ProviderFor(momentDetails)
 const momentDetailsProvider = MomentDetailsFamily._();
 
-/// Single moment details - Drift first, then remote
+/// Single moment details from PowerSync local SQLite.
 
 final class MomentDetailsProvider
     extends $FunctionalProvider<AsyncValue<Moment?>, Moment?, FutureOr<Moment?>>
     with $FutureModifier<Moment?>, $FutureProvider<Moment?> {
-  /// Single moment details - Drift first, then remote
+  /// Single moment details from PowerSync local SQLite.
   const MomentDetailsProvider._({
     required MomentDetailsFamily super.from,
     required String super.argument,
@@ -344,9 +335,9 @@ final class MomentDetailsProvider
   }
 }
 
-String _$momentDetailsHash() => r'b52aa0404657fa1b6c39ba66854c24842daae538';
+String _$momentDetailsHash() => r'325c24f32d3b4b8fd954c14bec12a4caf61b4e19';
 
-/// Single moment details - Drift first, then remote
+/// Single moment details from PowerSync local SQLite.
 
 final class MomentDetailsFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<Moment?>, String> {
@@ -359,7 +350,7 @@ final class MomentDetailsFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Single moment details - Drift first, then remote
+  /// Single moment details from PowerSync local SQLite.
 
   MomentDetailsProvider call(String momentId) =>
       MomentDetailsProvider._(argument: momentId, from: this);
@@ -368,14 +359,12 @@ final class MomentDetailsFamily extends $Family
   String toString() => r'momentDetailsProvider';
 }
 
-/// Realtime stream of reactions for a specific moment
-/// Used by MomentDetailsPage for instant reaction updates
+/// Realtime stream of reactions for a specific moment from PowerSync local SQLite.
 
 @ProviderFor(reactionsForMoment)
 const reactionsForMomentProvider = ReactionsForMomentFamily._();
 
-/// Realtime stream of reactions for a specific moment
-/// Used by MomentDetailsPage for instant reaction updates
+/// Realtime stream of reactions for a specific moment from PowerSync local SQLite.
 
 final class ReactionsForMomentProvider
     extends
@@ -387,8 +376,7 @@ final class ReactionsForMomentProvider
     with
         $FutureModifier<List<MomentReaction>>,
         $StreamProvider<List<MomentReaction>> {
-  /// Realtime stream of reactions for a specific moment
-  /// Used by MomentDetailsPage for instant reaction updates
+  /// Realtime stream of reactions for a specific moment from PowerSync local SQLite.
   const ReactionsForMomentProvider._({
     required ReactionsForMomentFamily super.from,
     required String super.argument,
@@ -434,10 +422,9 @@ final class ReactionsForMomentProvider
 }
 
 String _$reactionsForMomentHash() =>
-    r'da72aba8a4fcf323eb057bf5377dc2e58d556ebf';
+    r'5aacf074fcbce50b793af5b089fba1e930c4f04d';
 
-/// Realtime stream of reactions for a specific moment
-/// Used by MomentDetailsPage for instant reaction updates
+/// Realtime stream of reactions for a specific moment from PowerSync local SQLite.
 
 final class ReactionsForMomentFamily extends $Family
     with $FunctionalFamilyOverride<Stream<List<MomentReaction>>, String> {
@@ -450,8 +437,7 @@ final class ReactionsForMomentFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Realtime stream of reactions for a specific moment
-  /// Used by MomentDetailsPage for instant reaction updates
+  /// Realtime stream of reactions for a specific moment from PowerSync local SQLite.
 
   ReactionsForMomentProvider call(String momentId) =>
       ReactionsForMomentProvider._(argument: momentId, from: this);

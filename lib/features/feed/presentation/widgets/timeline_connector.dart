@@ -9,13 +9,55 @@ class TimelineConnector extends StatelessWidget {
     super.key,
     required this.child,
     this.isLast = false,
+    this.quietMode = true,
+    this.accentColor = AppTheme.coralPink,
   });
 
   final Widget child;
   final bool isLast;
+  final bool quietMode;
+  final Color accentColor;
 
   @override
   Widget build(BuildContext context) {
+    if (quietMode) {
+      return IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 20,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 25),
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accentColor.withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ),
+                  if (!isLast)
+                    Expanded(
+                      child: Container(
+                        width: 1,
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        color: AppTheme.borderGray.withValues(alpha: 0.55),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: child),
+          ],
+        ),
+      );
+    }
+
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -31,7 +73,7 @@ class TimelineConnector extends StatelessWidget {
                   child: Icon(
                     Icons.favorite,
                     size: 12,
-                    color: AppTheme.coralPink.withValues(alpha: 0.55),
+                    color: accentColor.withValues(alpha: 0.55),
                   ),
                 ),
                 // Hand-drawn dashed line (if not last)
@@ -39,7 +81,7 @@ class TimelineConnector extends StatelessWidget {
                   Expanded(
                     child: CustomPaint(
                       painter: _ScrapbookDashedLinePainter(
-                        color: AppTheme.coralPink.withValues(alpha: 0.22),
+                        color: accentColor.withValues(alpha: 0.22),
                       ),
                     ),
                   ),

@@ -1,10 +1,11 @@
+import 'package:chat_bubbles/chat_bubbles.dart' as cb;
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:progress_indicator_m3e/progress_indicator_m3e.dart';
 
-// 1. The Widget
 class ImageMessageBubble extends StatelessWidget {
   final Message message;
   final bool isMe;
@@ -17,26 +18,31 @@ class ImageMessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        // 2. The ClipPath uses your specific path logic to cut the image
-        child: ClipPath(
-          clipper: BubbleClipper(isSender: isMe, tail: true),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 250, maxHeight: 300),
-            // We add a background color so the "bubble" shape is visible
-            // even while the image is loading or if it has transparency.
-            color: Colors.grey[300],
-            child: _buildImage(),
-          ),
-        ),
-      ),
+    final status = _statusFromSendStatus(message.sendStatus);
+
+    return cb.BubbleNormalImage(
+      id: 'image_${message.id}',
+      image: _buildImage(),
+      isSender: isMe,
+      color: isMe ? AppTheme.primaryBlue : Colors.white,
+      tail: true,
+      sent: status.sent,
+      delivered: status.delivered,
+      seen: status.seen,
+      timestamp: MaterialLocalizations.of(
+        context,
+      ).formatTimeOfDay(TimeOfDay.fromDateTime(message.createdAt)),
+      messageId: message.id,
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
     );
   }
 
   Widget _buildImage() {
+    final media = SizedBox(width: 220, height: 260, child: _buildImageInner());
+    return ClipRRect(borderRadius: BorderRadius.circular(10), child: media);
+  }
+
+  Widget _buildImageInner() {
     if (message.localMediaPath != null &&
         File(message.localMediaPath!).existsSync()) {
       return _buildAspectRatioAwareImage(
@@ -91,88 +97,47 @@ class ImageMessageBubble extends StatelessWidget {
 
     return SizedBox(width: 200, height: 200, child: imageWidget);
   }
-}
 
-// 3. The Custom Clipper
-// This wraps your _getBubblePath logic into a Clipper format
-class BubbleClipper extends CustomClipper<Path> {
-  final bool isSender;
-  final bool tail;
-
-  BubbleClipper({required this.isSender, required this.tail});
-
-  @override
-  Path getClip(Size size) {
-    // Convert boolean to Alignment to match your existing logic
-    final alignment = isSender ? Alignment.topRight : Alignment.topLeft;
-    return _getBubblePath(size, alignment, tail);
-  }
-
-  @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-}
-
-// 4. Your Exact Path Logic (Unchanged)
-Path _getBubblePath(Size size, Alignment alignment, bool tail) {
-  var h = size.height;
-  var w = size.width;
-  final double _radius = 10.0;
-  var path = Path();
-
-  if (alignment == Alignment.topRight) {
-    if (tail) {
-      path.moveTo(_radius * 2, 0);
-      path.quadraticBezierTo(0, 0, 0, _radius * 1.5);
-      path.lineTo(0, h - _radius * 1.5);
-      path.quadraticBezierTo(0, h, _radius * 2, h);
-      path.lineTo(w - _radius * 3, h);
-      path.quadraticBezierTo(
-        w - _radius * 1.5,
-        h,
-        w - _radius * 1.5,
-        h - _radius * 0.6,
-      );
-      path.quadraticBezierTo(w - _radius * 1, h, w, h);
-      path.quadraticBezierTo(
-        w - _radius * 0.8,
-        h,
-        w - _radius,
-        h - _radius * 1.5,
-      );
-      path.lineTo(w - _radius, _radius * 1.5);
-      path.quadraticBezierTo(w - _radius, 0, w - _radius * 3, 0);
-    } else {
-      path.moveTo(_radius * 2, 0);
-      path.quadraticBezierTo(0, 0, 0, _radius * 1.5);
-      path.lineTo(0, h - _radius * 1.5);
-      path.quadraticBezierTo(0, h, _radius * 2, h);
-      path.lineTo(w - _radius * 3, h);
-      path.quadraticBezierTo(w - _radius, h, w - _radius, h - _radius * 1.5);
-      path.lineTo(w - _radius, _radius * 1.5);
-      path.quadraticBezierTo(w - _radius, 0, w - _radius * 3, 0);
-    }
-  } else {
-    if (tail) {
-      path.moveTo(_radius * 3, 0);
-      path.quadraticBezierTo(_radius, 0, _radius, _radius * 1.5);
-      path.lineTo(_radius, h - _radius * 1.5);
-      path.quadraticBezierTo(_radius * .8, h, 0, h);
-      path.quadraticBezierTo(_radius * 1, h, _radius * 1.5, h - _radius * 0.6);
-      path.quadraticBezierTo(_radius * 1.5, h, _radius * 3, h);
-      path.lineTo(w - _radius * 2, h);
-      path.quadraticBezierTo(w, h, w, h - _radius * 1.5);
-      path.lineTo(w, _radius * 1.5);
-      path.quadraticBezierTo(w, 0, w - _radius * 2, 0);
-    } else {
-      path.moveTo(_radius * 3, 0);
-      path.quadraticBezierTo(_radius, 0, _radius, _radius * 1.5);
-      path.lineTo(_radius, h - _radius * 1.5);
-      path.quadraticBezierTo(_radius, h, _radius * 3, h);
-      path.lineTo(w - _radius * 2, h);
-      path.quadraticBezierTo(w, h, w, h - _radius * 1.5);
-      path.lineTo(w, _radius * 1.5);
-      path.quadraticBezierTo(w, 0, w - _radius * 2, 0);
+  _MessageStatusFlags _statusFromSendStatus(MessageSendStatus status) {
+    switch (status) {
+      case MessageSendStatus.read:
+        return const _MessageStatusFlags(
+          sent: true,
+          delivered: true,
+          seen: true,
+        );
+      case MessageSendStatus.delivered:
+        return const _MessageStatusFlags(
+          sent: true,
+          delivered: true,
+          seen: false,
+        );
+      case MessageSendStatus.sent:
+        return const _MessageStatusFlags(
+          sent: true,
+          delivered: false,
+          seen: false,
+        );
+      case MessageSendStatus.pending:
+      case MessageSendStatus.sending:
+      case MessageSendStatus.failed:
+        return const _MessageStatusFlags(
+          sent: false,
+          delivered: false,
+          seen: false,
+        );
     }
   }
-  return path;
+}
+
+class _MessageStatusFlags {
+  final bool sent;
+  final bool delivered;
+  final bool seen;
+
+  const _MessageStatusFlags({
+    required this.sent,
+    required this.delivered,
+    required this.seen,
+  });
 }

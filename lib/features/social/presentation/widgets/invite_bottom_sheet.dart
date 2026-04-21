@@ -143,7 +143,7 @@ class _InviteBottomSheetState extends ConsumerState<InviteBottomSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppTheme.textSecondary,
+                color: Colors.grey.shade300,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),

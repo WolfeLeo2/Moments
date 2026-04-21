@@ -38,6 +38,7 @@ class _StoryViewerPageState extends ConsumerState<StoryViewerPage>
 
   late AnimationController _progressController;
   bool _isPaused = false;
+  bool _shouldRefreshStories = false;
 
   @override
   void initState() {
@@ -64,6 +65,9 @@ class _StoryViewerPageState extends ConsumerState<StoryViewerPage>
 
   @override
   void dispose() {
+    if (_shouldRefreshStories) {
+      ref.read(storiesRefreshSignalProvider.notifier).bump();
+    }
     _progressController.dispose();
     _groupPageController.dispose();
     super.dispose();
@@ -83,6 +87,7 @@ class _StoryViewerPageState extends ConsumerState<StoryViewerPage>
   void _markCurrentViewed() {
     final story = _currentStory;
     ref.read(storyRepositoryProvider).markViewed(story.id);
+    _shouldRefreshStories = true;
   }
 
   // ── Navigation ────────────────────────────────────────────────
@@ -187,8 +192,7 @@ class _StoryViewerPageState extends ConsumerState<StoryViewerPage>
   Widget build(BuildContext context) {
     final story = _currentStory;
     final group = _currentGroup;
-    final isOwn =
-        group.userId == Supabase.instance.client.auth.currentUser?.id;
+    final isOwn = group.userId == Supabase.instance.client.auth.currentUser?.id;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -356,11 +360,7 @@ class _StoryViewerPageState extends ConsumerState<StoryViewerPage>
         errorWidget: (_, __, ___) => Container(
           color: Colors.grey.shade900,
           child: const Center(
-            child: Icon(
-              CupertinoIcons.photo,
-              color: Colors.white38,
-              size: 48,
-            ),
+            child: Icon(CupertinoIcons.photo, color: Colors.white38, size: 48),
           ),
         ),
       );
@@ -381,10 +381,7 @@ class _StoryViewerPageState extends ConsumerState<StoryViewerPage>
             const SizedBox(height: 8),
             Text(
               'Video',
-              style: GoogleFonts.inter(
-                color: Colors.white54,
-                fontSize: 14,
-              ),
+              style: GoogleFonts.inter(color: Colors.white54, fontSize: 14),
             ),
           ],
         ),
@@ -397,11 +394,7 @@ class _StoryViewerPageState extends ConsumerState<StoryViewerPage>
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          AvatarImage(
-            userId: group.userId,
-            size: 36,
-            borderWidth: 0,
-          ),
+          AvatarImage(userId: group.userId, size: 36, borderWidth: 0),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -417,10 +410,7 @@ class _StoryViewerPageState extends ConsumerState<StoryViewerPage>
                 ),
                 Text(
                   _timeAgo(story.createdAt),
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: Colors.white70,
-                  ),
+                  style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
                 ),
               ],
             ),
@@ -469,7 +459,7 @@ class _StoryViewerPageState extends ConsumerState<StoryViewerPage>
             onPressed: () async {
               Navigator.pop(ctx);
               await ref.read(storyRepositoryProvider).deleteStory(story.id);
-              ref.invalidate(friendsStoriesProvider);
+              ref.read(storiesRefreshSignalProvider.notifier).bump();
               if (mounted) Navigator.pop(context);
             },
             child: const Text('Delete'),

@@ -115,14 +115,14 @@ final class ChatRepositoryProvider
   }
 }
 
-String _$chatRepositoryHash() => r'2ecd2db14e3b6671096ffde4dc923218b68b78c5';
+String _$chatRepositoryHash() => r'f4671781f2878a3bdee593e145b6af6c24b86608';
 
-/// Stream messages for a specific conversation with Drift reactive storage
+/// Stream messages for a specific conversation from PowerSync local SQLite
 
 @ProviderFor(messagesStream)
 const messagesStreamProvider = MessagesStreamFamily._();
 
-/// Stream messages for a specific conversation with Drift reactive storage
+/// Stream messages for a specific conversation from PowerSync local SQLite
 
 final class MessagesStreamProvider
     extends
@@ -132,14 +132,14 @@ final class MessagesStreamProvider
           Stream<List<Message>>
         >
     with $FutureModifier<List<Message>>, $StreamProvider<List<Message>> {
-  /// Stream messages for a specific conversation with Drift reactive storage
+  /// Stream messages for a specific conversation from PowerSync local SQLite
   const MessagesStreamProvider._({
     required MessagesStreamFamily super.from,
     required String super.argument,
   }) : super(
          retry: null,
          name: r'messagesStreamProvider',
-         isAutoDispose: false,
+         isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -177,9 +177,9 @@ final class MessagesStreamProvider
   }
 }
 
-String _$messagesStreamHash() => r'e4fa242c5b724039426b8adf04a68471cf95bf8f';
+String _$messagesStreamHash() => r'44f791c9fa1faa66f7e1aaf1400d553f073c6947';
 
-/// Stream messages for a specific conversation with Drift reactive storage
+/// Stream messages for a specific conversation from PowerSync local SQLite
 
 final class MessagesStreamFamily extends $Family
     with $FunctionalFamilyOverride<Stream<List<Message>>, String> {
@@ -189,10 +189,10 @@ final class MessagesStreamFamily extends $Family
         name: r'messagesStreamProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: false,
+        isAutoDispose: true,
       );
 
-  /// Stream messages for a specific conversation with Drift reactive storage
+  /// Stream messages for a specific conversation from PowerSync local SQLite
 
   MessagesStreamProvider call(String conversationId) =>
       MessagesStreamProvider._(argument: conversationId, from: this);
@@ -201,21 +201,18 @@ final class MessagesStreamFamily extends $Family
   String toString() => r'messagesStreamProvider';
 }
 
-/// Get last message for a conversation
-/// First checks Drift for instant display, then validates with Supabase
+/// Get last message for a conversation from PowerSync local SQLite
 
 @ProviderFor(lastMessage)
 const lastMessageProvider = LastMessageFamily._();
 
-/// Get last message for a conversation
-/// First checks Drift for instant display, then validates with Supabase
+/// Get last message for a conversation from PowerSync local SQLite
 
 final class LastMessageProvider
     extends
         $FunctionalProvider<AsyncValue<Message?>, Message?, FutureOr<Message?>>
     with $FutureModifier<Message?>, $FutureProvider<Message?> {
-  /// Get last message for a conversation
-  /// First checks Drift for instant display, then validates with Supabase
+  /// Get last message for a conversation from PowerSync local SQLite
   const LastMessageProvider._({
     required LastMessageFamily super.from,
     required String super.argument,
@@ -259,10 +256,9 @@ final class LastMessageProvider
   }
 }
 
-String _$lastMessageHash() => r'90aed548dae1689f1347b850d2e87672f407f45e';
+String _$lastMessageHash() => r'f1aa29b9d8c4fde659678df41d9fefb15a3b0573';
 
-/// Get last message for a conversation
-/// First checks Drift for instant display, then validates with Supabase
+/// Get last message for a conversation from PowerSync local SQLite
 
 final class LastMessageFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<Message?>, String> {
@@ -275,8 +271,7 @@ final class LastMessageFamily extends $Family
         isAutoDispose: false,
       );
 
-  /// Get last message for a conversation
-  /// First checks Drift for instant display, then validates with Supabase
+  /// Get last message for a conversation from PowerSync local SQLite
 
   LastMessageProvider call(String conversationId) =>
       LastMessageProvider._(argument: conversationId, from: this);
@@ -373,14 +368,12 @@ final class ConversationIdFamily extends $Family
   String toString() => r'conversationIdProvider';
 }
 
-/// Get all recent messages for all conversations
-/// This is optimized to fetch all at once instead of N+1 requests
+/// Get all recent messages for all conversations from PowerSync local SQLite
 
 @ProviderFor(recentMessages)
 const recentMessagesProvider = RecentMessagesProvider._();
 
-/// Get all recent messages for all conversations
-/// This is optimized to fetch all at once instead of N+1 requests
+/// Get all recent messages for all conversations from PowerSync local SQLite
 
 final class RecentMessagesProvider
     extends
@@ -392,8 +385,7 @@ final class RecentMessagesProvider
     with
         $FutureModifier<Map<String, Message>>,
         $FutureProvider<Map<String, Message>> {
-  /// Get all recent messages for all conversations
-  /// This is optimized to fetch all at once instead of N+1 requests
+  /// Get all recent messages for all conversations from PowerSync local SQLite
   const RecentMessagesProvider._()
     : super(
         from: null,
@@ -420,7 +412,7 @@ final class RecentMessagesProvider
   }
 }
 
-String _$recentMessagesHash() => r'2718cffbeb17ea8f66e40ecbbf1e5d04389a6b45';
+String _$recentMessagesHash() => r'02c7e0389cd38071117949a29433a4c7d53307fa';
 
 /// Show send button state for each conversation
 
@@ -737,16 +729,12 @@ abstract class _$IsRecording extends $Notifier<bool> {
   }
 }
 
-/// Get list of recent conversations with details (Realtime)
-/// Yields cached data immediately for instant UI, then updates with fresh data.
-/// When offline, the cached layer alone is enough for a usable chat list.
+/// Get list of recent conversations with details from PowerSync local SQLite
 
 @ProviderFor(chatList)
 const chatListProvider = ChatListProvider._();
 
-/// Get list of recent conversations with details (Realtime)
-/// Yields cached data immediately for instant UI, then updates with fresh data.
-/// When offline, the cached layer alone is enough for a usable chat list.
+/// Get list of recent conversations with details from PowerSync local SQLite
 
 final class ChatListProvider
     extends
@@ -758,16 +746,14 @@ final class ChatListProvider
     with
         $FutureModifier<List<Map<String, dynamic>>>,
         $StreamProvider<List<Map<String, dynamic>>> {
-  /// Get list of recent conversations with details (Realtime)
-  /// Yields cached data immediately for instant UI, then updates with fresh data.
-  /// When offline, the cached layer alone is enough for a usable chat list.
+  /// Get list of recent conversations with details from PowerSync local SQLite
   const ChatListProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
         name: r'chatListProvider',
-        isAutoDispose: false,
+        isAutoDispose: true,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -787,20 +773,20 @@ final class ChatListProvider
   }
 }
 
-String _$chatListHash() => r'11c890423df4cc3de140b10ac2be4f7583d9d959';
+String _$chatListHash() => r'05ac30b80a8462f27b883323ea554791e5cf3745';
 
 /// Offline-first mark conversation as read
-/// Updates local database immediately, then syncs to server in background
+/// Updates local database immediately and relies on PowerSync upload queue
 
 @ProviderFor(MarkAsReadAction)
 const markAsReadActionProvider = MarkAsReadActionProvider._();
 
 /// Offline-first mark conversation as read
-/// Updates local database immediately, then syncs to server in background
+/// Updates local database immediately and relies on PowerSync upload queue
 final class MarkAsReadActionProvider
     extends $AsyncNotifierProvider<MarkAsReadAction, void> {
   /// Offline-first mark conversation as read
-  /// Updates local database immediately, then syncs to server in background
+  /// Updates local database immediately and relies on PowerSync upload queue
   const MarkAsReadActionProvider._()
     : super(
         from: null,
@@ -820,10 +806,10 @@ final class MarkAsReadActionProvider
   MarkAsReadAction create() => MarkAsReadAction();
 }
 
-String _$markAsReadActionHash() => r'3f618d54816a335321534ead1609018e9c2a49fa';
+String _$markAsReadActionHash() => r'ea2af87800bb7b6d2e30cc2d34426431e30bf9b8';
 
 /// Offline-first mark conversation as read
-/// Updates local database immediately, then syncs to server in background
+/// Updates local database immediately and relies on PowerSync upload queue
 
 abstract class _$MarkAsReadAction extends $AsyncNotifier<void> {
   FutureOr<void> build();

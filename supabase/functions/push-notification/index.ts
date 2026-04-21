@@ -1,6 +1,11 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { JWT } from 'npm:google-auth-library@9'
-import serviceAccount from './service-account.json' with { type: 'json' }
+
+interface FirebaseServiceAccount {
+  project_id: string
+  client_email: string
+  private_key: string
+}
 
 interface NotificationRecord {
   user_id: string
@@ -32,7 +37,44 @@ interface FCMError {
   }
 }
 
+function loadServiceAccount(): FirebaseServiceAccount | null {
+  const raw =
+    Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON') ??
+    Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+
+  if (!raw) {
+    console.error('Missing FIREBASE_SERVICE_ACCOUNT_JSON secret')
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as FirebaseServiceAccount
+
+    if (!parsed.client_email || !parsed.private_key || !parsed.project_id) {
+      console.error('FIREBASE_SERVICE_ACCOUNT_JSON is missing required fields')
+      return null
+    }
+
+    return {
+      project_id: parsed.project_id,
+      client_email: parsed.client_email,
+      // Secrets managers often store newlines as escaped \n.
+      private_key: parsed.private_key.replace(/\\n/g, '\n'),
+    }
+  } catch (error) {
+    console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON', error)
+    return null
+  }
+}
+
 Deno.serve(async (req) => {
+  const serviceAccount = loadServiceAccount()
+  if (!serviceAccount) {
+    return new Response('Firebase service account is not configured', {
+      status: 500,
+    })
+  }
+
   const payload: WebhookPayload = await req.json()
   const { record } = payload
 

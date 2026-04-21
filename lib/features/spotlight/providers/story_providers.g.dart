@@ -49,20 +49,84 @@ final class StoryRepositoryProvider
   }
 }
 
-String _$storyRepositoryHash() => r'7020e0e71a7d041f9558434071d2708ef4402329';
+String _$storyRepositoryHash() => r'acad042ba42b6f6cd79829778bfe567680e612a7';
+
+/// Explicit refresh signal for stories.
+/// Bumped by bounded app events (post/delete/view lifecycle), not timers.
+
+@ProviderFor(StoriesRefreshSignal)
+const storiesRefreshSignalProvider = StoriesRefreshSignalProvider._();
+
+/// Explicit refresh signal for stories.
+/// Bumped by bounded app events (post/delete/view lifecycle), not timers.
+final class StoriesRefreshSignalProvider
+    extends $NotifierProvider<StoriesRefreshSignal, int> {
+  /// Explicit refresh signal for stories.
+  /// Bumped by bounded app events (post/delete/view lifecycle), not timers.
+  const StoriesRefreshSignalProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'storiesRefreshSignalProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$storiesRefreshSignalHash();
+
+  @$internal
+  @override
+  StoriesRefreshSignal create() => StoriesRefreshSignal();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(int value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<int>(value),
+    );
+  }
+}
+
+String _$storiesRefreshSignalHash() =>
+    r'47bc4419e7fd6b9b896391a74adc778f7b2e2f8b';
+
+/// Explicit refresh signal for stories.
+/// Bumped by bounded app events (post/delete/view lifecycle), not timers.
+
+abstract class _$StoriesRefreshSignal extends $Notifier<int> {
+  int build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final created = build();
+    final ref = this.ref as $Ref<int, int>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<int, int>,
+              int,
+              Object?,
+              Object?
+            >;
+    element.handleValue(ref, created);
+  }
+}
 
 /// Fetches all active stories from friends, grouped by user.
-/// Auto-refreshes every 30 seconds.
+/// Refreshes explicitly via [storiesRefreshSignalProvider].
 
 @ProviderFor(FriendsStories)
 const friendsStoriesProvider = FriendsStoriesProvider._();
 
 /// Fetches all active stories from friends, grouped by user.
-/// Auto-refreshes every 30 seconds.
+/// Refreshes explicitly via [storiesRefreshSignalProvider].
 final class FriendsStoriesProvider
     extends $AsyncNotifierProvider<FriendsStories, List<StoryGroup>> {
   /// Fetches all active stories from friends, grouped by user.
-  /// Auto-refreshes every 30 seconds.
+  /// Refreshes explicitly via [storiesRefreshSignalProvider].
   const FriendsStoriesProvider._()
     : super(
         from: null,
@@ -82,10 +146,10 @@ final class FriendsStoriesProvider
   FriendsStories create() => FriendsStories();
 }
 
-String _$friendsStoriesHash() => r'b9f5f2b42cc6879f69d50d54991354881c17b039';
+String _$friendsStoriesHash() => r'd2b09d1ef06e659d3ef9ada4ee0bbc162af931ea';
 
 /// Fetches all active stories from friends, grouped by user.
-/// Auto-refreshes every 30 seconds.
+/// Refreshes explicitly via [storiesRefreshSignalProvider].
 
 abstract class _$FriendsStories extends $AsyncNotifier<List<StoryGroup>> {
   FutureOr<List<StoryGroup>> build();

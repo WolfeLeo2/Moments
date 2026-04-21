@@ -1,3 +1,4 @@
+import 'package:chat_bubbles/chat_bubbles.dart' as cb;
 import 'dart:io';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
@@ -5,12 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/features/chat/providers/media_cache_provider.dart';
-import 'package:moments/features/chat/widgets/custom_media_bubble.dart';
 import 'package:video_player/video_player.dart';
 import 'package:moments/core/services/app_logger.dart';
 
-
 final _log = AppLogger('VideoMessage');
+
 class VideoMessageBubble extends ConsumerStatefulWidget {
   final Message message;
   final bool isMe;
@@ -103,24 +103,81 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
 
   @override
   Widget build(BuildContext context) {
-    return CustomMediaBubble(
+    final status = _statusFromSendStatus(widget.message.sendStatus);
+
+    return cb.BubbleNormalImage(
+      id: 'video_${widget.message.id}',
       isSender: widget.isMe,
       color: widget.isMe ? AppTheme.primaryBlue : Colors.white,
       tail: true,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 250, maxHeight: 300),
-        child: _isInitialized
-            ? AspectRatio(
-                aspectRatio: _videoPlayerController!.value.aspectRatio,
-                child: Chewie(controller: _chewieController!),
-              )
-            : Container(
-                width: 200,
-                height: 200,
-                color: Colors.black,
-                child: const Center(child: CircularProgressIndicator()),
-              ),
+      sent: status.sent,
+      delivered: status.delivered,
+      seen: status.seen,
+      timestamp: MaterialLocalizations.of(
+        context,
+      ).formatTimeOfDay(TimeOfDay.fromDateTime(widget.message.createdAt)),
+      messageId: widget.message.id,
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+      image: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 250, maxHeight: 300),
+          child: _isInitialized
+              ? AspectRatio(
+                  aspectRatio: _videoPlayerController!.value.aspectRatio,
+                  child: Chewie(controller: _chewieController!),
+                )
+              : Container(
+                  width: 220,
+                  height: 220,
+                  color: Colors.black,
+                  child: const Center(child: CircularProgressIndicator()),
+                ),
+        ),
       ),
     );
   }
+
+  _MessageStatusFlags _statusFromSendStatus(MessageSendStatus status) {
+    switch (status) {
+      case MessageSendStatus.read:
+        return const _MessageStatusFlags(
+          sent: true,
+          delivered: true,
+          seen: true,
+        );
+      case MessageSendStatus.delivered:
+        return const _MessageStatusFlags(
+          sent: true,
+          delivered: true,
+          seen: false,
+        );
+      case MessageSendStatus.sent:
+        return const _MessageStatusFlags(
+          sent: true,
+          delivered: false,
+          seen: false,
+        );
+      case MessageSendStatus.pending:
+      case MessageSendStatus.sending:
+      case MessageSendStatus.failed:
+        return const _MessageStatusFlags(
+          sent: false,
+          delivered: false,
+          seen: false,
+        );
+    }
+  }
+}
+
+class _MessageStatusFlags {
+  final bool sent;
+  final bool delivered;
+  final bool seen;
+
+  const _MessageStatusFlags({
+    required this.sent,
+    required this.delivered,
+    required this.seen,
+  });
 }

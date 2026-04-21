@@ -5,16 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../core/theme/app_theme.dart';
-
 import '../../core/providers/moments_providers.dart';
 import '../../core/providers/providers.dart';
 import '../../core/providers/sync_provider.dart';
-import '../../data/repositories/social_repository.dart';
 import '../moments/presentation/year_in_review_page.dart';
 import 'package:moments/features/profile/collaborating_moments_page.dart';
 import 'package:moments/widgets/avatar_image.dart';
-import 'package:moments/features/mapv2/presentation/map_style_picker_page.dart';
-import 'package:moments/core/services/chat_offline_service.dart';
+import 'package:moments/core/services/chat_mutation_service.dart';
 import 'notification_settings_page.dart';
 import 'storage_cache_page.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -250,20 +247,6 @@ class ProfilePage extends ConsumerWidget {
 
             _buildSettingsTile(
               context: context,
-              icon: HugeIcons.strokeRoundedMapsLocation01,
-              title: 'Map Style',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const MapStylePickerPage(),
-                  ),
-                );
-              },
-            ),
-
-            _buildSettingsTile(
-              context: context,
               icon: HugeIcons.strokeRoundedUserGroup,
               title: 'Shared Moments',
               onTap: () {
@@ -337,7 +320,7 @@ class ProfilePage extends ConsumerWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () async {
-                  ref.read(chatOfflineServiceProvider).stop();
+                  ref.read(chatMutationServiceProvider).stop();
                   await authService.signOut();
 
                   // Navigate to LoginPage

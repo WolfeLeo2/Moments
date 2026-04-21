@@ -1,10 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/navigation/presentation/main_scaffold.dart';
 import '../../features/moments/presentation/add_moment_page.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/auth/presentation/phone_verification_page.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../data/sources/supabase_config.dart';
+import '../services/auth_service.dart';
 import '../services/notification_navigator.dart';
 
 import '../../features/splash/presentation/splash_page.dart'; // Import SplashPage
@@ -17,12 +20,18 @@ class AppRouter {
   static const String momentDetailRoute = '/moment/:id';
   static const String addMomentRoute = '/add-moment';
 
+  static final _authService = AuthService(SupabaseConfig.client);
+  static final _authRefresh = _AuthRefreshListenable(
+    _authService.authStateChanges,
+  );
+
   static final GoRouter router = GoRouter(
     navigatorKey: NotificationNavigator.navigatorKey,
     initialLocation: splashRoute, // Start at splash
     debugLogDiagnostics: false,
+    refreshListenable: _authRefresh,
     redirect: (context, state) {
-      final isSignedIn = Supabase.instance.client.auth.currentUser != null;
+      final isSignedIn = _authService.isSignedIn;
       final isOnLoginPage = state.matchedLocation == loginRoute;
       final isOnSplashPage = state.matchedLocation == splashRoute;
       final isOnVerifyPhone = state.matchedLocation == verifyPhoneRoute;
@@ -42,12 +51,6 @@ class AppRouter {
       // Redirect to map if signed in and on login page
       if (isSignedIn && isOnLoginPage) {
         return mapRoute;
-      }
-
-      // Redirect to login if not signed in and not already on login page
-      // Note: If on verify phone page but not signed in, we should probably go to login
-      if (!isSignedIn && !isOnLoginPage) {
-        return loginRoute;
       }
 
       return null;
@@ -165,5 +168,21 @@ class AppRouter {
     );
 
     context.push(uri.toString());
+  }
+}
+
+class _AuthRefreshListenable extends ChangeNotifier {
+  _AuthRefreshListenable(Stream<dynamic> stream) {
+    _subscription = stream.asBroadcastStream().listen((_) {
+      notifyListeners();
+    });
+  }
+
+  late final StreamSubscription<dynamic> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
   }
 }

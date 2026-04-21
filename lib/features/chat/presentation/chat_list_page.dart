@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moments/core/theme/app_theme.dart';
@@ -64,20 +63,17 @@ class _ChatListPageState extends ConsumerState<ChatListPage>
         padding: const EdgeInsets.only(bottom: 80), // Space for floating dock
         child: FloatingActionButton.extended(
           onPressed: () => _openNewConversation(context),
-          label: Text(
-            "New Message",
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSecondaryContainer,
-            ),
-          ),
+          label: const Text("New Message"),
           elevation: 0,
           shape: RoundedSuperellipseBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(24),
           ),
-          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-          icon: HugeIcon(
+          backgroundColor: ColorScheme.fromSeed(
+            seedColor: AppTheme.primaryBlue,
+          ).primary,
+          icon: const HugeIcon(
             icon: HugeIcons.strokeRoundedMessageAdd02,
-            color: Theme.of(context).colorScheme.onSecondaryContainer,
+            color: Colors.white,
             size: 22,
           ),
         ),
@@ -90,14 +86,10 @@ class _ChatListPageState extends ConsumerState<ChatListPage>
         centerTitle: true,
         title: Text(
           'Messages',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontFamily: 'GoogleSansFlex',
-            fontWeight: FontWeight.w900,
-            fontVariations: const [
-              FontVariation('wght', 900),  
-            ],
+          style: GoogleFonts.inter(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
             color: AppTheme.textDark,
-            letterSpacing: -1.5,
           ),
         ),
         actions: [
@@ -134,17 +126,16 @@ class _ChatListPageState extends ConsumerState<ChatListPage>
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: TextField(
-              autofocus: false,
               controller: _searchController,
               onChanged: (value) {
                 setState(() => _searchQuery = value.toLowerCase());
               },
               decoration: InputDecoration(
                 hintText: 'Search conversations...',
-                hintStyle: TextStyle(color: AppTheme.textSecondary),
-                prefixIcon: Icon(
-                  CupertinoIcons.search,
-                  color: AppTheme.textGray,
+                hintStyle: TextStyle(color: Colors.grey[500]),
+                prefixIcon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedSearch01,
+                  color: Colors.grey[600]!,
                   size: 20,
                 ),
                 suffixIcon: _searchQuery.isNotEmpty
@@ -160,11 +151,11 @@ class _ChatListPageState extends ConsumerState<ChatListPage>
                 fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppTheme.borderGray),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppTheme.borderGray),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),

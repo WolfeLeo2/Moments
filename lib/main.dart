@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -6,7 +8,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'core/services/firebase_messaging_service.dart';
 import 'core/services/notification_navigator.dart';
-import 'core/services/chat_offline_service.dart';
+import 'core/services/chat_mutation_service.dart';
 import 'core/services/giphy_service.dart';
 
 import 'core/theme/app_theme.dart';
@@ -15,6 +17,7 @@ import 'core/services/garbage_collection_service.dart';
 import 'data/sources/supabase_config.dart';
 import 'core/providers/providers.dart';
 import 'core/providers/database_provider.dart';
+import 'core/providers/powersync_provider.dart';
 import 'core/providers/router_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart'; // REQUIRED
@@ -78,8 +81,11 @@ class _MomentsRootAppState extends ConsumerState<MomentsRootApp> {
     // This loads cached avatars from database so they're ready immediately
     ref.read(avatarCacheServiceProvider).initialize();
 
-    // Start chat offline service for message retry and sync
-    ref.read(chatOfflineServiceProvider).start();
+    // Start chat mutation service for optimistic writes + PowerSync upload queue.
+    ref.read(chatMutationServiceProvider).start();
+
+    // Initialize the default PowerSync chat read path.
+    unawaited(ref.read(chatPowerSyncServiceProvider).ensureInitialized());
 
     // Initialize map tile caching (async, non-blocking)
     MapCacheService().initialize();

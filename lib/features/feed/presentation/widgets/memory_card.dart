@@ -14,10 +14,18 @@ import 'package:moments/features/feed/presentation/widgets/scrapbook_elements.da
 /// Features: polaroid border, washi tape, slight rotation, handwritten captions,
 /// location stamps, sticker decorations
 class MemoryCard extends StatefulWidget {
-  const MemoryCard({super.key, required this.moments, required this.onTap});
+  const MemoryCard({
+    super.key,
+    required this.moments,
+    required this.onTap,
+    this.quietMode = true,
+    this.accentColor = AppTheme.coralPink,
+  });
 
   final List<Moment> moments;
   final VoidCallback onTap;
+  final bool quietMode;
+  final Color accentColor;
 
   @override
   State<MemoryCard> createState() => _MemoryCardState();
@@ -66,8 +74,9 @@ class _MemoryCardState extends State<MemoryCard> {
       // If imageUrl is already set, use it directly
       if (moment.imageUrl != null && moment.imageUrl!.isNotEmpty) continue;
       // If we have a local file cached, skip signed URL generation
-      if (moment.localMediaPath != null && moment.localMediaPath!.isNotEmpty)
+      if (moment.localMediaPath != null && moment.localMediaPath!.isNotEmpty) {
         continue;
+      }
       // If mediaPath exists, we need a signed URL
       if (moment.mediaPath != null && moment.mediaPath!.isNotEmpty) {
         pathsToResolve.add(moment.mediaPath!);
@@ -116,7 +125,7 @@ class _MemoryCardState extends State<MemoryCard> {
       child: Padding(
         padding: const EdgeInsets.only(bottom: 20),
         child: Transform.rotate(
-          angle: _rotation,
+          angle: widget.quietMode ? 0 : _rotation,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
@@ -124,7 +133,7 @@ class _MemoryCardState extends State<MemoryCard> {
               _buildPolaroidCard(moment, timeOfDayTint),
 
               // Washi tape top-left
-              if (_showWashiTopLeft)
+              if (!widget.quietMode && _showWashiTopLeft)
                 Positioned(
                   top: -6,
                   left: 16,
@@ -136,7 +145,7 @@ class _MemoryCardState extends State<MemoryCard> {
                 ),
 
               // Washi tape top-right
-              if (_showWashiTopRight)
+              if (!widget.quietMode && _showWashiTopRight)
                 Positioned(
                   top: -5,
                   right: 20,
@@ -148,7 +157,7 @@ class _MemoryCardState extends State<MemoryCard> {
                 ),
 
               // Paper clip on right edge
-              if (_showPaperClip)
+              if (!widget.quietMode && _showPaperClip)
                 Positioned(
                   top: -8,
                   right: -4,
@@ -160,7 +169,7 @@ class _MemoryCardState extends State<MemoryCard> {
                 ),
 
               // Sticker near bottom-right
-              if (_showSticker)
+              if (!widget.quietMode && _showSticker)
                 Positioned(
                   bottom: 55,
                   right: 10,
@@ -172,16 +181,14 @@ class _MemoryCardState extends State<MemoryCard> {
                 ),
 
               // Location stamp (bottom-right, only on some cards)
-              if (_showStamp)
+              if (!widget.quietMode && _showStamp)
                 Positioned(
                   bottom: 8,
                   right: 8,
                   child: LocationStamp(
                     location: moment.location,
                     year: moment.timestamp.year,
-                    color: WashiTape.colorFromSeed(
-                      _washiColorSeed + 1,
-                    ).withValues(alpha: 0.5),
+                    color: widget.accentColor.withValues(alpha: 0.55),
                     size: 52,
                   ),
                 ),
@@ -197,16 +204,23 @@ class _MemoryCardState extends State<MemoryCard> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(widget.quietMode ? 12 : 6),
+        border: widget.quietMode
+            ? Border.all(color: AppTheme.borderGray.withValues(alpha: 0.45))
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
-            offset: const Offset(2, 4),
-            blurRadius: 12,
-            spreadRadius: 1,
+            color: Colors.black.withValues(
+              alpha: widget.quietMode ? 0.06 : 0.10,
+            ),
+            offset: Offset(0, widget.quietMode ? 3 : 4),
+            blurRadius: widget.quietMode ? 10 : 12,
+            spreadRadius: widget.quietMode ? 0 : 1,
           ),
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withValues(
+              alpha: widget.quietMode ? 0.02 : 0.04,
+            ),
             offset: const Offset(0, 1),
             blurRadius: 4,
           ),
@@ -230,20 +244,27 @@ class _MemoryCardState extends State<MemoryCard> {
                 // Location row
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.place,
                       size: 15,
-                      color: AppTheme.coralPink,
+                      color: widget.quietMode
+                          ? widget.accentColor
+                          : AppTheme.coralPink,
                     ),
                     const SizedBox(width: 5),
                     Expanded(
                       child: Text(
                         moment.location,
-                        style: GoogleFonts.rubik(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textDark,
-                        ),
+                        style:
+                            (widget.quietMode
+                            ? GoogleFonts.inter
+                            : GoogleFonts.rubik)(
+                              fontSize: 13,
+                              fontWeight: widget.quietMode
+                                  ? FontWeight.w500
+                                  : FontWeight.w600,
+                              color: AppTheme.textDark,
+                            ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -255,13 +276,18 @@ class _MemoryCardState extends State<MemoryCard> {
                 if (moment.caption != null && moment.caption!.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Text(
-                    '"${moment.caption!}"',
-                    style: GoogleFonts.caveat(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w500,
-                      color: AppTheme.textDark.withValues(alpha: 0.85),
-                      height: 1.3,
-                    ),
+                    widget.quietMode ? moment.caption! : '"${moment.caption!}"',
+                    style:
+                        (widget.quietMode
+                        ? GoogleFonts.inter
+                        : GoogleFonts.caveat)(
+                          fontSize: widget.quietMode ? 15 : 19,
+                          fontWeight: widget.quietMode
+                              ? FontWeight.w400
+                              : FontWeight.w500,
+                          color: AppTheme.textDark.withValues(alpha: 0.85),
+                          height: widget.quietMode ? 1.45 : 1.3,
+                        ),
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -272,11 +298,16 @@ class _MemoryCardState extends State<MemoryCard> {
                 // Date / relative time
                 Text(
                   AppTheme.formatRelativeTime(moment.timestamp),
-                  style: GoogleFonts.caveat(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w400,
-                    color: AppTheme.textGray,
-                  ),
+                  style:
+                      (widget.quietMode
+                      ? GoogleFonts.inter
+                      : GoogleFonts.caveat)(
+                        fontSize: widget.quietMode ? 12 : 15,
+                        fontWeight: widget.quietMode
+                            ? FontWeight.w500
+                            : FontWeight.w400,
+                        color: AppTheme.textGray,
+                      ),
                 ),
               ],
             ),
@@ -415,7 +446,10 @@ class _MemoryCardState extends State<MemoryCard> {
         ),
 
         // Time-of-day tint overlay
-        if (tint != Colors.transparent) Container(color: tint),
+        if (tint != Colors.transparent)
+          Container(
+            color: widget.quietMode ? tint.withValues(alpha: 0.45) : tint,
+          ),
       ],
     );
   }

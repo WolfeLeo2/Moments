@@ -4,9 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart';
 import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/providers/providers.dart';
-import 'package:moments/features/map/presentation/map_page_flutter_map.dart';
 import 'package:moments/features/mapv2/presentation/map_page_v2.dart';
-import 'package:moments/features/mapv2/providers/map_v2_providers.dart';
 import 'package:moments/features/spotlight/presentation/spotlight_page.dart';
 import 'package:moments/features/explore/presentation/explore_page.dart';
 import 'package:moments/features/chat/presentation/chat_list_page.dart';
@@ -56,7 +54,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
       body: BottomBar(
         borderRadius: BorderRadius.circular(500),
         duration: const Duration(milliseconds: 200),
-        width: MediaQuery.of(context).size.width * 0.6,
+        width: MediaQuery.of(context).size.width * 0.70,
         barColor: AppTheme.cardWhite,
         start: 2,
         end: 0,
@@ -72,20 +70,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
           controller: _tabController,
           physics: const NeverScrollableScrollPhysics(),
           children: [
-            // Map tab — use V2 (native Mapbox) when feature flag is on
+            // Map tab - native Mapbox only.
             _KeepAlivePage(
-              child: Consumer(
-                builder: (context, ref, _) {
-                  final useV2 = ref.watch(useMapV2Provider);
-                  if (useV2) {
-                    return MapPageV2(
-                      scrollController: _currentIndex == 0 ? controller : null,
-                    );
-                  }
-                  return MapPage(
-                    scrollController: _currentIndex == 0 ? controller : null,
-                  );
-                },
+              child: MapPageV2(
+                scrollController: _currentIndex == 0 ? controller : null,
               ),
             ),
             _KeepAlivePage(
@@ -106,7 +94,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
           child: TabBar(
             controller: _tabController,
             indicator: UnderlineTabIndicator(

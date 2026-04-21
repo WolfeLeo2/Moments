@@ -32,10 +32,7 @@ AuthService authService(Ref ref) {
 
 /// Social repository provider - singleton instance
 @Riverpod(keepAlive: true)
-SocialRepository socialRepository(Ref ref) {
-  final client = ref.watch(supabaseClientProvider);
-  return SocialRepository(client);
-}
+SocialRepository socialRepository(Ref ref) => SocialRepository();
 
 /// Notification repository provider - singleton instance
 @Riverpod(keepAlive: true)
@@ -63,7 +60,7 @@ AIService aiService(Ref ref) {
 // AUTH STATE
 // ============================================
 
-/// Current authenticated user — typed as User? for safety
+/// Current authenticated user
 @riverpod
 Stream<User?> currentUser(Ref ref) {
   final authService = ref.watch(authServiceProvider);
@@ -119,7 +116,7 @@ class NotificationsList extends _$NotificationsList {
     _log.d('build() called');
     _currentOffset = 0;
     _hasMore = true;
-    final repo = ref.watch(notificationRepositoryProvider);
+    final repo = ref.read(notificationRepositoryProvider);
     final notifications = await repo.getNotifications(
       limit: _pageSize,
       offset: 0,
@@ -205,8 +202,6 @@ class NotificationsList extends _$NotificationsList {
       final repo = ref.read(notificationRepositoryProvider);
       await repo.deleteNotification(notificationId);
       _log.d('DB delete completed for $notificationId');
-      // Force badge count refresh
-      ref.invalidate(notificationCountProvider);
     } catch (e, stack) {
       _log.e('Error deleting notification', error: e, stackTrace: stack);
       // Rollback on failure
@@ -235,8 +230,6 @@ class NotificationsList extends _$NotificationsList {
     try {
       final repo = ref.read(notificationRepositoryProvider);
       await repo.markAsRead(notificationId);
-      // Force badge count refresh
-      ref.invalidate(notificationCountProvider);
     } catch (e, stack) {
       _log.e('Error marking notification as read', error: e, stackTrace: stack);
       // Rollback on failure
@@ -281,8 +274,6 @@ class NotificationsList extends _$NotificationsList {
       _log.d('Batch marking all as read');
       await repo.markAllAsRead();
       _log.d('Successfully marked all as read in DB');
-      // Force badge count refresh so it drops to 0 immediately
-      ref.invalidate(notificationCountProvider);
     } catch (e, stack) {
       _log.e(
         'Error marking all as read, reverting optimistic update',
@@ -447,13 +438,13 @@ class FriendRequest extends _$FriendRequest {
 // ============================================
 
 /// Invalidate all friends-related caches
-void invalidateFriendsCache(Ref ref) {
+void invalidateFriendsCache(WidgetRef ref) {
   ref.invalidate(friendsListProvider);
   ref.invalidate(pendingRequestsProvider);
 }
 
 /// Invalidate profile cache
-void invalidateProfileCache(Ref ref) {
+void invalidateProfileCache(WidgetRef ref) {
   ref.invalidate(currentUserProfileProvider);
 }
 
@@ -466,25 +457,4 @@ void invalidateProfileCache(Ref ref) {
 MomentStorageService momentStorageService(Ref ref) {
   final db = ref.watch(appDatabaseProvider);
   return MomentStorageService(db);
-}
-
-// ============================================
-// DISMISSED NOTIFICATION IDS
-// ============================================
-
-/// Tracks which notification IDs have been dismissed (swiped away) in the
-/// current session. Using a keepAlive provider so dismissals survive page
-/// pops and re-pushes — unlike a Set on widget State.
-@Riverpod(keepAlive: true)
-class DismissedNotificationIds extends _$DismissedNotificationIds {
-  @override
-  Set<String> build() => {};
-
-  void add(String id) {
-    state = {...state, id};
-  }
-
-  void clear() {
-    state = {};
-  }
 }

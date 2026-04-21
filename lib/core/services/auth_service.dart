@@ -103,30 +103,6 @@ class AuthService {
     }
   }
 
-  /// Sign up with email and password
-  Future<AuthResponse> signUpWithEmail(
-    String email,
-    String password, {
-    String? displayName,
-  }) async {
-    try {
-      final response = await _supabase.auth.signUp(
-        email: email,
-        password: password,
-        data: displayName != null ? {'full_name': displayName} : null,
-      );
-
-      if (response.user != null) {
-        await _createOrUpdateProfile(response.user!);
-      }
-
-      return response;
-    } catch (e) {
-      _log.e('Error signing up with email', error: e);
-      rethrow;
-    }
-  }
-
   /// Sign out
   Future<void> signOut() async {
     try {

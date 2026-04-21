@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; // Falling back to GoogleFonts if Theme doesn't have custom font, but user said use Theme.
+import 'package:flutter/material.dart';// Falling back to GoogleFonts if Theme doesn't have custom font, but user said use Theme.
 import 'package:intl_phone_field/intl_phone_field.dart';
-import 'package:intl_phone_field/phone_number.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/services/app_logger.dart';

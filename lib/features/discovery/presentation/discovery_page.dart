@@ -130,7 +130,8 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
           child: IconButton(
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const NotificationsPage()),
+              MaterialPageRoute(
+                  builder: (_) => const NotificationsPage()),
             ),
             icon: const HugeIcon(
               icon: HugeIcons.strokeRoundedNotification01,
@@ -155,11 +156,9 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontFamily: 'GoogleSansFlex',
                     fontWeight: FontWeight.w500,
-                    color: AppTheme.textDark.withValues(alpha: 0.8),
+                    color: AppTheme.textDark.withValues(alpha:0.8),
                     letterSpacing: -0.5,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 widget.pullDownMenuItems != null
@@ -172,18 +171,17 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
                             children: [
                               Text(
                                 widget.viewLabel ?? 'DISCOVER',
-                                style: Theme.of(context).textTheme.headlineSmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w900,
-                                      fontFamily: 'GoogleSansFlex',
-                                      fontVariations: const [
-                                        FontVariation('wght', 900),
-                                        FontVariation('opsz', 12),
-                                      ],
-                                      color: AppTheme.textDark,
-                                      letterSpacing: -0.8,
-                                      height: 1.1,
-                                    ),
+                                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  fontFamily: 'GoogleSansFlex',
+                                  fontVariations: const [
+                                    FontVariation('wght', 900),
+                                    FontVariation('opsz', 12)
+                                  ],
+                                  color: AppTheme.textDark,
+                                  letterSpacing: -0.8,
+                                  height: 1.1,
+                                ),
                               ),
                               const SizedBox(width: 6),
                               Icon(
@@ -197,14 +195,13 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage>
                       )
                     : Text(
                         'DISCOVER',
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              fontFamily: 'GoogleSansFlex',
-                              color: AppTheme.textDark,
-                              letterSpacing: -0.8,
-                              height: 1.1,
-                            ),
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          fontFamily: 'GoogleSansFlex',
+                          color: AppTheme.textDark,
+                          letterSpacing: -0.8,
+                          height: 1.1,
+                        ),
                       ),
                 const SizedBox(height: 12),
               ],

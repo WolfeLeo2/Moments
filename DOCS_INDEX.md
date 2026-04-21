@@ -21,6 +21,21 @@ Welcome to the Moments app documentation! This index will help you navigate all 
 
 ---
 
+## 🆕 New Docs (2026-03-15)
+
+### PowerSync
+- [docs/powersync/sync-streams-primer.md](docs/powersync/sync-streams-primer.md)
+- [docs/powersync/sync-streams-for-current-schema.md](docs/powersync/sync-streams-for-current-schema.md)
+- [docs/powersync/offline-first-domain-rollout.md](docs/powersync/offline-first-domain-rollout.md)
+- [docs/powersync/chat-quick-win.md](docs/powersync/chat-quick-win.md)
+
+### Product
+- [docs/product/memory-lane-redesign-playbook.md](docs/product/memory-lane-redesign-playbook.md)
+- [docs/product/new-social-diary-features.md](docs/product/new-social-diary-features.md)
+- [docs/product/stories-strategy.md](docs/product/stories-strategy.md)
+
+---
+
 ## 📖 Document Reference
 
 ### 1. [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)

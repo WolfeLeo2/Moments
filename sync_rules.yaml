@@ -1,0 +1,67 @@
+# DEPRECATED reference file.
+# Canonical active PowerSync config is: powersync/sync-config.yaml
+# PowerSync Sync Rules (legacy format)
+# Source model validated against Supabase Moments MCP schema on 2026-03-15.
+# This draft is chat-first, with social/profile/notification support needed by chat UI.
+#
+# Note:
+# - Sync Streams is the newer PowerSync model, but this file follows sync_rules.yaml as requested.
+# - Keep server-side RLS as the source of truth; these queries scope what gets replicated.
+
+bucket_definitions:
+  user_identity:
+    parameters: SELECT request.user_id() AS user_id
+    data:
+      - SELECT * FROM profiles WHERE id = bucket.user_id
+
+  user_social_graph:
+    parameters: SELECT request.user_id() AS user_id
+    data:
+      - SELECT * FROM friendships WHERE user_id = bucket.user_id OR friend_id = bucket.user_id
+      - |
+        SELECT p.*
+        FROM profiles p
+        JOIN friendships f ON p.id = f.friend_id
+        WHERE f.user_id = bucket.user_id
+      - |
+        SELECT p.*
+        FROM profiles p
+        JOIN friendships f ON p.id = f.user_id
+        WHERE f.friend_id = bucket.user_id
+
+  user_chat:
+    parameters: SELECT request.user_id() AS user_id
+    data:
+      - SELECT * FROM conversation_participants WHERE user_id = bucket.user_id
+      - |
+        SELECT c.*
+        FROM conversations c
+        JOIN conversation_participants cp ON cp.conversation_id = c.id
+        WHERE cp.user_id = bucket.user_id
+      - |
+        SELECT m.*
+        FROM messages m
+        JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id
+        WHERE cp.user_id = bucket.user_id
+      - |
+        SELECT mr.*
+        FROM message_reactions mr
+        JOIN messages m ON m.id = mr.message_id
+        JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id
+        WHERE cp.user_id = bucket.user_id
+      - |
+        SELECT p.*
+        FROM profiles p
+        JOIN conversation_participants cp ON cp.user_id = p.id
+        JOIN conversation_participants me ON me.conversation_id = cp.conversation_id
+        WHERE me.user_id = bucket.user_id
+
+  user_notifications:
+    parameters: SELECT request.user_id() AS user_id
+    data:
+      - SELECT * FROM notifications WHERE user_id = bucket.user_id
+      - |
+        SELECT p.*
+        FROM profiles p
+        JOIN notifications n ON n.actor_id = p.id
+        WHERE n.user_id = bucket.user_id
