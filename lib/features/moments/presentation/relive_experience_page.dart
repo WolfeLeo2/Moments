@@ -6,7 +6,7 @@ import 'package:moments/core/theme/app_theme.dart';
 import 'package:moments/core/services/signed_url_cache.dart';
 import 'package:moments/core/services/haptic_service.dart';
 import 'package:moments/core/services/audio_note_service.dart';
-import 'package:moments/core/providers/database_provider.dart';
+import 'package:moments/core/services/moment_media_cache.dart';
 import 'package:moments/data/models/moment.dart';
 import 'package:moments/widgets/offline_image.dart';
 import 'package:moments/widgets/offline_video.dart';
@@ -122,11 +122,9 @@ class _ReliveExperiencePageState extends ConsumerState<ReliveExperiencePage>
   }
 
   Future<void> _loadImageUrls() async {
-    final db = ref.read(appDatabaseProvider);
-
     // Load local cached paths first
     for (final moment in widget.moments) {
-      final localPath = await db.getLocalMediaPath(moment.id);
+      final localPath = await MomentMediaCache.getLocalMediaPath(moment.id);
       if (localPath != null && mounted) {
         setState(() => _localPaths[moment.id] = localPath);
       }

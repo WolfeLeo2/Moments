@@ -11,7 +11,7 @@ part of 'media_cache_provider.dart';
 /// Provider for the media cache service (singleton with keepAlive)
 
 @ProviderFor(mediaCacheService)
-const mediaCacheServiceProvider = MediaCacheServiceProvider._();
+final mediaCacheServiceProvider = MediaCacheServiceProvider._();
 
 /// Provider for the media cache service (singleton with keepAlive)
 
@@ -24,7 +24,7 @@ final class MediaCacheServiceProvider
         >
     with $Provider<MediaCacheService> {
   /// Provider for the media cache service (singleton with keepAlive)
-  const MediaCacheServiceProvider._()
+  MediaCacheServiceProvider._()
     : super(
         from: null,
         argument: null,

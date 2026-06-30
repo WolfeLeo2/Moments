@@ -11,7 +11,7 @@ part of 'chat_mutation_service.dart';
 /// Provider for chat mutation service.
 
 @ProviderFor(chatMutationService)
-const chatMutationServiceProvider = ChatMutationServiceProvider._();
+final chatMutationServiceProvider = ChatMutationServiceProvider._();
 
 /// Provider for chat mutation service.
 
@@ -24,7 +24,7 @@ final class ChatMutationServiceProvider
         >
     with $Provider<ChatMutationService> {
   /// Provider for chat mutation service.
-  const ChatMutationServiceProvider._()
+  ChatMutationServiceProvider._()
     : super(
         from: null,
         argument: null,

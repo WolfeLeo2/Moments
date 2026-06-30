@@ -10,13 +10,13 @@ part of 'story_providers.dart';
 // ignore_for_file: type=lint, type=warning
 
 @ProviderFor(storyRepository)
-const storyRepositoryProvider = StoryRepositoryProvider._();
+final storyRepositoryProvider = StoryRepositoryProvider._();
 
 final class StoryRepositoryProvider
     extends
         $FunctionalProvider<StoryRepository, StoryRepository, StoryRepository>
     with $Provider<StoryRepository> {
-  const StoryRepositoryProvider._()
+  StoryRepositoryProvider._()
     : super(
         from: null,
         argument: null,
@@ -55,7 +55,7 @@ String _$storyRepositoryHash() => r'acad042ba42b6f6cd79829778bfe567680e612a7';
 /// Bumped by bounded app events (post/delete/view lifecycle), not timers.
 
 @ProviderFor(StoriesRefreshSignal)
-const storiesRefreshSignalProvider = StoriesRefreshSignalProvider._();
+final storiesRefreshSignalProvider = StoriesRefreshSignalProvider._();
 
 /// Explicit refresh signal for stories.
 /// Bumped by bounded app events (post/delete/view lifecycle), not timers.
@@ -63,7 +63,7 @@ final class StoriesRefreshSignalProvider
     extends $NotifierProvider<StoriesRefreshSignal, int> {
   /// Explicit refresh signal for stories.
   /// Bumped by bounded app events (post/delete/view lifecycle), not timers.
-  const StoriesRefreshSignalProvider._()
+  StoriesRefreshSignalProvider._()
     : super(
         from: null,
         argument: null,
@@ -100,8 +100,7 @@ abstract class _$StoriesRefreshSignal extends $Notifier<int> {
   int build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<int, int>;
     final element =
         ref.element
@@ -111,7 +110,7 @@ abstract class _$StoriesRefreshSignal extends $Notifier<int> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }
 
@@ -119,7 +118,7 @@ abstract class _$StoriesRefreshSignal extends $Notifier<int> {
 /// Refreshes explicitly via [storiesRefreshSignalProvider].
 
 @ProviderFor(FriendsStories)
-const friendsStoriesProvider = FriendsStoriesProvider._();
+final friendsStoriesProvider = FriendsStoriesProvider._();
 
 /// Fetches all active stories from friends, grouped by user.
 /// Refreshes explicitly via [storiesRefreshSignalProvider].
@@ -127,7 +126,7 @@ final class FriendsStoriesProvider
     extends $AsyncNotifierProvider<FriendsStories, List<StoryGroup>> {
   /// Fetches all active stories from friends, grouped by user.
   /// Refreshes explicitly via [storiesRefreshSignalProvider].
-  const FriendsStoriesProvider._()
+  FriendsStoriesProvider._()
     : super(
         from: null,
         argument: null,
@@ -155,8 +154,7 @@ abstract class _$FriendsStories extends $AsyncNotifier<List<StoryGroup>> {
   FutureOr<List<StoryGroup>> build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref =
         this.ref as $Ref<AsyncValue<List<StoryGroup>>, List<StoryGroup>>;
     final element =
@@ -167,14 +165,14 @@ abstract class _$FriendsStories extends $AsyncNotifier<List<StoryGroup>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }
 
 /// Fetch viewers of a specific story.
 
 @ProviderFor(storyViewers)
-const storyViewersProvider = StoryViewersFamily._();
+final storyViewersProvider = StoryViewersFamily._();
 
 /// Fetch viewers of a specific story.
 
@@ -189,7 +187,7 @@ final class StoryViewersProvider
         $FutureModifier<List<StoryViewer>>,
         $FutureProvider<List<StoryViewer>> {
   /// Fetch viewers of a specific story.
-  const StoryViewersProvider._({
+  StoryViewersProvider._({
     required StoryViewersFamily super.from,
     required String super.argument,
   }) : super(
@@ -239,7 +237,7 @@ String _$storyViewersHash() => r'f9428c421a98d9581d9cf22426e6074aff5c2426';
 
 final class StoryViewersFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<List<StoryViewer>>, String> {
-  const StoryViewersFamily._()
+  StoryViewersFamily._()
     : super(
         retry: null,
         name: r'storyViewersProvider',

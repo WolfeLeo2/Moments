@@ -11,7 +11,7 @@ part of 'moments_providers.dart';
 /// Moments repository provider - singleton
 
 @ProviderFor(momentRepository)
-const momentRepositoryProvider = MomentRepositoryProvider._();
+final momentRepositoryProvider = MomentRepositoryProvider._();
 
 /// Moments repository provider - singleton
 
@@ -24,7 +24,7 @@ final class MomentRepositoryProvider
         >
     with $Provider<MomentRepository> {
   /// Moments repository provider - singleton
-  const MomentRepositoryProvider._()
+  MomentRepositoryProvider._()
     : super(
         from: null,
         argument: null,
@@ -62,7 +62,7 @@ String _$momentRepositoryHash() => r'e3a4e7611614ce44fd3dfadea702a6d9febc256b';
 /// Stream of all moments from PowerSync local SQLite.
 
 @ProviderFor(momentsStream)
-const momentsStreamProvider = MomentsStreamProvider._();
+final momentsStreamProvider = MomentsStreamProvider._();
 
 /// Stream of all moments from PowerSync local SQLite.
 
@@ -75,7 +75,7 @@ final class MomentsStreamProvider
         >
     with $FutureModifier<List<Moment>>, $StreamProvider<List<Moment>> {
   /// Stream of all moments from PowerSync local SQLite.
-  const MomentsStreamProvider._()
+  MomentsStreamProvider._()
     : super(
         from: null,
         argument: null,
@@ -106,7 +106,7 @@ String _$momentsStreamHash() => r'de0aee042823ce4be71a4b3314eeaecda312ba0b';
 /// Stream of shared moments from PowerSync local SQLite.
 
 @ProviderFor(sharedMomentsStream)
-const sharedMomentsStreamProvider = SharedMomentsStreamProvider._();
+final sharedMomentsStreamProvider = SharedMomentsStreamProvider._();
 
 /// Stream of shared moments from PowerSync local SQLite.
 
@@ -119,7 +119,7 @@ final class SharedMomentsStreamProvider
         >
     with $FutureModifier<List<Moment>>, $StreamProvider<List<Moment>> {
   /// Stream of shared moments from PowerSync local SQLite.
-  const SharedMomentsStreamProvider._()
+  SharedMomentsStreamProvider._()
     : super(
         from: null,
         argument: null,
@@ -151,7 +151,7 @@ String _$sharedMomentsStreamHash() =>
 /// Stream of pending moment invitations from PowerSync local SQLite.
 
 @ProviderFor(pendingMomentInvitationsStream)
-const pendingMomentInvitationsStreamProvider =
+final pendingMomentInvitationsStreamProvider =
     PendingMomentInvitationsStreamProvider._();
 
 /// Stream of pending moment invitations from PowerSync local SQLite.
@@ -167,7 +167,7 @@ final class PendingMomentInvitationsStreamProvider
         $FutureModifier<List<MomentContributor>>,
         $StreamProvider<List<MomentContributor>> {
   /// Stream of pending moment invitations from PowerSync local SQLite.
-  const PendingMomentInvitationsStreamProvider._()
+  PendingMomentInvitationsStreamProvider._()
     : super(
         from: null,
         argument: null,
@@ -199,7 +199,7 @@ String _$pendingMomentInvitationsStreamHash() =>
 /// Stream moments by group ID from PowerSync local SQLite.
 
 @ProviderFor(momentsByGroupStream)
-const momentsByGroupStreamProvider = MomentsByGroupStreamFamily._();
+final momentsByGroupStreamProvider = MomentsByGroupStreamFamily._();
 
 /// Stream moments by group ID from PowerSync local SQLite.
 
@@ -212,7 +212,7 @@ final class MomentsByGroupStreamProvider
         >
     with $FutureModifier<List<Moment>>, $StreamProvider<List<Moment>> {
   /// Stream moments by group ID from PowerSync local SQLite.
-  const MomentsByGroupStreamProvider._({
+  MomentsByGroupStreamProvider._({
     required MomentsByGroupStreamFamily super.from,
     required String super.argument,
   }) : super(
@@ -263,7 +263,7 @@ String _$momentsByGroupStreamHash() =>
 
 final class MomentsByGroupStreamFamily extends $Family
     with $FunctionalFamilyOverride<Stream<List<Moment>>, String> {
-  const MomentsByGroupStreamFamily._()
+  MomentsByGroupStreamFamily._()
     : super(
         retry: null,
         name: r'momentsByGroupStreamProvider',
@@ -284,7 +284,7 @@ final class MomentsByGroupStreamFamily extends $Family
 /// Single moment details from PowerSync local SQLite.
 
 @ProviderFor(momentDetails)
-const momentDetailsProvider = MomentDetailsFamily._();
+final momentDetailsProvider = MomentDetailsFamily._();
 
 /// Single moment details from PowerSync local SQLite.
 
@@ -292,7 +292,7 @@ final class MomentDetailsProvider
     extends $FunctionalProvider<AsyncValue<Moment?>, Moment?, FutureOr<Moment?>>
     with $FutureModifier<Moment?>, $FutureProvider<Moment?> {
   /// Single moment details from PowerSync local SQLite.
-  const MomentDetailsProvider._({
+  MomentDetailsProvider._({
     required MomentDetailsFamily super.from,
     required String super.argument,
   }) : super(
@@ -341,7 +341,7 @@ String _$momentDetailsHash() => r'325c24f32d3b4b8fd954c14bec12a4caf61b4e19';
 
 final class MomentDetailsFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<Moment?>, String> {
-  const MomentDetailsFamily._()
+  MomentDetailsFamily._()
     : super(
         retry: null,
         name: r'momentDetailsProvider',
@@ -362,7 +362,7 @@ final class MomentDetailsFamily extends $Family
 /// Realtime stream of reactions for a specific moment from PowerSync local SQLite.
 
 @ProviderFor(reactionsForMoment)
-const reactionsForMomentProvider = ReactionsForMomentFamily._();
+final reactionsForMomentProvider = ReactionsForMomentFamily._();
 
 /// Realtime stream of reactions for a specific moment from PowerSync local SQLite.
 
@@ -377,7 +377,7 @@ final class ReactionsForMomentProvider
         $FutureModifier<List<MomentReaction>>,
         $StreamProvider<List<MomentReaction>> {
   /// Realtime stream of reactions for a specific moment from PowerSync local SQLite.
-  const ReactionsForMomentProvider._({
+  ReactionsForMomentProvider._({
     required ReactionsForMomentFamily super.from,
     required String super.argument,
   }) : super(
@@ -428,7 +428,7 @@ String _$reactionsForMomentHash() =>
 
 final class ReactionsForMomentFamily extends $Family
     with $FunctionalFamilyOverride<Stream<List<MomentReaction>>, String> {
-  const ReactionsForMomentFamily._()
+  ReactionsForMomentFamily._()
     : super(
         retry: null,
         name: r'reactionsForMomentProvider',

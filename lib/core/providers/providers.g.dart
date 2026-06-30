@@ -11,7 +11,7 @@ part of 'providers.dart';
 /// Auth service provider - singleton instance
 
 @ProviderFor(authService)
-const authServiceProvider = AuthServiceProvider._();
+final authServiceProvider = AuthServiceProvider._();
 
 /// Auth service provider - singleton instance
 
@@ -19,7 +19,7 @@ final class AuthServiceProvider
     extends $FunctionalProvider<AuthService, AuthService, AuthService>
     with $Provider<AuthService> {
   /// Auth service provider - singleton instance
-  const AuthServiceProvider._()
+  AuthServiceProvider._()
     : super(
         from: null,
         argument: null,
@@ -57,7 +57,7 @@ String _$authServiceHash() => r'c9861524ac694442ddb96da59d519ffb215bef26';
 /// Social repository provider - singleton instance
 
 @ProviderFor(socialRepository)
-const socialRepositoryProvider = SocialRepositoryProvider._();
+final socialRepositoryProvider = SocialRepositoryProvider._();
 
 /// Social repository provider - singleton instance
 
@@ -70,7 +70,7 @@ final class SocialRepositoryProvider
         >
     with $Provider<SocialRepository> {
   /// Social repository provider - singleton instance
-  const SocialRepositoryProvider._()
+  SocialRepositoryProvider._()
     : super(
         from: null,
         argument: null,
@@ -108,7 +108,7 @@ String _$socialRepositoryHash() => r'b2c2010c6c889d26108ea3bd041109f17162110b';
 /// Notification repository provider - singleton instance
 
 @ProviderFor(notificationRepository)
-const notificationRepositoryProvider = NotificationRepositoryProvider._();
+final notificationRepositoryProvider = NotificationRepositoryProvider._();
 
 /// Notification repository provider - singleton instance
 
@@ -121,7 +121,7 @@ final class NotificationRepositoryProvider
         >
     with $Provider<NotificationRepository> {
   /// Notification repository provider - singleton instance
-  const NotificationRepositoryProvider._()
+  NotificationRepositoryProvider._()
     : super(
         from: null,
         argument: null,
@@ -158,12 +158,12 @@ final class NotificationRepositoryProvider
 String _$notificationRepositoryHash() =>
     r'a5591d0da77c528cb80738b61fb2eda7ad0faeca';
 
-/// Avatar cache service provider - receives database via constructor injection
+/// Avatar cache service provider.
 
 @ProviderFor(avatarCacheService)
-const avatarCacheServiceProvider = AvatarCacheServiceProvider._();
+final avatarCacheServiceProvider = AvatarCacheServiceProvider._();
 
-/// Avatar cache service provider - receives database via constructor injection
+/// Avatar cache service provider.
 
 final class AvatarCacheServiceProvider
     extends
@@ -173,8 +173,8 @@ final class AvatarCacheServiceProvider
           AvatarCacheService
         >
     with $Provider<AvatarCacheService> {
-  /// Avatar cache service provider - receives database via constructor injection
-  const AvatarCacheServiceProvider._()
+  /// Avatar cache service provider.
+  AvatarCacheServiceProvider._()
     : super(
         from: null,
         argument: null,
@@ -209,12 +209,12 @@ final class AvatarCacheServiceProvider
 }
 
 String _$avatarCacheServiceHash() =>
-    r'3034cda50bc866bf5ba9a9d2d573c738c4868aff';
+    r'386c558f190c24f15d755f054d0fc383d7ad8636';
 
 /// AI service provider - singleton, uses Firebase AI (Gemini Developer API free tier)
 
 @ProviderFor(aiService)
-const aiServiceProvider = AiServiceProvider._();
+final aiServiceProvider = AiServiceProvider._();
 
 /// AI service provider - singleton, uses Firebase AI (Gemini Developer API free tier)
 
@@ -222,7 +222,7 @@ final class AiServiceProvider
     extends $FunctionalProvider<AIService, AIService, AIService>
     with $Provider<AIService> {
   /// AI service provider - singleton, uses Firebase AI (Gemini Developer API free tier)
-  const AiServiceProvider._()
+  AiServiceProvider._()
     : super(
         from: null,
         argument: null,
@@ -260,7 +260,7 @@ String _$aiServiceHash() => r'f3676f4c3d527135c19190275905b7fddc88471a';
 /// Current authenticated user
 
 @ProviderFor(currentUser)
-const currentUserProvider = CurrentUserProvider._();
+final currentUserProvider = CurrentUserProvider._();
 
 /// Current authenticated user
 
@@ -268,7 +268,7 @@ final class CurrentUserProvider
     extends $FunctionalProvider<AsyncValue<User?>, User?, Stream<User?>>
     with $FutureModifier<User?>, $StreamProvider<User?> {
   /// Current authenticated user
-  const CurrentUserProvider._()
+  CurrentUserProvider._()
     : super(
         from: null,
         argument: null,
@@ -298,7 +298,7 @@ String _$currentUserHash() => r'df184e2b2b619a7eea7caa5c646ae48e7709707d';
 /// Current user's profile with auto-refresh
 
 @ProviderFor(currentUserProfile)
-const currentUserProfileProvider = CurrentUserProfileProvider._();
+final currentUserProfileProvider = CurrentUserProfileProvider._();
 
 /// Current user's profile with auto-refresh
 
@@ -307,7 +307,7 @@ final class CurrentUserProfileProvider
         $FunctionalProvider<AsyncValue<Profile?>, Profile?, FutureOr<Profile?>>
     with $FutureModifier<Profile?>, $FutureProvider<Profile?> {
   /// Current user's profile with auto-refresh
-  const CurrentUserProfileProvider._()
+  CurrentUserProfileProvider._()
     : super(
         from: null,
         argument: null,
@@ -338,7 +338,7 @@ String _$currentUserProfileHash() =>
 /// Count of pending friend requests - properly reactive
 
 @ProviderFor(friendRequestCount)
-const friendRequestCountProvider = FriendRequestCountProvider._();
+final friendRequestCountProvider = FriendRequestCountProvider._();
 
 /// Count of pending friend requests - properly reactive
 
@@ -346,7 +346,7 @@ final class FriendRequestCountProvider
     extends $FunctionalProvider<int, int, int>
     with $Provider<int> {
   /// Count of pending friend requests - properly reactive
-  const FriendRequestCountProvider._()
+  FriendRequestCountProvider._()
     : super(
         from: null,
         argument: null,
@@ -385,7 +385,7 @@ String _$friendRequestCountHash() =>
 /// Count of unread chats
 
 @ProviderFor(unreadChatCount)
-const unreadChatCountProvider = UnreadChatCountProvider._();
+final unreadChatCountProvider = UnreadChatCountProvider._();
 
 /// Count of unread chats
 
@@ -393,7 +393,7 @@ final class UnreadChatCountProvider
     extends $FunctionalProvider<AsyncValue<int>, int, Stream<int>>
     with $FutureModifier<int>, $StreamProvider<int> {
   /// Count of unread chats
-  const UnreadChatCountProvider._()
+  UnreadChatCountProvider._()
     : super(
         from: null,
         argument: null,
@@ -424,7 +424,7 @@ String _$unreadChatCountHash() => r'67146228e2019f36bfb2122f845bf432256e8dd9';
 /// Friend requests and collab invites are counted separately in the RPC function
 
 @ProviderFor(notificationCount)
-const notificationCountProvider = NotificationCountProvider._();
+final notificationCountProvider = NotificationCountProvider._();
 
 /// Count of general notifications (system notifications only, excludes messages)
 /// Friend requests and collab invites are counted separately in the RPC function
@@ -434,7 +434,7 @@ final class NotificationCountProvider
     with $FutureModifier<int>, $StreamProvider<int> {
   /// Count of general notifications (system notifications only, excludes messages)
   /// Friend requests and collab invites are counted separately in the RPC function
-  const NotificationCountProvider._()
+  NotificationCountProvider._()
     : super(
         from: null,
         argument: null,
@@ -465,7 +465,7 @@ String _$notificationCountHash() => r'add8309690ec3cea931f5dc403ef75f0a98a09c8';
 /// No auto-mark-as-read, user must interact with notifications to mark them read
 
 @ProviderFor(NotificationsList)
-const notificationsListProvider = NotificationsListProvider._();
+final notificationsListProvider = NotificationsListProvider._();
 
 /// Provider for the list of notifications with pagination support
 /// No auto-mark-as-read, user must interact with notifications to mark them read
@@ -474,7 +474,7 @@ final class NotificationsListProvider
         $AsyncNotifierProvider<NotificationsList, List<Map<String, dynamic>>> {
   /// Provider for the list of notifications with pagination support
   /// No auto-mark-as-read, user must interact with notifications to mark them read
-  const NotificationsListProvider._()
+  NotificationsListProvider._()
     : super(
         from: null,
         argument: null,
@@ -503,8 +503,7 @@ abstract class _$NotificationsList
   FutureOr<List<Map<String, dynamic>>> build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -522,14 +521,14 @@ abstract class _$NotificationsList
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }
 
 /// List of current user's friends with offline support and realtime updates
 
 @ProviderFor(friendsList)
-const friendsListProvider = FriendsListProvider._();
+final friendsListProvider = FriendsListProvider._();
 
 /// List of current user's friends with offline support and realtime updates
 
@@ -542,7 +541,7 @@ final class FriendsListProvider
         >
     with $FutureModifier<List<Profile>>, $StreamProvider<List<Profile>> {
   /// List of current user's friends with offline support and realtime updates
-  const FriendsListProvider._()
+  FriendsListProvider._()
     : super(
         from: null,
         argument: null,
@@ -568,12 +567,12 @@ final class FriendsListProvider
   }
 }
 
-String _$friendsListHash() => r'9747e35a1ffaecb03d47792f707d6166b1a40115';
+String _$friendsListHash() => r'0e55591f53c3768c6c7ddbb2bc676c559f809105';
 
 /// Pending friend requests
 
 @ProviderFor(pendingRequests)
-const pendingRequestsProvider = PendingRequestsProvider._();
+final pendingRequestsProvider = PendingRequestsProvider._();
 
 /// Pending friend requests
 
@@ -586,7 +585,7 @@ final class PendingRequestsProvider
         >
     with $FutureModifier<List<Friendship>>, $FutureProvider<List<Friendship>> {
   /// Pending friend requests
-  const PendingRequestsProvider._()
+  PendingRequestsProvider._()
     : super(
         from: null,
         argument: null,
@@ -617,7 +616,7 @@ String _$pendingRequestsHash() => r'37d33371cb6118f599f3c7591cdc90bc39781618';
 /// Sent friend requests (outgoing, awaiting response)
 
 @ProviderFor(sentRequests)
-const sentRequestsProvider = SentRequestsProvider._();
+final sentRequestsProvider = SentRequestsProvider._();
 
 /// Sent friend requests (outgoing, awaiting response)
 
@@ -630,7 +629,7 @@ final class SentRequestsProvider
         >
     with $FutureModifier<List<Friendship>>, $FutureProvider<List<Friendship>> {
   /// Sent friend requests (outgoing, awaiting response)
-  const SentRequestsProvider._()
+  SentRequestsProvider._()
     : super(
         from: null,
         argument: null,
@@ -661,7 +660,7 @@ String _$sentRequestsHash() => r'069ed7f328a03ba18d520a5104967da620bea387';
 /// Get a friend's profile by ID - cached per user to prevent API spam
 
 @ProviderFor(friendProfile)
-const friendProfileProvider = FriendProfileFamily._();
+final friendProfileProvider = FriendProfileFamily._();
 
 /// Get a friend's profile by ID - cached per user to prevent API spam
 
@@ -670,7 +669,7 @@ final class FriendProfileProvider
         $FunctionalProvider<AsyncValue<Profile?>, Profile?, FutureOr<Profile?>>
     with $FutureModifier<Profile?>, $FutureProvider<Profile?> {
   /// Get a friend's profile by ID - cached per user to prevent API spam
-  const FriendProfileProvider._({
+  FriendProfileProvider._({
     required FriendProfileFamily super.from,
     required String super.argument,
   }) : super(
@@ -719,7 +718,7 @@ String _$friendProfileHash() => r'9d35c9d4d087d32981ce2a42412911d1795b6d52';
 
 final class FriendProfileFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<Profile?>, String> {
-  const FriendProfileFamily._()
+  FriendProfileFamily._()
     : super(
         retry: null,
         name: r'friendProfileProvider',
@@ -740,7 +739,7 @@ final class FriendProfileFamily extends $Family
 /// Get mutual friends count between current user and a friend
 
 @ProviderFor(mutualFriendsCount)
-const mutualFriendsCountProvider = MutualFriendsCountFamily._();
+final mutualFriendsCountProvider = MutualFriendsCountFamily._();
 
 /// Get mutual friends count between current user and a friend
 
@@ -748,7 +747,7 @@ final class MutualFriendsCountProvider
     extends $FunctionalProvider<AsyncValue<int>, int, FutureOr<int>>
     with $FutureModifier<int>, $FutureProvider<int> {
   /// Get mutual friends count between current user and a friend
-  const MutualFriendsCountProvider._({
+  MutualFriendsCountProvider._({
     required MutualFriendsCountFamily super.from,
     required String super.argument,
   }) : super(
@@ -798,7 +797,7 @@ String _$mutualFriendsCountHash() =>
 
 final class MutualFriendsCountFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<int>, String> {
-  const MutualFriendsCountFamily._()
+  MutualFriendsCountFamily._()
     : super(
         retry: null,
         name: r'mutualFriendsCountProvider',
@@ -819,7 +818,7 @@ final class MutualFriendsCountFamily extends $Family
 /// Get public moments count for a user
 
 @ProviderFor(userMomentsCount)
-const userMomentsCountProvider = UserMomentsCountFamily._();
+final userMomentsCountProvider = UserMomentsCountFamily._();
 
 /// Get public moments count for a user
 
@@ -827,7 +826,7 @@ final class UserMomentsCountProvider
     extends $FunctionalProvider<AsyncValue<int>, int, FutureOr<int>>
     with $FutureModifier<int>, $FutureProvider<int> {
   /// Get public moments count for a user
-  const UserMomentsCountProvider._({
+  UserMomentsCountProvider._({
     required UserMomentsCountFamily super.from,
     required String super.argument,
   }) : super(
@@ -876,7 +875,7 @@ String _$userMomentsCountHash() => r'794cb29ffd9e317bdff0a221f4ae31aa258de540';
 
 final class UserMomentsCountFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<int>, String> {
-  const UserMomentsCountFamily._()
+  UserMomentsCountFamily._()
     : super(
         retry: null,
         name: r'userMomentsCountProvider',
@@ -897,13 +896,13 @@ final class UserMomentsCountFamily extends $Family
 /// Notifier for adding a friend
 
 @ProviderFor(AddFriend)
-const addFriendProvider = AddFriendProvider._();
+final addFriendProvider = AddFriendProvider._();
 
 /// Notifier for adding a friend
 final class AddFriendProvider
     extends $NotifierProvider<AddFriend, AsyncValue<void>> {
   /// Notifier for adding a friend
-  const AddFriendProvider._()
+  AddFriendProvider._()
     : super(
         from: null,
         argument: null,
@@ -938,8 +937,7 @@ abstract class _$AddFriend extends $Notifier<AsyncValue<void>> {
   AsyncValue<void> build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<void>, AsyncValue<void>>;
     final element =
         ref.element
@@ -949,16 +947,16 @@ abstract class _$AddFriend extends $Notifier<AsyncValue<void>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }
 
 @ProviderFor(FriendRequest)
-const friendRequestProvider = FriendRequestProvider._();
+final friendRequestProvider = FriendRequestProvider._();
 
 final class FriendRequestProvider
     extends $NotifierProvider<FriendRequest, AsyncValue<void>> {
-  const FriendRequestProvider._()
+  FriendRequestProvider._()
     : super(
         from: null,
         argument: null,
@@ -991,8 +989,7 @@ abstract class _$FriendRequest extends $Notifier<AsyncValue<void>> {
   AsyncValue<void> build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<void>, AsyncValue<void>>;
     final element =
         ref.element
@@ -1002,59 +999,6 @@ abstract class _$FriendRequest extends $Notifier<AsyncValue<void>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }
-
-/// Moment storage service provider - singleton for local media caching
-
-@ProviderFor(momentStorageService)
-const momentStorageServiceProvider = MomentStorageServiceProvider._();
-
-/// Moment storage service provider - singleton for local media caching
-
-final class MomentStorageServiceProvider
-    extends
-        $FunctionalProvider<
-          MomentStorageService,
-          MomentStorageService,
-          MomentStorageService
-        >
-    with $Provider<MomentStorageService> {
-  /// Moment storage service provider - singleton for local media caching
-  const MomentStorageServiceProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'momentStorageServiceProvider',
-        isAutoDispose: false,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$momentStorageServiceHash();
-
-  @$internal
-  @override
-  $ProviderElement<MomentStorageService> $createElement(
-    $ProviderPointer pointer,
-  ) => $ProviderElement(pointer);
-
-  @override
-  MomentStorageService create(Ref ref) {
-    return momentStorageService(ref);
-  }
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(MomentStorageService value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<MomentStorageService>(value),
-    );
-  }
-}
-
-String _$momentStorageServiceHash() =>
-    r'd1d57948a08e6caa59e4ce88cfdd25e948ea24cc';

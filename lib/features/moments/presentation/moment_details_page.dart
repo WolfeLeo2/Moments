@@ -37,7 +37,7 @@ import 'package:wechat_assets_picker/wechat_assets_picker.dart'
     hide LatLng, RequestType;
 import 'package:photo_manager/photo_manager.dart' as pm;
 import '../../../core/providers/moments_providers.dart';
-import '../../../core/providers/database_provider.dart';
+import '../../../core/services/moment_media_cache.dart';
 import 'add_moment_page.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:moments/core/services/app_logger.dart';
@@ -500,20 +500,19 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   }
 
   Future<void> _loadImageUrls() async {
-    final db = ref.read(appDatabaseProvider);
 
     // First, load local cached images and videos
     for (var moment in _moments) {
       if (moment.mediaType == 'video') {
         // Load local video path
-        final localVideoPath = await db.getLocalMediaPath(moment.id);
+        final localVideoPath = await MomentMediaCache.getLocalMediaPath(moment.id);
         if (localVideoPath != null && mounted) {
           setState(() {
             _localVideoPaths[moment.id] = localVideoPath;
           });
         }
         // Also load local thumbnail for preview
-        final localThumbPath = await db.getLocalMediaPath(
+        final localThumbPath = await MomentMediaCache.getLocalMediaPath(
           moment.id,
           isThumbnail: true,
         );
@@ -524,7 +523,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         }
       } else {
         // Load local image path
-        final localPath = await db.getLocalMediaPath(moment.id);
+        final localPath = await MomentMediaCache.getLocalMediaPath(moment.id);
         if (localPath != null && mounted) {
           setState(() {
             _localPaths[moment.id] = localPath;
@@ -654,7 +653,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   }
 
   Future<void> _cacheMediaInBackground(Map<String, String> urls) async {
-    final db = ref.read(appDatabaseProvider);
 
     for (var moment in _moments) {
       if (moment.mediaType == 'video') {
@@ -662,7 +660,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         if (!_localVideoPaths.containsKey(moment.id)) {
           final videoUrl = _imageUrls[moment.id];
           if (videoUrl != null) {
-            final localPath = await db.cacheMedia(moment.id, videoUrl);
+            final localPath = await MomentMediaCache.cacheMedia(moment.id, videoUrl);
             if (localPath != null && mounted) {
               setState(() {
                 _localVideoPaths[moment.id] = localPath;
@@ -675,7 +673,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             moment.thumbnailPath != null) {
           final thumbUrl = urls[moment.thumbnailPath];
           if (thumbUrl != null) {
-            final localPath = await db.cacheMedia(
+            final localPath = await MomentMediaCache.cacheMedia(
               moment.id,
               thumbUrl,
               isThumbnail: true,
@@ -694,7 +692,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         final url = _imageUrls[moment.id];
         if (url == null) continue;
 
-        final localPath = await db.cacheMedia(moment.id, url);
+        final localPath = await MomentMediaCache.cacheMedia(moment.id, url);
         if (localPath != null && mounted) {
           setState(() {
             _localPaths[moment.id] = localPath;
@@ -981,8 +979,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     int totalToSave = 0;
 
     try {
-      final db = ref.read(appDatabaseProvider);
-
+  
       for (var moment in _moments) {
         // Skip if already saved
         if (moment.mediaType == 'video') {
@@ -1000,7 +997,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
         if (moment.mediaType == 'video') {
           // Save video
-          final videoPath = await db.cacheMedia(moment.id, url);
+          final videoPath = await MomentMediaCache.cacheMedia(moment.id, url);
           if (videoPath != null && mounted) {
             setState(() => _localVideoPaths[moment.id] = videoPath);
             savedCount++;
@@ -1011,7 +1008,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
               moment.thumbnailPath!,
             );
             if (thumbUrl != null) {
-              final thumbPath = await db.cacheMedia(
+              final thumbPath = await MomentMediaCache.cacheMedia(
                 moment.id,
                 thumbUrl,
                 isThumbnail: true,
@@ -1023,7 +1020,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
           }
         } else {
           // Save image
-          final localPath = await db.cacheMedia(moment.id, url);
+          final localPath = await MomentMediaCache.cacheMedia(moment.id, url);
           if (localPath != null && mounted) {
             setState(() => _localPaths[moment.id] = localPath);
             savedCount++;
@@ -1174,13 +1171,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   Future<void> _deleteMomentCompletely(Moment moment) async {
     // Use repository for complete cleanup (storage, database, group cleanup)
     await ref.read(momentRepositoryProvider).deleteMoment(moment.id);
-
-    // Also delete from local SQLite storage and cached media files
-    try {
-      await ref.read(appDatabaseProvider).deleteMoment(moment.id);
-    } catch (e) {
-      _log.e('Failed to delete from local storage: $e');
-    }
+    await MomentMediaCache.evict(moment.id);
   }
 
   Future<void> _showDeleteDialog(Moment moment) async {
@@ -1334,7 +1325,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         // Delete all moments from local DB first
         for (final m in _moments) {
           try {
-            await ref.read(appDatabaseProvider).deleteMoment(m.id);
+            await MomentMediaCache.evict(m.id);
           } catch (_) {}
         }
 
@@ -1521,11 +1512,7 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
           .update({'is_private': isPrivate})
           .eq('moment_group_id', groupId)
           .eq('user_id', userId!); // Only update my photos
-
-      // Sync to local storage
-      await ref
-          .read(appDatabaseProvider)
-          .updateGroupPrivacy(groupId, isPrivate);
+      // PowerSync streams the privacy change back down — no local write needed.
 
       if (mounted) {
         HapticService.success();

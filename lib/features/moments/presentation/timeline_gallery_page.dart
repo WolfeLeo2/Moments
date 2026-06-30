@@ -9,7 +9,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../../../data/models/moment.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/services/signed_url_cache.dart';
-import '../../../core/providers/database_provider.dart';
+import '../../../core/services/moment_media_cache.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/providers/moments_providers.dart';
 import '../../../widgets/offline_image.dart';
@@ -66,8 +66,7 @@ class _TimelineGalleryPageState extends ConsumerState<TimelineGalleryPage>
       }
 
       final isThumbnail = moment.mediaType == 'video';
-      final db = ref.read(appDatabaseProvider);
-      final localPath = await db.getLocalMediaPath(
+      final localPath = await MomentMediaCache.getLocalMediaPath(
         moment.id,
         isThumbnail: isThumbnail,
       );

@@ -11,7 +11,7 @@ part of 'database_provider.dart';
 /// Single source of truth for Supabase client — all repos/services inject from here.
 
 @ProviderFor(supabaseClient)
-const supabaseClientProvider = SupabaseClientProvider._();
+final supabaseClientProvider = SupabaseClientProvider._();
 
 /// Single source of truth for Supabase client — all repos/services inject from here.
 
@@ -19,7 +19,7 @@ final class SupabaseClientProvider
     extends $FunctionalProvider<SupabaseClient, SupabaseClient, SupabaseClient>
     with $Provider<SupabaseClient> {
   /// Single source of truth for Supabase client — all repos/services inject from here.
-  const SupabaseClientProvider._()
+  SupabaseClientProvider._()
     : super(
         from: null,
         argument: null,
@@ -54,60 +54,11 @@ final class SupabaseClientProvider
 
 String _$supabaseClientHash() => r'20d844b7f9a4ef39908f2009fe394f4fa679a3d2';
 
-/// Drift database singleton provider
-/// Provides type-safe, reactive database access
-
-@ProviderFor(appDatabase)
-const appDatabaseProvider = AppDatabaseProvider._();
-
-/// Drift database singleton provider
-/// Provides type-safe, reactive database access
-
-final class AppDatabaseProvider
-    extends $FunctionalProvider<AppDatabase, AppDatabase, AppDatabase>
-    with $Provider<AppDatabase> {
-  /// Drift database singleton provider
-  /// Provides type-safe, reactive database access
-  const AppDatabaseProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'appDatabaseProvider',
-        isAutoDispose: false,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$appDatabaseHash();
-
-  @$internal
-  @override
-  $ProviderElement<AppDatabase> $createElement($ProviderPointer pointer) =>
-      $ProviderElement(pointer);
-
-  @override
-  AppDatabase create(Ref ref) {
-    return appDatabase(ref);
-  }
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(AppDatabase value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<AppDatabase>(value),
-    );
-  }
-}
-
-String _$appDatabaseHash() => r'448adad5717e7b1c0b3ca3ca7e03d0b2116237af';
-
 /// Database initialization provider
 /// Ensures Supabase and local SQLite databases are ready
 
 @ProviderFor(DatabaseInitializer)
-const databaseInitializerProvider = DatabaseInitializerProvider._();
+final databaseInitializerProvider = DatabaseInitializerProvider._();
 
 /// Database initialization provider
 /// Ensures Supabase and local SQLite databases are ready
@@ -115,7 +66,7 @@ final class DatabaseInitializerProvider
     extends $AsyncNotifierProvider<DatabaseInitializer, void> {
   /// Database initialization provider
   /// Ensures Supabase and local SQLite databases are ready
-  const DatabaseInitializerProvider._()
+  DatabaseInitializerProvider._()
     : super(
         from: null,
         argument: null,
@@ -144,8 +95,7 @@ abstract class _$DatabaseInitializer extends $AsyncNotifier<void> {
   FutureOr<void> build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<void>, void>;
     final element =
         ref.element
@@ -155,14 +105,14 @@ abstract class _$DatabaseInitializer extends $AsyncNotifier<void> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, null);
+    return element.handleCreate(ref, build);
   }
 }
 
 /// Provider for checking if database is ready
 
 @ProviderFor(isDatabaseReady)
-const isDatabaseReadyProvider = IsDatabaseReadyProvider._();
+final isDatabaseReadyProvider = IsDatabaseReadyProvider._();
 
 /// Provider for checking if database is ready
 
@@ -170,7 +120,7 @@ final class IsDatabaseReadyProvider
     extends $FunctionalProvider<bool, bool, bool>
     with $Provider<bool> {
   /// Provider for checking if database is ready
-  const IsDatabaseReadyProvider._()
+  IsDatabaseReadyProvider._()
     : super(
         from: null,
         argument: null,

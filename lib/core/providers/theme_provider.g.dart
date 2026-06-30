@@ -12,7 +12,7 @@ part of 'theme_provider.dart';
 /// Allows switching between light, dark, and system themes
 
 @ProviderFor(ThemeModeNotifier)
-const themeModeProvider = ThemeModeNotifierProvider._();
+final themeModeProvider = ThemeModeNotifierProvider._();
 
 /// Theme mode notifier with persistence
 /// Allows switching between light, dark, and system themes
@@ -20,7 +20,7 @@ final class ThemeModeNotifierProvider
     extends $NotifierProvider<ThemeModeNotifier, ThemeMode> {
   /// Theme mode notifier with persistence
   /// Allows switching between light, dark, and system themes
-  const ThemeModeNotifierProvider._()
+  ThemeModeNotifierProvider._()
     : super(
         from: null,
         argument: null,
@@ -56,8 +56,7 @@ abstract class _$ThemeModeNotifier extends $Notifier<ThemeMode> {
   ThemeMode build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<ThemeMode, ThemeMode>;
     final element =
         ref.element
@@ -67,14 +66,14 @@ abstract class _$ThemeModeNotifier extends $Notifier<ThemeMode> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }
 
 /// Light theme data
 
 @ProviderFor(lightTheme)
-const lightThemeProvider = LightThemeProvider._();
+final lightThemeProvider = LightThemeProvider._();
 
 /// Light theme data
 
@@ -82,7 +81,7 @@ final class LightThemeProvider
     extends $FunctionalProvider<ThemeData, ThemeData, ThemeData>
     with $Provider<ThemeData> {
   /// Light theme data
-  const LightThemeProvider._()
+  LightThemeProvider._()
     : super(
         from: null,
         argument: null,
@@ -120,7 +119,7 @@ String _$lightThemeHash() => r'dd962246a72183cde923ca1a77390f1efc5a3496';
 /// Dark theme data - creates dark variant of the app theme
 
 @ProviderFor(darkTheme)
-const darkThemeProvider = DarkThemeProvider._();
+final darkThemeProvider = DarkThemeProvider._();
 
 /// Dark theme data - creates dark variant of the app theme
 
@@ -128,7 +127,7 @@ final class DarkThemeProvider
     extends $FunctionalProvider<ThemeData, ThemeData, ThemeData>
     with $Provider<ThemeData> {
   /// Dark theme data - creates dark variant of the app theme
-  const DarkThemeProvider._()
+  DarkThemeProvider._()
     : super(
         from: null,
         argument: null,

@@ -11,7 +11,7 @@ part of 'realtime_providers.dart';
 /// Stream of real-time pending friend requests
 
 @ProviderFor(pendingRequestsRealtime)
-const pendingRequestsRealtimeProvider = PendingRequestsRealtimeProvider._();
+final pendingRequestsRealtimeProvider = PendingRequestsRealtimeProvider._();
 
 /// Stream of real-time pending friend requests
 
@@ -24,7 +24,7 @@ final class PendingRequestsRealtimeProvider
         >
     with $FutureModifier<List<Friendship>>, $StreamProvider<List<Friendship>> {
   /// Stream of real-time pending friend requests
-  const PendingRequestsRealtimeProvider._()
+  PendingRequestsRealtimeProvider._()
     : super(
         from: null,
         argument: null,
@@ -57,7 +57,7 @@ String _$pendingRequestsRealtimeHash() =>
 /// Updates whenever either friends list or pending requests change
 
 @ProviderFor(friendsAndRequests)
-const friendsAndRequestsProvider = FriendsAndRequestsProvider._();
+final friendsAndRequestsProvider = FriendsAndRequestsProvider._();
 
 /// Combined friends and requests data - properly reactive
 /// Updates whenever either friends list or pending requests change
@@ -72,7 +72,7 @@ final class FriendsAndRequestsProvider
     with $Provider<({List<Profile> friends, List<Friendship> requests})> {
   /// Combined friends and requests data - properly reactive
   /// Updates whenever either friends list or pending requests change
-  const FriendsAndRequestsProvider._()
+  FriendsAndRequestsProvider._()
     : super(
         from: null,
         argument: null,
@@ -116,7 +116,7 @@ String _$friendsAndRequestsHash() =>
 /// Async version that waits for both to load
 
 @ProviderFor(friendsAndRequestsAsync)
-const friendsAndRequestsAsyncProvider = FriendsAndRequestsAsyncProvider._();
+final friendsAndRequestsAsyncProvider = FriendsAndRequestsAsyncProvider._();
 
 /// Async version that waits for both to load
 
@@ -131,7 +131,7 @@ final class FriendsAndRequestsAsyncProvider
         $FutureModifier<({List<Profile> friends, List<Friendship> requests})>,
         $FutureProvider<({List<Profile> friends, List<Friendship> requests})> {
   /// Async version that waits for both to load
-  const FriendsAndRequestsAsyncProvider._()
+  FriendsAndRequestsAsyncProvider._()
     : super(
         from: null,
         argument: null,

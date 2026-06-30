@@ -10,11 +10,11 @@ part of 'map_state_provider.dart';
 // ignore_for_file: type=lint, type=warning
 
 @ProviderFor(MapUiStateNotifier)
-const mapUiStateProvider = MapUiStateNotifierProvider._();
+final mapUiStateProvider = MapUiStateNotifierProvider._();
 
 final class MapUiStateNotifierProvider
     extends $NotifierProvider<MapUiStateNotifier, MapUiState> {
-  const MapUiStateNotifierProvider._()
+  MapUiStateNotifierProvider._()
     : super(
         from: null,
         argument: null,
@@ -48,8 +48,7 @@ abstract class _$MapUiStateNotifier extends $Notifier<MapUiState> {
   MapUiState build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<MapUiState, MapUiState>;
     final element =
         ref.element
@@ -59,6 +58,6 @@ abstract class _$MapUiStateNotifier extends $Notifier<MapUiState> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

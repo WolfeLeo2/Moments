@@ -1,10 +1,10 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:moments/features/notifications/presentation/notifications_page.dart';
 import 'package:moments/features/chat/presentation/chat_page.dart';
-import 'package:moments/features/chat/presentation/chat_list_page.dart';
 import 'package:moments/core/services/firebase_messaging_service.dart';
 import 'package:moments/features/mapv2/providers/map_control_provider.dart';
 import 'package:moments/core/providers/providers.dart';
@@ -19,46 +19,57 @@ final _log = AppLogger('NotifNavigator');
 
 /// Handles navigation from push notification taps.
 ///
-/// Notification types:
-/// - 'friend_request' -> Notifications Page (Requests tab)
-/// - 'new_message' -> Chat Page with the specific conversation
-/// - 'moment_invite' -> Notifications Page (for accept/decline)
-/// - 'new_moment_group' -> Map Page with camera pan
-/// - 'new_moment_post' -> Moment Details Page
-/// - 'system'/'promo'/default -> Notifications Page
+/// Cold-start: if the tap fires before the widget tree is ready, the payload
+/// is stored in [_pending]. [drainIfPending] is called from the router's
+/// redirect once auth is confirmed and the tree is mounted.
 class NotificationNavigator {
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
-  /// Initialize the notification tap handler.
-  /// Call this early in the app lifecycle (e.g., in main.dart after runApp).
+  // ponytail: one pending slot is enough — a cold-start can only have one tap
+  static Map<String, dynamic>? _pending;
+
   static void initialize() {
     FirebaseMessagingService.onNotificationTap = _handleNotificationTap;
   }
 
   static void _handleNotificationTap(Map<String, dynamic> data) {
+    final context = navigatorKey.currentContext;
+    if (context == null) {
+      _log.d('NotifNavigator: no context yet, storing pending tap');
+      _pending = data;
+      return;
+    }
+    _dispatch(context, data);
+  }
+
+  /// Called from the router redirect once the app is signed-in and mounted.
+  /// Uses addPostFrameCallback so navigation runs after the redirect settles.
+  static void drainIfPending(BuildContext context) {
+    final data = _pending;
+    if (data == null) return;
+    _pending = null;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (navigatorKey.currentContext case final ctx?) {
+        _dispatch(ctx, data);
+      }
+    });
+  }
+
+  static void _dispatch(BuildContext context, Map<String, dynamic> data) {
     final type = data['type'] as String?;
     final relatedId = data['related_id'] as String?;
     final actorId = data['actor_id'] as String?;
 
-    _log.d(
-      'NotificationNavigator: type=$type, relatedId=$relatedId, actorId=$actorId',
-    );
-
-    final context = navigatorKey.currentContext;
-    if (context == null) {
-      // Cold-start: widget tree hasn't mounted yet. Retry after a short delay.
-      _log.d('NotificationNavigator: No context yet, scheduling retry');
-      Future.delayed(const Duration(milliseconds: 500), () {
-        _handleNotificationTap(data);
-      });
-      return;
-    }
+    _log.d('NotifNavigator: dispatch type=$type relatedId=$relatedId actorId=$actorId');
 
     switch (type) {
       case 'friend_request':
+      case 'moment_invite':
+      case 'collaboration_invite':
+      case 'system':
+      case 'promo':
         _pushPage(context, const NotificationsPage());
-        break;
 
       case 'message':
       case 'new_message':
@@ -66,37 +77,20 @@ class NotificationNavigator {
         if (actorId != null) {
           _navigateToChat(context, actorId);
         } else {
-          _pushPage(context, const ChatListPage());
+          context.go('/chats');
         }
-        break;
-
-      case 'moment_invite':
-      case 'collaboration_invite':
-        // Navigate to NotificationsPage for accept/decline actions
-        _pushPage(context, const NotificationsPage());
-        break;
 
       case 'new_moment_group':
-        if (relatedId != null) {
-          _navigateToMomentLocation(context, relatedId);
-        }
-        break;
+        if (relatedId != null) _navigateToMomentLocation(context, relatedId);
 
       case 'new_moment_post':
-        if (relatedId != null) {
-          _navigateToMomentDetails(context, relatedId);
-        }
-        break;
+        if (relatedId != null) _navigateToMomentDetails(context, relatedId);
 
-      case 'system':
-      case 'promo':
       default:
         _pushPage(context, const NotificationsPage());
-        break;
     }
   }
 
-  /// Push a page using Navigator (works with GoRouter's navigatorKey)
   static void _pushPage(BuildContext context, Widget page) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
@@ -122,13 +116,11 @@ class NotificationNavigator {
           ),
         );
       } else if (context.mounted) {
-        _pushPage(context, const ChatListPage());
+        context.go('/chats');
       }
     } catch (e) {
       _log.e('Error navigating to chat: $e');
-      if (context.mounted) {
-        _pushPage(context, const ChatListPage());
-      }
+      if (context.mounted) context.go('/chats');
     }
   }
 
@@ -178,11 +170,7 @@ class NotificationNavigator {
       );
       if (moments.isNotEmpty && context.mounted) {
         final moment = moments.first;
-
-        // Pop to root (map page)
-        Navigator.of(context).popUntil((route) => route.isFirst);
-
-        // Trigger camera move via Riverpod
+        context.go('/');
         container
             .read(mapCameraTargetProvider.notifier)
             .setTarget(LatLng(moment.latitude, moment.longitude));

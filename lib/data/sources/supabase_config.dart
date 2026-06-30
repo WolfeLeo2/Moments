@@ -10,17 +10,21 @@ class SupabaseConfig {
     await dotenv.load(fileName: '.env');
 
     final supabaseUrl = dotenv.env['SUPABASE_URL'];
-    final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+    // New-style publishable key (sb_publishable_…); passed as `anonKey` since the
+    // SDK param name is legacy. It resolves to the `anon`/`authenticated` role.
+    final supabasePublishableKey = dotenv.env['SUPABASE_PUBLISHABLE_KEY'];
 
-    if (supabaseUrl == null || supabaseAnonKey == null) {
+    if (supabaseUrl == null || supabasePublishableKey == null) {
       throw Exception(
-        'Supabase URL and Anon Key must be provided in .env file',
+        'SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be provided in .env file',
       );
     }
 
     await Supabase.initialize(
       url: supabaseUrl,
-      anonKey: supabaseAnonKey,
+      // supabase_flutter 2.15+ exposes `publishableKey` (replaces the deprecated
+      // `anonKey`). Same value either way — the publishable key from .env.
+      publishableKey: supabasePublishableKey,
       authOptions: const FlutterAuthClientOptions(autoRefreshToken: true),
       debug: false,
     );

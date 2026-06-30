@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:moments/core/services/app_logger.dart';
-import 'package:moments/core/database/database.dart';
 import '../../data/sources/supabase_config.dart';
 
 part 'database_provider.g.dart';
@@ -12,15 +11,6 @@ final _log = AppLogger('DatabaseProvider');
 /// Single source of truth for Supabase client — all repos/services inject from here.
 @Riverpod(keepAlive: true)
 SupabaseClient supabaseClient(Ref ref) => SupabaseConfig.client;
-
-/// Drift database singleton provider
-/// Provides type-safe, reactive database access
-@Riverpod(keepAlive: true)
-AppDatabase appDatabase(Ref ref) {
-  final db = AppDatabase();
-  ref.onDispose(() => db.close());
-  return db;
-}
 
 /// Database initialization provider
 /// Ensures Supabase and local SQLite databases are ready

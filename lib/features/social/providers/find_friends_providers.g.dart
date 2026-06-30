@@ -12,7 +12,7 @@ part of 'find_friends_providers.dart';
 /// Auto-disposed: only kept alive while the search field is visible.
 
 @ProviderFor(searchResults)
-const searchResultsProvider = SearchResultsFamily._();
+final searchResultsProvider = SearchResultsFamily._();
 
 /// Searches profiles when query is >= 2 chars.
 /// Auto-disposed: only kept alive while the search field is visible.
@@ -27,7 +27,7 @@ final class SearchResultsProvider
     with $FutureModifier<List<Profile>>, $FutureProvider<List<Profile>> {
   /// Searches profiles when query is >= 2 chars.
   /// Auto-disposed: only kept alive while the search field is visible.
-  const SearchResultsProvider._({
+  SearchResultsProvider._({
     required SearchResultsFamily super.from,
     required String super.argument,
   }) : super(
@@ -78,7 +78,7 @@ String _$searchResultsHash() => r'c9085a44db6879832394e250419192a422ee00e5';
 
 final class SearchResultsFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<List<Profile>>, String> {
-  const SearchResultsFamily._()
+  SearchResultsFamily._()
     : super(
         retry: null,
         name: r'searchResultsProvider',
@@ -101,7 +101,7 @@ final class SearchResultsFamily extends $Family
 /// keepAlive so the results survive page navigation.
 
 @ProviderFor(ContactMatches)
-const contactMatchesProvider = ContactMatchesProvider._();
+final contactMatchesProvider = ContactMatchesProvider._();
 
 /// State: null → not yet synced, empty list → synced with no matches.
 /// keepAlive so the results survive page navigation.
@@ -109,7 +109,7 @@ final class ContactMatchesProvider
     extends $AsyncNotifierProvider<ContactMatches, List<Profile>?> {
   /// State: null → not yet synced, empty list → synced with no matches.
   /// keepAlive so the results survive page navigation.
-  const ContactMatchesProvider._()
+  ContactMatchesProvider._()
     : super(
         from: null,
         argument: null,
@@ -137,8 +137,7 @@ abstract class _$ContactMatches extends $AsyncNotifier<List<Profile>?> {
   FutureOr<List<Profile>?> build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<List<Profile>?>, List<Profile>?>;
     final element =
         ref.element
@@ -148,7 +147,7 @@ abstract class _$ContactMatches extends $AsyncNotifier<List<Profile>?> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }
 
@@ -156,7 +155,7 @@ abstract class _$ContactMatches extends $AsyncNotifier<List<Profile>?> {
 /// keepAlive so the results survive page navigation.
 
 @ProviderFor(NearbyUsers)
-const nearbyUsersProvider = NearbyUsersProvider._();
+final nearbyUsersProvider = NearbyUsersProvider._();
 
 /// State: null → not yet discovered, empty list → no nearby users.
 /// keepAlive so the results survive page navigation.
@@ -164,7 +163,7 @@ final class NearbyUsersProvider
     extends $AsyncNotifierProvider<NearbyUsers, List<Map<String, dynamic>>?> {
   /// State: null → not yet discovered, empty list → no nearby users.
   /// keepAlive so the results survive page navigation.
-  const NearbyUsersProvider._()
+  NearbyUsersProvider._()
     : super(
         from: null,
         argument: null,
@@ -193,8 +192,7 @@ abstract class _$NearbyUsers
   FutureOr<List<Map<String, dynamic>>?> build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -212,14 +210,14 @@ abstract class _$NearbyUsers
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }
 
 /// Fetch friendship status for a specific user. Auto-disposed per tile.
 
 @ProviderFor(friendshipStatus)
-const friendshipStatusProvider = FriendshipStatusFamily._();
+final friendshipStatusProvider = FriendshipStatusFamily._();
 
 /// Fetch friendship status for a specific user. Auto-disposed per tile.
 
@@ -227,7 +225,7 @@ final class FriendshipStatusProvider
     extends $FunctionalProvider<AsyncValue<String>, String, FutureOr<String>>
     with $FutureModifier<String>, $FutureProvider<String> {
   /// Fetch friendship status for a specific user. Auto-disposed per tile.
-  const FriendshipStatusProvider._({
+  FriendshipStatusProvider._({
     required FriendshipStatusFamily super.from,
     required String super.argument,
   }) : super(
@@ -276,7 +274,7 @@ String _$friendshipStatusHash() => r'ad69fe1f3c9d59785531fffb5ed2124995d3d0b2';
 
 final class FriendshipStatusFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<String>, String> {
-  const FriendshipStatusFamily._()
+  FriendshipStatusFamily._()
     : super(
         retry: null,
         name: r'friendshipStatusProvider',
@@ -298,7 +296,7 @@ final class FriendshipStatusFamily extends $Family
 /// keepAlive so concurrent navigations don't lose the set.
 
 @ProviderFor(SendingRequests)
-const sendingRequestsProvider = SendingRequestsProvider._();
+final sendingRequestsProvider = SendingRequestsProvider._();
 
 /// Tracks user IDs with in-flight friend request sends.
 /// keepAlive so concurrent navigations don't lose the set.
@@ -306,7 +304,7 @@ final class SendingRequestsProvider
     extends $NotifierProvider<SendingRequests, Set<String>> {
   /// Tracks user IDs with in-flight friend request sends.
   /// keepAlive so concurrent navigations don't lose the set.
-  const SendingRequestsProvider._()
+  SendingRequestsProvider._()
     : super(
         from: null,
         argument: null,
@@ -342,8 +340,7 @@ abstract class _$SendingRequests extends $Notifier<Set<String>> {
   Set<String> build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<Set<String>, Set<String>>;
     final element =
         ref.element
@@ -353,6 +350,6 @@ abstract class _$SendingRequests extends $Notifier<Set<String>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

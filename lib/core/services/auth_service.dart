@@ -1,5 +1,6 @@
 import 'package:moments/core/services/app_logger.dart';
 import 'dart:io';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -106,12 +107,24 @@ class AuthService {
   /// Sign out
   Future<void> signOut() async {
     try {
-      // Sign out from Google if signed in
+      // Delete FCM token row before sign-out to prevent cross-account
+      // notification delivery (C9). Best-effort — sign-out proceeds even on failure.
+      try {
+        final token = await FirebaseMessaging.instance.getToken();
+        if (token != null) {
+          await _supabase
+              .from('user_devices')
+              .delete()
+              .eq('fcm_token', token);
+          await FirebaseMessaging.instance.deleteToken();
+        }
+      } catch (e) {
+        _log.w('Failed to delete FCM token on sign-out', error: e);
+      }
+
       if (await _googleSignIn.isSignedIn()) {
         await _googleSignIn.signOut();
       }
-
-      // Sign out from Supabase
       await _supabase.auth.signOut();
     } catch (e) {
       _log.e('Error signing out', error: e);

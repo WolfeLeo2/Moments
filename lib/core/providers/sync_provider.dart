@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:moments/core/providers/database_provider.dart';
 
 part 'sync_provider.g.dart';
 
@@ -90,11 +89,3 @@ int syncErrorCount(Ref ref) {
   return ref.watch(syncStateProvider).length;
 }
 
-/// Pending offline actions count provider
-/// Shows how many actions are waiting to be synced (uses Drift)
-@riverpod
-Future<int> pendingActionsCount(Ref ref) async {
-  final db = ref.watch(appDatabaseProvider);
-  final actions = await db.getPendingActions();
-  return actions.length;
-}

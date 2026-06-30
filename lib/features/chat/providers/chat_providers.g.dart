@@ -12,7 +12,7 @@ part of 'chat_providers.dart';
 /// Used to suppress notifications when the user is already viewing the chat
 
 @ProviderFor(CurrentChatId)
-const currentChatIdProvider = CurrentChatIdProvider._();
+final currentChatIdProvider = CurrentChatIdProvider._();
 
 /// Tracks the currently active chat conversation ID
 /// Used to suppress notifications when the user is already viewing the chat
@@ -20,7 +20,7 @@ final class CurrentChatIdProvider
     extends $NotifierProvider<CurrentChatId, String?> {
   /// Tracks the currently active chat conversation ID
   /// Used to suppress notifications when the user is already viewing the chat
-  const CurrentChatIdProvider._()
+  CurrentChatIdProvider._()
     : super(
         from: null,
         argument: null,
@@ -56,8 +56,7 @@ abstract class _$CurrentChatId extends $Notifier<String?> {
   String? build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<String?, String?>;
     final element =
         ref.element
@@ -67,14 +66,14 @@ abstract class _$CurrentChatId extends $Notifier<String?> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }
 
 /// Chat repository provider - singleton
 
 @ProviderFor(chatRepository)
-const chatRepositoryProvider = ChatRepositoryProvider._();
+final chatRepositoryProvider = ChatRepositoryProvider._();
 
 /// Chat repository provider - singleton
 
@@ -82,7 +81,7 @@ final class ChatRepositoryProvider
     extends $FunctionalProvider<ChatRepository, ChatRepository, ChatRepository>
     with $Provider<ChatRepository> {
   /// Chat repository provider - singleton
-  const ChatRepositoryProvider._()
+  ChatRepositoryProvider._()
     : super(
         from: null,
         argument: null,
@@ -120,7 +119,7 @@ String _$chatRepositoryHash() => r'f4671781f2878a3bdee593e145b6af6c24b86608';
 /// Stream messages for a specific conversation from PowerSync local SQLite
 
 @ProviderFor(messagesStream)
-const messagesStreamProvider = MessagesStreamFamily._();
+final messagesStreamProvider = MessagesStreamFamily._();
 
 /// Stream messages for a specific conversation from PowerSync local SQLite
 
@@ -133,7 +132,7 @@ final class MessagesStreamProvider
         >
     with $FutureModifier<List<Message>>, $StreamProvider<List<Message>> {
   /// Stream messages for a specific conversation from PowerSync local SQLite
-  const MessagesStreamProvider._({
+  MessagesStreamProvider._({
     required MessagesStreamFamily super.from,
     required String super.argument,
   }) : super(
@@ -183,7 +182,7 @@ String _$messagesStreamHash() => r'44f791c9fa1faa66f7e1aaf1400d553f073c6947';
 
 final class MessagesStreamFamily extends $Family
     with $FunctionalFamilyOverride<Stream<List<Message>>, String> {
-  const MessagesStreamFamily._()
+  MessagesStreamFamily._()
     : super(
         retry: null,
         name: r'messagesStreamProvider',
@@ -204,7 +203,7 @@ final class MessagesStreamFamily extends $Family
 /// Get last message for a conversation from PowerSync local SQLite
 
 @ProviderFor(lastMessage)
-const lastMessageProvider = LastMessageFamily._();
+final lastMessageProvider = LastMessageFamily._();
 
 /// Get last message for a conversation from PowerSync local SQLite
 
@@ -213,7 +212,7 @@ final class LastMessageProvider
         $FunctionalProvider<AsyncValue<Message?>, Message?, FutureOr<Message?>>
     with $FutureModifier<Message?>, $FutureProvider<Message?> {
   /// Get last message for a conversation from PowerSync local SQLite
-  const LastMessageProvider._({
+  LastMessageProvider._({
     required LastMessageFamily super.from,
     required String super.argument,
   }) : super(
@@ -262,7 +261,7 @@ String _$lastMessageHash() => r'f1aa29b9d8c4fde659678df41d9fefb15a3b0573';
 
 final class LastMessageFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<Message?>, String> {
-  const LastMessageFamily._()
+  LastMessageFamily._()
     : super(
         retry: null,
         name: r'lastMessageProvider',
@@ -285,7 +284,7 @@ final class LastMessageFamily extends $Family
 /// Use this when you need to ensure a conversation exists
 
 @ProviderFor(conversationId)
-const conversationIdProvider = ConversationIdFamily._();
+final conversationIdProvider = ConversationIdFamily._();
 
 /// Get or create a conversation ID with a friend
 /// Always returns a valid conversation ID (creates one if needed)
@@ -297,7 +296,7 @@ final class ConversationIdProvider
   /// Get or create a conversation ID with a friend
   /// Always returns a valid conversation ID (creates one if needed)
   /// Use this when you need to ensure a conversation exists
-  const ConversationIdProvider._({
+  ConversationIdProvider._({
     required ConversationIdFamily super.from,
     required String super.argument,
   }) : super(
@@ -340,7 +339,7 @@ final class ConversationIdProvider
   }
 }
 
-String _$conversationIdHash() => r'1dc1426b99b799382edc5bf52ec423ceab1d5488';
+String _$conversationIdHash() => r'689ac1658ca955ccfce924296adc764895401967';
 
 /// Get or create a conversation ID with a friend
 /// Always returns a valid conversation ID (creates one if needed)
@@ -348,7 +347,7 @@ String _$conversationIdHash() => r'1dc1426b99b799382edc5bf52ec423ceab1d5488';
 
 final class ConversationIdFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<String>, String> {
-  const ConversationIdFamily._()
+  ConversationIdFamily._()
     : super(
         retry: null,
         name: r'conversationIdProvider',
@@ -371,7 +370,7 @@ final class ConversationIdFamily extends $Family
 /// Get all recent messages for all conversations from PowerSync local SQLite
 
 @ProviderFor(recentMessages)
-const recentMessagesProvider = RecentMessagesProvider._();
+final recentMessagesProvider = RecentMessagesProvider._();
 
 /// Get all recent messages for all conversations from PowerSync local SQLite
 
@@ -386,7 +385,7 @@ final class RecentMessagesProvider
         $FutureModifier<Map<String, Message>>,
         $FutureProvider<Map<String, Message>> {
   /// Get all recent messages for all conversations from PowerSync local SQLite
-  const RecentMessagesProvider._()
+  RecentMessagesProvider._()
     : super(
         from: null,
         argument: null,
@@ -417,13 +416,13 @@ String _$recentMessagesHash() => r'02c7e0389cd38071117949a29433a4c7d53307fa';
 /// Show send button state for each conversation
 
 @ProviderFor(ShowSendButton)
-const showSendButtonProvider = ShowSendButtonFamily._();
+final showSendButtonProvider = ShowSendButtonFamily._();
 
 /// Show send button state for each conversation
 final class ShowSendButtonProvider
     extends $NotifierProvider<ShowSendButton, bool> {
   /// Show send button state for each conversation
-  const ShowSendButtonProvider._({
+  ShowSendButtonProvider._({
     required ShowSendButtonFamily super.from,
     required String super.argument,
   }) : super(
@@ -473,7 +472,7 @@ String _$showSendButtonHash() => r'def4fce7c6e335cffe96f55cec2b814960a0beed';
 
 final class ShowSendButtonFamily extends $Family
     with $ClassFamilyOverride<ShowSendButton, bool, bool, bool, String> {
-  const ShowSendButtonFamily._()
+  ShowSendButtonFamily._()
     : super(
         retry: null,
         name: r'showSendButtonProvider',
@@ -500,8 +499,7 @@ abstract class _$ShowSendButton extends $Notifier<bool> {
   bool build(String conversationId);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<bool, bool>;
     final element =
         ref.element
@@ -511,7 +509,7 @@ abstract class _$ShowSendButton extends $Notifier<bool> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args));
   }
 }
 
@@ -519,7 +517,7 @@ abstract class _$ShowSendButton extends $Notifier<bool> {
 /// Maps user ID to timestamp of last typing event
 
 @ProviderFor(TypingUsers)
-const typingUsersProvider = TypingUsersFamily._();
+final typingUsersProvider = TypingUsersFamily._();
 
 /// Typing users state for each conversation
 /// Maps user ID to timestamp of last typing event
@@ -527,7 +525,7 @@ final class TypingUsersProvider
     extends $NotifierProvider<TypingUsers, Map<String, DateTime>> {
   /// Typing users state for each conversation
   /// Maps user ID to timestamp of last typing event
-  const TypingUsersProvider._({
+  TypingUsersProvider._({
     required TypingUsersFamily super.from,
     required String super.argument,
   }) : super(
@@ -585,7 +583,7 @@ final class TypingUsersFamily extends $Family
           Map<String, DateTime>,
           String
         > {
-  const TypingUsersFamily._()
+  TypingUsersFamily._()
     : super(
         retry: null,
         name: r'typingUsersProvider',
@@ -614,8 +612,7 @@ abstract class _$TypingUsers extends $Notifier<Map<String, DateTime>> {
   Map<String, DateTime> build(String conversationId);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<Map<String, DateTime>, Map<String, DateTime>>;
     final element =
         ref.element
@@ -625,19 +622,19 @@ abstract class _$TypingUsers extends $Notifier<Map<String, DateTime>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args));
   }
 }
 
 /// Recording state for each conversation
 
 @ProviderFor(IsRecording)
-const isRecordingProvider = IsRecordingFamily._();
+final isRecordingProvider = IsRecordingFamily._();
 
 /// Recording state for each conversation
 final class IsRecordingProvider extends $NotifierProvider<IsRecording, bool> {
   /// Recording state for each conversation
-  const IsRecordingProvider._({
+  IsRecordingProvider._({
     required IsRecordingFamily super.from,
     required String super.argument,
   }) : super(
@@ -687,7 +684,7 @@ String _$isRecordingHash() => r'14a85e5e403cac361be3c9c6ae7f5c2d8afd7f8f';
 
 final class IsRecordingFamily extends $Family
     with $ClassFamilyOverride<IsRecording, bool, bool, bool, String> {
-  const IsRecordingFamily._()
+  IsRecordingFamily._()
     : super(
         retry: null,
         name: r'isRecordingProvider',
@@ -714,8 +711,7 @@ abstract class _$IsRecording extends $Notifier<bool> {
   bool build(String conversationId);
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build(_$args);
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<bool, bool>;
     final element =
         ref.element
@@ -725,14 +721,14 @@ abstract class _$IsRecording extends $Notifier<bool> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, () => build(_$args));
   }
 }
 
 /// Get list of recent conversations with details from PowerSync local SQLite
 
 @ProviderFor(chatList)
-const chatListProvider = ChatListProvider._();
+final chatListProvider = ChatListProvider._();
 
 /// Get list of recent conversations with details from PowerSync local SQLite
 
@@ -747,7 +743,7 @@ final class ChatListProvider
         $FutureModifier<List<Map<String, dynamic>>>,
         $StreamProvider<List<Map<String, dynamic>>> {
   /// Get list of recent conversations with details from PowerSync local SQLite
-  const ChatListProvider._()
+  ChatListProvider._()
     : super(
         from: null,
         argument: null,
@@ -779,7 +775,7 @@ String _$chatListHash() => r'05ac30b80a8462f27b883323ea554791e5cf3745';
 /// Updates local database immediately and relies on PowerSync upload queue
 
 @ProviderFor(MarkAsReadAction)
-const markAsReadActionProvider = MarkAsReadActionProvider._();
+final markAsReadActionProvider = MarkAsReadActionProvider._();
 
 /// Offline-first mark conversation as read
 /// Updates local database immediately and relies on PowerSync upload queue
@@ -787,7 +783,7 @@ final class MarkAsReadActionProvider
     extends $AsyncNotifierProvider<MarkAsReadAction, void> {
   /// Offline-first mark conversation as read
   /// Updates local database immediately and relies on PowerSync upload queue
-  const MarkAsReadActionProvider._()
+  MarkAsReadActionProvider._()
     : super(
         from: null,
         argument: null,
@@ -815,8 +811,7 @@ abstract class _$MarkAsReadAction extends $AsyncNotifier<void> {
   FutureOr<void> build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<void>, void>;
     final element =
         ref.element
@@ -826,6 +821,6 @@ abstract class _$MarkAsReadAction extends $AsyncNotifier<void> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, null);
+    return element.handleCreate(ref, build);
   }
 }

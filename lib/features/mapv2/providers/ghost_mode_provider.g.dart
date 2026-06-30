@@ -11,7 +11,7 @@ part of 'ghost_mode_provider.dart';
 /// Provides a singleton GhostModeService scoped to the current user.
 
 @ProviderFor(ghostModeService)
-const ghostModeServiceProvider = GhostModeServiceProvider._();
+final ghostModeServiceProvider = GhostModeServiceProvider._();
 
 /// Provides a singleton GhostModeService scoped to the current user.
 
@@ -24,7 +24,7 @@ final class GhostModeServiceProvider
         >
     with $Provider<GhostModeService> {
   /// Provides a singleton GhostModeService scoped to the current user.
-  const GhostModeServiceProvider._()
+  GhostModeServiceProvider._()
     : super(
         from: null,
         argument: null,
@@ -62,7 +62,7 @@ String _$ghostModeServiceHash() => r'a509d5c2730b8b742d2fef996325bdb672eb46ca';
 /// Stream provider for live friends on the map.
 
 @ProviderFor(liveFriends)
-const liveFriendsProvider = LiveFriendsProvider._();
+final liveFriendsProvider = LiveFriendsProvider._();
 
 /// Stream provider for live friends on the map.
 
@@ -77,7 +77,7 @@ final class LiveFriendsProvider
         $FutureModifier<Map<String, LiveFriend>>,
         $StreamProvider<Map<String, LiveFriend>> {
   /// Stream provider for live friends on the map.
-  const LiveFriendsProvider._()
+  LiveFriendsProvider._()
     : super(
         from: null,
         argument: null,
@@ -109,14 +109,14 @@ String _$liveFriendsHash() => r'92e3298a8195b5737db2494bff9cdf745265ceb3';
 /// Uses a Notifier instead of deprecated StateProvider.
 
 @ProviderFor(IsGhostLive)
-const isGhostLiveProvider = IsGhostLiveProvider._();
+final isGhostLiveProvider = IsGhostLiveProvider._();
 
 /// Whether the current user is broadcasting live.
 /// Uses a Notifier instead of deprecated StateProvider.
 final class IsGhostLiveProvider extends $NotifierProvider<IsGhostLive, bool> {
   /// Whether the current user is broadcasting live.
   /// Uses a Notifier instead of deprecated StateProvider.
-  const IsGhostLiveProvider._()
+  IsGhostLiveProvider._()
     : super(
         from: null,
         argument: null,
@@ -152,8 +152,7 @@ abstract class _$IsGhostLive extends $Notifier<bool> {
   bool build();
   @$mustCallSuper
   @override
-  void runBuild() {
-    final created = build();
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<bool, bool>;
     final element =
         ref.element
@@ -163,6 +162,6 @@ abstract class _$IsGhostLive extends $Notifier<bool> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    return element.handleCreate(ref, build);
   }
 }

@@ -6,7 +6,6 @@ import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../database/database.dart';
 import 'package:moments/core/services/app_logger.dart';
 
 final _log = AppLogger('AvatarCache');
@@ -19,7 +18,6 @@ final _log = AppLogger('AvatarCache');
 /// access instances.
 class AvatarCacheService {
   /// Database for persistence
-  final AppDatabase _database;
 
   /// In-memory cache: userId -> avatarUrl
   final Map<String, String> _memoryCache = {};
@@ -39,8 +37,7 @@ class AvatarCacheService {
   static const String defaultAvatarUrl =
       'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
 
-  /// Creates an AvatarCacheService with the required database dependency.
-  AvatarCacheService(this._database);
+  AvatarCacheService();
 
   /// Exposed for explicit lifecycle checks in app startup and tests.
   bool get isInitialized => _initialized;
@@ -52,16 +49,9 @@ class AvatarCacheService {
     _initializing = true;
 
     try {
-      // Load all profiles from Drift and populate memory cache
-      final profileEntries = await _database.getProfiles();
-      for (final entry in profileEntries) {
-        final profile = entry.toModel();
-        if (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty) {
-          _memoryCache[profile.id] = profile.avatarUrl!;
-        }
-      }
-
-      // Also load locally cached avatar files
+      // Memory cache populates lazily as avatars are requested; profile avatar
+      // URLs come from Supabase/PowerSync now (no Drift seed). Just load any
+      // locally cached avatar files.
       await _loadLocalAvatarPaths();
 
       _initialized = true;
@@ -255,27 +245,12 @@ class AvatarCacheService {
     });
   }
 
-  /// Persist a single avatar URL to Drift database
-  Future<void> _persistAvatarUrl(String userId, String avatarUrl) async {
-    try {
-      await _database.updateProfileAvatarUrl(userId, avatarUrl);
-    } catch (e) {
-      _log.e('AvatarCacheService: Error persisting avatar: $e');
-    }
-  }
+  // ponytail: avatar URLs live in the in-memory cache + Supabase profiles
+  // (synced via PowerSync). No separate local persistence layer needed, so
+  // these are no-ops kept to avoid churning their four call sites.
+  Future<void> _persistAvatarUrl(String userId, String avatarUrl) async {}
 
-  /// Persist multiple avatar URLs to Drift database
-  Future<void> _persistAvatarUrls(Map<String, String> avatars) async {
-    if (avatars.isEmpty) return;
-
-    try {
-      for (final entry in avatars.entries) {
-        await _database.updateProfileAvatarUrl(entry.key, entry.value);
-      }
-    } catch (e) {
-      _log.e('AvatarCacheService: Error batch persisting avatars: $e');
-    }
-  }
+  Future<void> _persistAvatarUrls(Map<String, String> avatars) async {}
 
   /// Download and cache avatar image locally for offline use
   Future<String?> downloadAvatar(String url) async {

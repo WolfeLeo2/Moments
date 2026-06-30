@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/services/haptic_service.dart';
-import '../../../core/providers/database_provider.dart';
+import '../../../core/services/moment_media_cache.dart';
 import '../../../core/providers/moments_providers.dart';
 import '../../../core/providers/providers.dart';
 import '../../../data/models/moment.dart';
@@ -656,9 +656,8 @@ class _FriendProfilePageState extends ConsumerState<FriendProfilePage>
                 onTap: () => _navigateToDetails(moment, allMoments),
                 child: Consumer(
                   builder: (context, ref, child) {
-                    final db = ref.read(appDatabaseProvider);
                     return FutureBuilder<String?>(
-                      future: db.getLocalMediaPath(moment.id),
+                      future: MomentMediaCache.getLocalMediaPath(moment.id),
                       builder: (context, snapshot) {
                         return OfflineImage(
                           localPath: snapshot.data,

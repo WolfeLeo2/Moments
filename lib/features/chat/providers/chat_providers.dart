@@ -1,8 +1,8 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:moments/data/models/message.dart';
 import 'package:moments/data/repositories/chat_repository.dart';
-import 'package:moments/core/providers/database_provider.dart';
 import 'package:moments/core/providers/powersync_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:moments/core/services/app_logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -55,21 +55,19 @@ Future<Message?> lastMessage(Ref ref, String conversationId) async {
 /// Use this when you need to ensure a conversation exists
 @Riverpod(keepAlive: true)
 Future<String> conversationId(Ref ref, String friendId) async {
-  final db = ref.watch(appDatabaseProvider);
+  final prefs = await SharedPreferences.getInstance();
+  final key = 'conv_id_$friendId';
+
+  // 1. Fast path: cached conversation ID from prefs.
+  final cachedId = prefs.getString(key);
+  if (cachedId != null) return cachedId;
+
+  // 2. Get or create from Supabase (idempotent RPC).
   final chatRepo = ref.watch(chatRepositoryProvider);
-
-  // 1. Try to get cached conversation ID from Drift
-  final cachedId = await db.getCachedConversationId(friendId);
-  if (cachedId != null) {
-    return cachedId;
-  }
-
-  // 2. Get or create from Supabase
   final conversationId = await chatRepo.getOrCreateConversation(friendId);
 
-  // 3. Cache it in Drift for next time
-  await db.cacheConversationId(friendId, conversationId);
-
+  // 3. Cache for next time.
+  await prefs.setString(key, conversationId);
   return conversationId;
 }
 

@@ -10,7 +10,7 @@ part of 'offline_media_policy_service.dart';
 // ignore_for_file: type=lint, type=warning
 
 @ProviderFor(offlineMediaPolicyService)
-const offlineMediaPolicyServiceProvider = OfflineMediaPolicyServiceProvider._();
+final offlineMediaPolicyServiceProvider = OfflineMediaPolicyServiceProvider._();
 
 final class OfflineMediaPolicyServiceProvider
     extends
@@ -20,7 +20,7 @@ final class OfflineMediaPolicyServiceProvider
           OfflineMediaPolicyService
         >
     with $Provider<OfflineMediaPolicyService> {
-  const OfflineMediaPolicyServiceProvider._()
+  OfflineMediaPolicyServiceProvider._()
     : super(
         from: null,
         argument: null,
