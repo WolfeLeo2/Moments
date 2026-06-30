@@ -11,16 +11,19 @@ part of 'message.dart';
 
 // dart format off
 T _$identity<T>(T value) => value;
+
 /// @nodoc
 mixin _$Message {
 
- String get id; String get conversationId; String get senderId; String get content; MessageType get messageType; String? get mediaUrl; String? get localMediaPath; Map<String, dynamic>? get metadata; DateTime get createdAt; DateTime get updatedAt; bool get isDeleted; bool get isRead; String? get replyToMessageId; Message? get replyToMessage; bool get isEdited; String? get deletedFor; List<Reaction> get reactions; MessageSendStatus get sendStatus; bool get localOnly; DateTime? get deliveredAt;
+ String get id; String get conversationId; String get senderId; String get content;@JsonKey(unknownEnumValue: MessageType.text) MessageType get messageType; String? get mediaUrl; String? get localMediaPath;@MetadataConverter() Map<String, dynamic>? get metadata;@JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson) DateTime get createdAt;@JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson) DateTime get updatedAt;@JsonKey(fromJson: boolFromJson, toJson: boolToJson) bool get isDeleted;@JsonKey(fromJson: boolFromJson, toJson: boolToJson) bool get isRead; String? get replyToMessageId; Message? get replyToMessage;@JsonKey(fromJson: boolFromJson, toJson: boolToJson) bool get isEdited; String? get deletedFor; List<Reaction> get reactions;@JsonKey(unknownEnumValue: MessageSendStatus.sent) MessageSendStatus get sendStatus;@JsonKey(fromJson: boolFromJson, toJson: boolToJson) bool get localOnly;@JsonKey(fromJson: nullableLocalDateTimeFromJson, toJson: nullableDateTimeToJson) DateTime? get deliveredAt;
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
 $MessageCopyWith<Message> get copyWith => _$MessageCopyWithImpl<Message>(this as Message, _$identity);
 
+  /// Serializes this Message to a JSON map.
+  Map<String, dynamic> toJson();
 
 
 @override
@@ -28,7 +31,7 @@ bool operator ==(Object other) {
   return identical(this, other) || (other.runtimeType == runtimeType&&other is Message&&(identical(other.id, id) || other.id == id)&&(identical(other.conversationId, conversationId) || other.conversationId == conversationId)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.content, content) || other.content == content)&&(identical(other.messageType, messageType) || other.messageType == messageType)&&(identical(other.mediaUrl, mediaUrl) || other.mediaUrl == mediaUrl)&&(identical(other.localMediaPath, localMediaPath) || other.localMediaPath == localMediaPath)&&const DeepCollectionEquality().equals(other.metadata, metadata)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isRead, isRead) || other.isRead == isRead)&&(identical(other.replyToMessageId, replyToMessageId) || other.replyToMessageId == replyToMessageId)&&(identical(other.replyToMessage, replyToMessage) || other.replyToMessage == replyToMessage)&&(identical(other.isEdited, isEdited) || other.isEdited == isEdited)&&(identical(other.deletedFor, deletedFor) || other.deletedFor == deletedFor)&&const DeepCollectionEquality().equals(other.reactions, reactions)&&(identical(other.sendStatus, sendStatus) || other.sendStatus == sendStatus)&&(identical(other.localOnly, localOnly) || other.localOnly == localOnly)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt));
 }
 
-
+@JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode => Object.hashAll([runtimeType,id,conversationId,senderId,content,messageType,mediaUrl,localMediaPath,const DeepCollectionEquality().hash(metadata),createdAt,updatedAt,isDeleted,isRead,replyToMessageId,replyToMessage,isEdited,deletedFor,const DeepCollectionEquality().hash(reactions),sendStatus,localOnly,deliveredAt]);
 
@@ -45,7 +48,7 @@ abstract mixin class $MessageCopyWith<$Res>  {
   factory $MessageCopyWith(Message value, $Res Function(Message) _then) = _$MessageCopyWithImpl;
 @useResult
 $Res call({
- String id, String conversationId, String senderId, String content, MessageType messageType, String? mediaUrl, String? localMediaPath, Map<String, dynamic>? metadata, DateTime createdAt, DateTime updatedAt, bool isDeleted, bool isRead, String? replyToMessageId, Message? replyToMessage, bool isEdited, String? deletedFor, List<Reaction> reactions, MessageSendStatus sendStatus, bool localOnly, DateTime? deliveredAt
+ String id, String conversationId, String senderId, String content,@JsonKey(unknownEnumValue: MessageType.text) MessageType messageType, String? mediaUrl, String? localMediaPath,@MetadataConverter() Map<String, dynamic>? metadata,@JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson) DateTime createdAt,@JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson) DateTime updatedAt,@JsonKey(fromJson: boolFromJson, toJson: boolToJson) bool isDeleted,@JsonKey(fromJson: boolFromJson, toJson: boolToJson) bool isRead, String? replyToMessageId, Message? replyToMessage,@JsonKey(fromJson: boolFromJson, toJson: boolToJson) bool isEdited, String? deletedFor, List<Reaction> reactions,@JsonKey(unknownEnumValue: MessageSendStatus.sent) MessageSendStatus sendStatus,@JsonKey(fromJson: boolFromJson, toJson: boolToJson) bool localOnly,@JsonKey(fromJson: nullableLocalDateTimeFromJson, toJson: nullableDateTimeToJson) DateTime? deliveredAt
 });
 
 
@@ -181,7 +184,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String conversationId,  String senderId,  String content,  MessageType messageType,  String? mediaUrl,  String? localMediaPath,  Map<String, dynamic>? metadata,  DateTime createdAt,  DateTime updatedAt,  bool isDeleted,  bool isRead,  String? replyToMessageId,  Message? replyToMessage,  bool isEdited,  String? deletedFor,  List<Reaction> reactions,  MessageSendStatus sendStatus,  bool localOnly,  DateTime? deliveredAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String conversationId,  String senderId,  String content, @JsonKey(unknownEnumValue: MessageType.text)  MessageType messageType,  String? mediaUrl,  String? localMediaPath, @MetadataConverter()  Map<String, dynamic>? metadata, @JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson)  DateTime createdAt, @JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson)  DateTime updatedAt, @JsonKey(fromJson: boolFromJson, toJson: boolToJson)  bool isDeleted, @JsonKey(fromJson: boolFromJson, toJson: boolToJson)  bool isRead,  String? replyToMessageId,  Message? replyToMessage, @JsonKey(fromJson: boolFromJson, toJson: boolToJson)  bool isEdited,  String? deletedFor,  List<Reaction> reactions, @JsonKey(unknownEnumValue: MessageSendStatus.sent)  MessageSendStatus sendStatus, @JsonKey(fromJson: boolFromJson, toJson: boolToJson)  bool localOnly, @JsonKey(fromJson: nullableLocalDateTimeFromJson, toJson: nullableDateTimeToJson)  DateTime? deliveredAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Message() when $default != null:
 return $default(_that.id,_that.conversationId,_that.senderId,_that.content,_that.messageType,_that.mediaUrl,_that.localMediaPath,_that.metadata,_that.createdAt,_that.updatedAt,_that.isDeleted,_that.isRead,_that.replyToMessageId,_that.replyToMessage,_that.isEdited,_that.deletedFor,_that.reactions,_that.sendStatus,_that.localOnly,_that.deliveredAt);case _:
@@ -202,7 +205,7 @@ return $default(_that.id,_that.conversationId,_that.senderId,_that.content,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String conversationId,  String senderId,  String content,  MessageType messageType,  String? mediaUrl,  String? localMediaPath,  Map<String, dynamic>? metadata,  DateTime createdAt,  DateTime updatedAt,  bool isDeleted,  bool isRead,  String? replyToMessageId,  Message? replyToMessage,  bool isEdited,  String? deletedFor,  List<Reaction> reactions,  MessageSendStatus sendStatus,  bool localOnly,  DateTime? deliveredAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String conversationId,  String senderId,  String content, @JsonKey(unknownEnumValue: MessageType.text)  MessageType messageType,  String? mediaUrl,  String? localMediaPath, @MetadataConverter()  Map<String, dynamic>? metadata, @JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson)  DateTime createdAt, @JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson)  DateTime updatedAt, @JsonKey(fromJson: boolFromJson, toJson: boolToJson)  bool isDeleted, @JsonKey(fromJson: boolFromJson, toJson: boolToJson)  bool isRead,  String? replyToMessageId,  Message? replyToMessage, @JsonKey(fromJson: boolFromJson, toJson: boolToJson)  bool isEdited,  String? deletedFor,  List<Reaction> reactions, @JsonKey(unknownEnumValue: MessageSendStatus.sent)  MessageSendStatus sendStatus, @JsonKey(fromJson: boolFromJson, toJson: boolToJson)  bool localOnly, @JsonKey(fromJson: nullableLocalDateTimeFromJson, toJson: nullableDateTimeToJson)  DateTime? deliveredAt)  $default,) {final _that = this;
 switch (_that) {
 case _Message():
 return $default(_that.id,_that.conversationId,_that.senderId,_that.content,_that.messageType,_that.mediaUrl,_that.localMediaPath,_that.metadata,_that.createdAt,_that.updatedAt,_that.isDeleted,_that.isRead,_that.replyToMessageId,_that.replyToMessage,_that.isEdited,_that.deletedFor,_that.reactions,_that.sendStatus,_that.localOnly,_that.deliveredAt);case _:
@@ -222,7 +225,7 @@ return $default(_that.id,_that.conversationId,_that.senderId,_that.content,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String conversationId,  String senderId,  String content,  MessageType messageType,  String? mediaUrl,  String? localMediaPath,  Map<String, dynamic>? metadata,  DateTime createdAt,  DateTime updatedAt,  bool isDeleted,  bool isRead,  String? replyToMessageId,  Message? replyToMessage,  bool isEdited,  String? deletedFor,  List<Reaction> reactions,  MessageSendStatus sendStatus,  bool localOnly,  DateTime? deliveredAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String conversationId,  String senderId,  String content, @JsonKey(unknownEnumValue: MessageType.text)  MessageType messageType,  String? mediaUrl,  String? localMediaPath, @MetadataConverter()  Map<String, dynamic>? metadata, @JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson)  DateTime createdAt, @JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson)  DateTime updatedAt, @JsonKey(fromJson: boolFromJson, toJson: boolToJson)  bool isDeleted, @JsonKey(fromJson: boolFromJson, toJson: boolToJson)  bool isRead,  String? replyToMessageId,  Message? replyToMessage, @JsonKey(fromJson: boolFromJson, toJson: boolToJson)  bool isEdited,  String? deletedFor,  List<Reaction> reactions, @JsonKey(unknownEnumValue: MessageSendStatus.sent)  MessageSendStatus sendStatus, @JsonKey(fromJson: boolFromJson, toJson: boolToJson)  bool localOnly, @JsonKey(fromJson: nullableLocalDateTimeFromJson, toJson: nullableDateTimeToJson)  DateTime? deliveredAt)?  $default,) {final _that = this;
 switch (_that) {
 case _Message() when $default != null:
 return $default(_that.id,_that.conversationId,_that.senderId,_that.content,_that.messageType,_that.mediaUrl,_that.localMediaPath,_that.metadata,_that.createdAt,_that.updatedAt,_that.isDeleted,_that.isRead,_that.replyToMessageId,_that.replyToMessage,_that.isEdited,_that.deletedFor,_that.reactions,_that.sendStatus,_that.localOnly,_that.deliveredAt);case _:
@@ -235,20 +238,20 @@ return $default(_that.id,_that.conversationId,_that.senderId,_that.content,_that
 
 /// @nodoc
 
-
-class _Message extends Message {
-  const _Message({required this.id, required this.conversationId, required this.senderId, required this.content, required this.messageType, this.mediaUrl, this.localMediaPath, final  Map<String, dynamic>? metadata, required this.createdAt, required this.updatedAt, this.isDeleted = false, this.isRead = false, this.replyToMessageId, this.replyToMessage, this.isEdited = false, this.deletedFor, final  List<Reaction> reactions = const [], this.sendStatus = MessageSendStatus.sent, this.localOnly = false, this.deliveredAt}): _metadata = metadata,_reactions = reactions,super._();
-  
+@JsonSerializable(fieldRename: FieldRename.snake, explicitToJson: true)
+class _Message implements Message {
+  const _Message({required this.id, required this.conversationId, required this.senderId, required this.content, @JsonKey(unknownEnumValue: MessageType.text) required this.messageType, this.mediaUrl, this.localMediaPath, @MetadataConverter() final  Map<String, dynamic>? metadata, @JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson) required this.createdAt, @JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson) required this.updatedAt, @JsonKey(fromJson: boolFromJson, toJson: boolToJson) this.isDeleted = false, @JsonKey(fromJson: boolFromJson, toJson: boolToJson) this.isRead = false, this.replyToMessageId, this.replyToMessage, @JsonKey(fromJson: boolFromJson, toJson: boolToJson) this.isEdited = false, this.deletedFor, final  List<Reaction> reactions = const [], @JsonKey(unknownEnumValue: MessageSendStatus.sent) this.sendStatus = MessageSendStatus.sent, @JsonKey(fromJson: boolFromJson, toJson: boolToJson) this.localOnly = false, @JsonKey(fromJson: nullableLocalDateTimeFromJson, toJson: nullableDateTimeToJson) this.deliveredAt}): _metadata = metadata,_reactions = reactions;
+  factory _Message.fromJson(Map<String, dynamic> json) => _$MessageFromJson(json);
 
 @override final  String id;
 @override final  String conversationId;
 @override final  String senderId;
 @override final  String content;
-@override final  MessageType messageType;
+@override@JsonKey(unknownEnumValue: MessageType.text) final  MessageType messageType;
 @override final  String? mediaUrl;
 @override final  String? localMediaPath;
  final  Map<String, dynamic>? _metadata;
-@override Map<String, dynamic>? get metadata {
+@override@MetadataConverter() Map<String, dynamic>? get metadata {
   final value = _metadata;
   if (value == null) return null;
   if (_metadata is EqualUnmodifiableMapView) return _metadata;
@@ -256,13 +259,13 @@ class _Message extends Message {
   return EqualUnmodifiableMapView(value);
 }
 
-@override final  DateTime createdAt;
-@override final  DateTime updatedAt;
-@override@JsonKey() final  bool isDeleted;
-@override@JsonKey() final  bool isRead;
+@override@JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson) final  DateTime createdAt;
+@override@JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson) final  DateTime updatedAt;
+@override@JsonKey(fromJson: boolFromJson, toJson: boolToJson) final  bool isDeleted;
+@override@JsonKey(fromJson: boolFromJson, toJson: boolToJson) final  bool isRead;
 @override final  String? replyToMessageId;
 @override final  Message? replyToMessage;
-@override@JsonKey() final  bool isEdited;
+@override@JsonKey(fromJson: boolFromJson, toJson: boolToJson) final  bool isEdited;
 @override final  String? deletedFor;
  final  List<Reaction> _reactions;
 @override@JsonKey() List<Reaction> get reactions {
@@ -271,9 +274,9 @@ class _Message extends Message {
   return EqualUnmodifiableListView(_reactions);
 }
 
-@override@JsonKey() final  MessageSendStatus sendStatus;
-@override@JsonKey() final  bool localOnly;
-@override final  DateTime? deliveredAt;
+@override@JsonKey(unknownEnumValue: MessageSendStatus.sent) final  MessageSendStatus sendStatus;
+@override@JsonKey(fromJson: boolFromJson, toJson: boolToJson) final  bool localOnly;
+@override@JsonKey(fromJson: nullableLocalDateTimeFromJson, toJson: nullableDateTimeToJson) final  DateTime? deliveredAt;
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
@@ -281,14 +284,17 @@ class _Message extends Message {
 @pragma('vm:prefer-inline')
 _$MessageCopyWith<_Message> get copyWith => __$MessageCopyWithImpl<_Message>(this, _$identity);
 
-
+@override
+Map<String, dynamic> toJson() {
+  return _$MessageToJson(this, );
+}
 
 @override
 bool operator ==(Object other) {
   return identical(this, other) || (other.runtimeType == runtimeType&&other is _Message&&(identical(other.id, id) || other.id == id)&&(identical(other.conversationId, conversationId) || other.conversationId == conversationId)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.content, content) || other.content == content)&&(identical(other.messageType, messageType) || other.messageType == messageType)&&(identical(other.mediaUrl, mediaUrl) || other.mediaUrl == mediaUrl)&&(identical(other.localMediaPath, localMediaPath) || other.localMediaPath == localMediaPath)&&const DeepCollectionEquality().equals(other._metadata, _metadata)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isRead, isRead) || other.isRead == isRead)&&(identical(other.replyToMessageId, replyToMessageId) || other.replyToMessageId == replyToMessageId)&&(identical(other.replyToMessage, replyToMessage) || other.replyToMessage == replyToMessage)&&(identical(other.isEdited, isEdited) || other.isEdited == isEdited)&&(identical(other.deletedFor, deletedFor) || other.deletedFor == deletedFor)&&const DeepCollectionEquality().equals(other._reactions, _reactions)&&(identical(other.sendStatus, sendStatus) || other.sendStatus == sendStatus)&&(identical(other.localOnly, localOnly) || other.localOnly == localOnly)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt));
 }
 
-
+@JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode => Object.hashAll([runtimeType,id,conversationId,senderId,content,messageType,mediaUrl,localMediaPath,const DeepCollectionEquality().hash(_metadata),createdAt,updatedAt,isDeleted,isRead,replyToMessageId,replyToMessage,isEdited,deletedFor,const DeepCollectionEquality().hash(_reactions),sendStatus,localOnly,deliveredAt]);
 
@@ -305,7 +311,7 @@ abstract mixin class _$MessageCopyWith<$Res> implements $MessageCopyWith<$Res> {
   factory _$MessageCopyWith(_Message value, $Res Function(_Message) _then) = __$MessageCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String conversationId, String senderId, String content, MessageType messageType, String? mediaUrl, String? localMediaPath, Map<String, dynamic>? metadata, DateTime createdAt, DateTime updatedAt, bool isDeleted, bool isRead, String? replyToMessageId, Message? replyToMessage, bool isEdited, String? deletedFor, List<Reaction> reactions, MessageSendStatus sendStatus, bool localOnly, DateTime? deliveredAt
+ String id, String conversationId, String senderId, String content,@JsonKey(unknownEnumValue: MessageType.text) MessageType messageType, String? mediaUrl, String? localMediaPath,@MetadataConverter() Map<String, dynamic>? metadata,@JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson) DateTime createdAt,@JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson) DateTime updatedAt,@JsonKey(fromJson: boolFromJson, toJson: boolToJson) bool isDeleted,@JsonKey(fromJson: boolFromJson, toJson: boolToJson) bool isRead, String? replyToMessageId, Message? replyToMessage,@JsonKey(fromJson: boolFromJson, toJson: boolToJson) bool isEdited, String? deletedFor, List<Reaction> reactions,@JsonKey(unknownEnumValue: MessageSendStatus.sent) MessageSendStatus sendStatus,@JsonKey(fromJson: boolFromJson, toJson: boolToJson) bool localOnly,@JsonKey(fromJson: nullableLocalDateTimeFromJson, toJson: nullableDateTimeToJson) DateTime? deliveredAt
 });
 
 

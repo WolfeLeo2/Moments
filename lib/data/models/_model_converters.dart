@@ -3,6 +3,14 @@ import 'package:json_annotation/json_annotation.dart';
 import 'music_data.dart';
 
 DateTime localDateTimeFromJson(String s) => DateTime.parse(s).toLocal();
+
+/// Handles SQLite integers (0/1) as well as Dart bools.
+bool boolFromJson(dynamic value) => switch (value) {
+      final bool b => b,
+      final int i => i != 0,
+      _ => false,
+    };
+bool boolToJson(bool value) => value;
 String dateTimeToJson(DateTime d) => d.toIso8601String();
 DateTime? nullableLocalDateTimeFromJson(String? s) =>
     s == null ? null : DateTime.parse(s).toLocal();

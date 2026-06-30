@@ -11,16 +11,19 @@ part of 'moment_comment.dart';
 
 // dart format off
 T _$identity<T>(T value) => value;
+
 /// @nodoc
 mixin _$MomentComment {
 
- String get id; String get momentId; String get userId; String get content; DateTime get createdAt; DateTime get updatedAt; String? get displayName; String? get avatarUrl;
+@JsonKey(includeToJson: false) String get id; String get momentId; String get userId; String get content;@JsonKey(includeToJson: false) DateTime get createdAt;@JsonKey(includeToJson: false) DateTime get updatedAt;@JsonKey(includeToJson: false) String? get displayName;@JsonKey(includeToJson: false) String? get avatarUrl;
 /// Create a copy of MomentComment
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
 $MomentCommentCopyWith<MomentComment> get copyWith => _$MomentCommentCopyWithImpl<MomentComment>(this as MomentComment, _$identity);
 
+  /// Serializes this MomentComment to a JSON map.
+  Map<String, dynamic> toJson();
 
 
 @override
@@ -28,7 +31,7 @@ bool operator ==(Object other) {
   return identical(this, other) || (other.runtimeType == runtimeType&&other is MomentComment&&(identical(other.id, id) || other.id == id)&&(identical(other.momentId, momentId) || other.momentId == momentId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.content, content) || other.content == content)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl));
 }
 
-
+@JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode => Object.hash(runtimeType,id,momentId,userId,content,createdAt,updatedAt,displayName,avatarUrl);
 
@@ -45,7 +48,7 @@ abstract mixin class $MomentCommentCopyWith<$Res>  {
   factory $MomentCommentCopyWith(MomentComment value, $Res Function(MomentComment) _then) = _$MomentCommentCopyWithImpl;
 @useResult
 $Res call({
- String id, String momentId, String userId, String content, DateTime createdAt, DateTime updatedAt, String? displayName, String? avatarUrl
+@JsonKey(includeToJson: false) String id, String momentId, String userId, String content,@JsonKey(includeToJson: false) DateTime createdAt,@JsonKey(includeToJson: false) DateTime updatedAt,@JsonKey(includeToJson: false) String? displayName,@JsonKey(includeToJson: false) String? avatarUrl
 });
 
 
@@ -157,7 +160,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String momentId,  String userId,  String content,  DateTime createdAt,  DateTime updatedAt,  String? displayName,  String? avatarUrl)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false)  String id,  String momentId,  String userId,  String content, @JsonKey(includeToJson: false)  DateTime createdAt, @JsonKey(includeToJson: false)  DateTime updatedAt, @JsonKey(includeToJson: false)  String? displayName, @JsonKey(includeToJson: false)  String? avatarUrl)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _MomentComment() when $default != null:
 return $default(_that.id,_that.momentId,_that.userId,_that.content,_that.createdAt,_that.updatedAt,_that.displayName,_that.avatarUrl);case _:
@@ -178,7 +181,7 @@ return $default(_that.id,_that.momentId,_that.userId,_that.content,_that.created
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String momentId,  String userId,  String content,  DateTime createdAt,  DateTime updatedAt,  String? displayName,  String? avatarUrl)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false)  String id,  String momentId,  String userId,  String content, @JsonKey(includeToJson: false)  DateTime createdAt, @JsonKey(includeToJson: false)  DateTime updatedAt, @JsonKey(includeToJson: false)  String? displayName, @JsonKey(includeToJson: false)  String? avatarUrl)  $default,) {final _that = this;
 switch (_that) {
 case _MomentComment():
 return $default(_that.id,_that.momentId,_that.userId,_that.content,_that.createdAt,_that.updatedAt,_that.displayName,_that.avatarUrl);case _:
@@ -198,7 +201,7 @@ return $default(_that.id,_that.momentId,_that.userId,_that.content,_that.created
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String momentId,  String userId,  String content,  DateTime createdAt,  DateTime updatedAt,  String? displayName,  String? avatarUrl)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(includeToJson: false)  String id,  String momentId,  String userId,  String content, @JsonKey(includeToJson: false)  DateTime createdAt, @JsonKey(includeToJson: false)  DateTime updatedAt, @JsonKey(includeToJson: false)  String? displayName, @JsonKey(includeToJson: false)  String? avatarUrl)?  $default,) {final _that = this;
 switch (_that) {
 case _MomentComment() when $default != null:
 return $default(_that.id,_that.momentId,_that.userId,_that.content,_that.createdAt,_that.updatedAt,_that.displayName,_that.avatarUrl);case _:
@@ -211,19 +214,19 @@ return $default(_that.id,_that.momentId,_that.userId,_that.content,_that.created
 
 /// @nodoc
 
+@JsonSerializable(fieldRename: FieldRename.snake, explicitToJson: true)
+class _MomentComment implements MomentComment {
+  const _MomentComment({@JsonKey(includeToJson: false) required this.id, required this.momentId, required this.userId, required this.content, @JsonKey(includeToJson: false) required this.createdAt, @JsonKey(includeToJson: false) required this.updatedAt, @JsonKey(includeToJson: false) this.displayName, @JsonKey(includeToJson: false) this.avatarUrl});
+  factory _MomentComment.fromJson(Map<String, dynamic> json) => _$MomentCommentFromJson(json);
 
-class _MomentComment extends MomentComment {
-  const _MomentComment({required this.id, required this.momentId, required this.userId, required this.content, required this.createdAt, required this.updatedAt, this.displayName, this.avatarUrl}): super._();
-  
-
-@override final  String id;
+@override@JsonKey(includeToJson: false) final  String id;
 @override final  String momentId;
 @override final  String userId;
 @override final  String content;
-@override final  DateTime createdAt;
-@override final  DateTime updatedAt;
-@override final  String? displayName;
-@override final  String? avatarUrl;
+@override@JsonKey(includeToJson: false) final  DateTime createdAt;
+@override@JsonKey(includeToJson: false) final  DateTime updatedAt;
+@override@JsonKey(includeToJson: false) final  String? displayName;
+@override@JsonKey(includeToJson: false) final  String? avatarUrl;
 
 /// Create a copy of MomentComment
 /// with the given fields replaced by the non-null parameter values.
@@ -231,14 +234,17 @@ class _MomentComment extends MomentComment {
 @pragma('vm:prefer-inline')
 _$MomentCommentCopyWith<_MomentComment> get copyWith => __$MomentCommentCopyWithImpl<_MomentComment>(this, _$identity);
 
-
+@override
+Map<String, dynamic> toJson() {
+  return _$MomentCommentToJson(this, );
+}
 
 @override
 bool operator ==(Object other) {
   return identical(this, other) || (other.runtimeType == runtimeType&&other is _MomentComment&&(identical(other.id, id) || other.id == id)&&(identical(other.momentId, momentId) || other.momentId == momentId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.content, content) || other.content == content)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl));
 }
 
-
+@JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode => Object.hash(runtimeType,id,momentId,userId,content,createdAt,updatedAt,displayName,avatarUrl);
 
@@ -255,7 +261,7 @@ abstract mixin class _$MomentCommentCopyWith<$Res> implements $MomentCommentCopy
   factory _$MomentCommentCopyWith(_MomentComment value, $Res Function(_MomentComment) _then) = __$MomentCommentCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String momentId, String userId, String content, DateTime createdAt, DateTime updatedAt, String? displayName, String? avatarUrl
+@JsonKey(includeToJson: false) String id, String momentId, String userId, String content,@JsonKey(includeToJson: false) DateTime createdAt,@JsonKey(includeToJson: false) DateTime updatedAt,@JsonKey(includeToJson: false) String? displayName,@JsonKey(includeToJson: false) String? avatarUrl
 });
 
 
