@@ -83,15 +83,12 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   // Realtime moments list (starts with widget.moments, updates via stream)
   late List<Moment> _moments;
 
-  final List<double> _opacities = [];
   final List<SingleMotionController> _opacityControllers = [];
   // Photo heart state (double-tap to like)
   final Map<int, int> _photoHeartCounts = {}; // photo index -> heart count
 
   // Motor spring controllers for each card
   final List<SingleMotionController> _scaleControllers = [];
-
-  final List<double> _scales = [];
   int? _showingHeartAtIndex; // Index of photo showing heart animation
   final Map<String, String> _userAvatars = {}; // User ID -> avatar URL
   MomentContributor? _userContribution;
@@ -150,8 +147,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     // Clear old data
     _scaleControllers.clear();
     _opacityControllers.clear();
-    _scales.clear();
-    _opacities.clear();
 
     // Setup new controllers for new moment count
     _setupSpringAnimations();
@@ -415,40 +410,16 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
   void _setupSpringAnimations() {
     // Create Motor spring animations for each card using Material Design 3 tokens
     for (int i = 0; i < _moments.length; i++) {
-      // Initialize values
-      _scales.add(0.85);
-      _opacities.add(0.0);
-
-      // Scale controller with Material expressiveSpatialFast spring
       final scaleController = SingleMotionController(
         vsync: this,
         initialValue: 0.85,
         motion: const MaterialSpringMotion.expressiveSpatialFast(),
       );
-
-      scaleController.addListener(() {
-        if (mounted && i < _scales.length) {
-          setState(() {
-            _scales[i] = scaleController.value;
-          });
-        }
-      });
-
-      // Opacity controller with Material expressiveSpatialFast spring
       final opacityController = SingleMotionController(
         vsync: this,
         initialValue: 0.0,
         motion: const MaterialSpringMotion.expressiveSpatialFast(),
       );
-
-      opacityController.addListener(() {
-        if (mounted && i < _opacities.length) {
-          setState(() {
-            _opacities[i] = opacityController.value.clamp(0.0, 1.0);
-          });
-        }
-      });
-
       _scaleControllers.add(scaleController);
       _opacityControllers.add(opacityController);
 
@@ -1483,8 +1454,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
 
     try {
       HapticService.mediumTap();
-      final client = Supabase.instance.client;
-      final userId = client.auth.currentUser?.id;
 
       // Optimistically update all local moments
       setState(() {
@@ -1496,22 +1465,10 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
         _isGroupPrivate = isPrivate;
       });
 
-      // Update moment_groups (Policies will fail if not owner, which is fine, we catch error)
-      try {
-        await client
-            .from('moment_groups')
-            .update({'is_private': isPrivate})
-            .eq('id', groupId);
-      } catch (_) {
-        // Ignore if failed (e.g. not owner of group), continue to update my photos
-      }
-
-      // Update all MY moments in this group
-      await client
-          .from('moments')
-          .update({'is_private': isPrivate})
-          .eq('moment_group_id', groupId)
-          .eq('user_id', userId!); // Only update my photos
+      await ref.read(momentRepositoryProvider).updateGroupPrivacy(
+            groupId,
+            isPrivate,
+          );
       // PowerSync streams the privacy change back down — no local write needed.
 
       if (mounted) {
@@ -2012,29 +1969,30 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
     final moment = _moments[index];
     final imageUrl = _imageUrls[moment.id];
 
-    final scale = (index < _scales.length ? _scales[index] : 0.85).clamp(
-      0.01,
-      1.0,
-    );
-    final opacity = index < _opacities.length
-        ? _opacities[index].clamp(0.0, 1.0)
-        : 0.0;
-    final rotation = 0.0; // Clean editorial style — no rotation
-
-    return GestureDetector(
-      onTap: () => _openRelive(index),
-      onDoubleTap: () => _handleDoubleTapHeart(index),
-      onLongPressStart: (details) {
-        HapticService.longPress();
-        _showMomentActionsMenu(moment, imageUrl, details.globalPosition);
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        _scaleControllers[index],
+        _opacityControllers[index],
+      ]),
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleControllers[index].value.clamp(0.01, 1.0),
+          child: Opacity(
+            opacity: _opacityControllers[index].value.clamp(0.0, 1.0),
+            child: child,
+          ),
+        );
       },
-      child: Transform.scale(
-        scale: scale,
-        child: Opacity(
-          opacity: opacity.clamp(0.0, 1.0),
-          child: Transform.rotate(
-            angle: rotation * math.pi / 180,
-            child: Center(
+      child: GestureDetector(
+        onTap: () => _openRelive(index),
+        onDoubleTap: () => _handleDoubleTapHeart(index),
+        onLongPressStart: (details) {
+          HapticService.longPress();
+          _showMomentActionsMenu(moment, imageUrl, details.globalPosition);
+        },
+        child: Transform.rotate(
+          angle: 0.0,
+          child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(
                   maxWidth: 320,
@@ -2056,7 +2014,6 @@ class _MomentDetailsPageState extends ConsumerState<MomentDetailsPage>
             ),
           ),
         ),
-      ),
     );
   }
 

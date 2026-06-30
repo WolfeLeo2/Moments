@@ -52,7 +52,6 @@ class _StoryViewerPageState extends ConsumerState<StoryViewerPage>
     if (_currentStoryIndex < 0) _currentStoryIndex = 0;
 
     _progressController = AnimationController(vsync: this)
-      ..addListener(() => setState(() {}))
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed) {
           _nextStory();
@@ -272,10 +271,13 @@ class _StoryViewerPageState extends ConsumerState<StoryViewerPage>
                           horizontal: 8,
                           vertical: 4,
                         ),
-                        child: StoryProgressBar(
-                          count: group.stories.length,
-                          currentIndex: _currentStoryIndex,
-                          progress: _progressController.value,
+                        child: AnimatedBuilder(
+                          animation: _progressController,
+                          builder: (context, _) => StoryProgressBar(
+                            count: group.stories.length,
+                            currentIndex: _currentStoryIndex,
+                            progress: _progressController.value,
+                          ),
                         ),
                       ),
                       _buildHeader(group, story, isOwn),

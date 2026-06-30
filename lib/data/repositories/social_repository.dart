@@ -436,27 +436,14 @@ class SocialRepository {
     return _client
         .from('friendships')
         .stream(primaryKey: ['id'])
+        .eq('friend_id', userId)
         .map((data) {
-          _log.d('Received ${data.length} total friendships');
-
-          // Filter in Dart because .eq() is not supported on stream builder
-          final requests = (data as List)
+          final requests = data
               .map((json) => Friendship.fromJson(json as Map<String, dynamic>))
-              .where((f) {
-                final isForMe = f.friendId == userId;
-                final isPending =
-                    f.status ==
-                    FriendshipStatus
-                        .pending; // FIX: Compare to enum, not string
-                return isForMe && isPending;
-              })
-              .toList();
-
-          _log.d('Filtered to ${requests.length} pending requests');
-
-          // Sort by requested_at desc
-          requests.sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
-
+              .where((f) => f.status == FriendshipStatus.pending)
+              .toList()
+            ..sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
+          _log.d('Pending requests: ${requests.length}');
           return requests;
         })
         .handleError((e) {

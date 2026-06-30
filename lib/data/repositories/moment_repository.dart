@@ -425,6 +425,25 @@ class MomentRepository {
     }
   }
 
+  /// Update privacy for a group and all of the caller's moments in it.
+  Future<void> updateGroupPrivacy(String groupId, bool isPrivate) async {
+    final userId = SupabaseConfig.client.auth.currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+    try {
+      await SupabaseConfig.client
+          .from('moment_groups')
+          .update({'is_private': isPrivate})
+          .eq('id', groupId);
+    } catch (_) {
+      // Ignore — caller may not own the group; continue to update their moments
+    }
+    await SupabaseConfig.client
+        .from('moments')
+        .update({'is_private': isPrivate})
+        .eq('moment_group_id', groupId)
+        .eq('user_id', userId);
+  }
+
   /// Delete an entire moment group and all its moments + storage files.
   /// Only the group owner should call this.
   Future<void> deleteGroup(String groupId) async {
@@ -1061,19 +1080,22 @@ class MomentRepository {
         .eq('moment_id', momentId)
         .order('invited_at', ascending: true)
         .asyncMap((data) async {
-          // Fetch profiles for each contributor
-          final contributors = <MomentContributor>[];
-          for (final json in data) {
-            final profileResponse = await SupabaseConfig.client
-                .from('profiles')
-                .select()
-                .eq('id', json['user_id'])
-                .maybeSingle();
-
-            final enrichedJson = {...json, 'profiles': profileResponse};
-            contributors.add(MomentContributor.fromJson(enrichedJson));
-          }
-          return contributors;
+          if (data.isEmpty) return <MomentContributor>[];
+          final userIds = data.map((j) => j['user_id'] as String).toList();
+          final profiles = await SupabaseConfig.client
+              .from('profiles')
+              .select()
+              .inFilter('id', userIds);
+          final profileMap = {
+            for (final p in profiles) p['id'] as String: p,
+          };
+          return data
+              .map(
+                (j) => MomentContributor.fromJson(
+                  {...j, 'profiles': profileMap[j['user_id'] as String]},
+                ),
+              )
+              .toList();
         });
   }
 
@@ -1104,44 +1126,58 @@ class MomentRepository {
         .eq('user_id', userId)
         .order('invited_at', ascending: false)
         .asyncMap((data) async {
-          // Filter to pending only and fetch profiles
-          final pending = <MomentContributor>[];
-          for (final json in data) {
-            if (json['accepted_at'] != null) continue; // Skip accepted
+          final pending =
+              data.where((j) => j['accepted_at'] == null).toList();
+          if (pending.isEmpty) return <MomentContributor>[];
 
-            // Fetch Invitee Profile (should be current user)
-            final profileResponse = await SupabaseConfig.client
+          final userIds = pending.map((j) => j['user_id'] as String).toList();
+          final groupIds =
+              pending.map((j) => j['moment_id'] as String).toList();
+
+          final results = await Future.wait([
+            SupabaseConfig.client
                 .from('profiles')
                 .select()
-                .eq('id', json['user_id'])
-                .maybeSingle();
-
-            // Fetch Group Details (Title & Creator ID)
-            final groupResponse = await SupabaseConfig.client
+                .inFilter('id', userIds),
+            SupabaseConfig.client
                 .from('moment_groups')
-                .select('title, created_by')
-                .eq('id', json['moment_id'])
-                .maybeSingle();
+                .select('id, title, created_by')
+                .inFilter('id', groupIds),
+          ]);
+          final profileMap = {
+            for (final p in results[0]) p['id'] as String: p,
+          };
+          final groupMap = {
+            for (final g in results[1]) g['id'] as String: g,
+          };
 
-            // Fetch Creator/Inviter Profile
-            Map<String, dynamic>? inviterResponse;
-            if (groupResponse != null && groupResponse['created_by'] != null) {
-              inviterResponse = await SupabaseConfig.client
-                  .from('profiles')
-                  .select()
-                  .eq('id', groupResponse['created_by'])
-                  .maybeSingle();
+          final inviterIds = results[1]
+              .where((g) => g['created_by'] != null)
+              .map((g) => g['created_by'] as String)
+              .toSet()
+              .toList();
+          final inviterMap = <String, Map<String, dynamic>>{};
+          if (inviterIds.isNotEmpty) {
+            final inviters = await SupabaseConfig.client
+                .from('profiles')
+                .select()
+                .inFilter('id', inviterIds);
+            for (final p in inviters) {
+              inviterMap[p['id'] as String] = p;
             }
-
-            final enrichedJson = {
-              ...json,
-              'profiles': profileResponse,
-              'moment_groups': groupResponse,
-              'inviter_profile': inviterResponse,
-            };
-            pending.add(MomentContributor.fromJson(enrichedJson));
           }
-          return pending;
+
+          return pending.map((j) {
+            final group = groupMap[j['moment_id'] as String];
+            final inviterId = group?['created_by'] as String?;
+            return MomentContributor.fromJson({
+              ...j,
+              'profiles': profileMap[j['user_id'] as String],
+              'moment_groups': group,
+              'inviter_profile':
+                  inviterId != null ? inviterMap[inviterId] : null,
+            });
+          }).toList();
         });
   }
 

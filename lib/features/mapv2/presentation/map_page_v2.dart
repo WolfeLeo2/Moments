@@ -76,6 +76,7 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
   double _currentZoom = 14.0;
   Timer? _annotationDebounce;
   Timer? _geocodeDebounce;
+  Timer? _markerInvalidateDebounce;
 
   List<Map<String, dynamic>> _visibleGroups = [];
   List<Moment> _allVisibleMoments = [];
@@ -146,6 +147,7 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
     WidgetsBinding.instance.removeObserver(this);
     _annotationDebounce?.cancel();
     _geocodeDebounce?.cancel();
+    _markerInvalidateDebounce?.cancel();
     _locationPollTimer?.cancel();
     _annotationManager = null;
     super.dispose();
@@ -1064,16 +1066,19 @@ class _MapPageV2State extends ConsumerState<MapPageV2>
 
   void _invalidateMarkerCaches() {
     if (!mounted) return;
-    setState(() {
-      _bitmapCache.clear();
-      _lastElementsHash = null;
-    });
-
-    if (!_updatingAnnotations && _mapboxMap != null) {
-      _mapboxMap!.getCameraState().then((cam) {
-        if (mounted) _scheduleViewportUpdate(cam);
+    _markerInvalidateDebounce?.cancel();
+    _markerInvalidateDebounce = Timer(const Duration(milliseconds: 50), () {
+      if (!mounted) return;
+      setState(() {
+        _bitmapCache.clear();
+        _lastElementsHash = null;
       });
-    }
+      if (!_updatingAnnotations && _mapboxMap != null) {
+        _mapboxMap!.getCameraState().then((cam) {
+          if (mounted) _scheduleViewportUpdate(cam);
+        });
+      }
+    });
   }
 
   // ---------------------------------------------------------------------------
