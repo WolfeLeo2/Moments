@@ -1,26 +1,23 @@
-/// Data model for a moment comment.
-class MomentComment {
-  final String id;
-  final String momentId;
-  final String userId;
-  final String content;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-  // Joined fields (filled from profiles)
-  final String? displayName;
-  final String? avatarUrl;
+part 'moment_comment.freezed.dart';
 
-  const MomentComment({
-    required this.id,
-    required this.momentId,
-    required this.userId,
-    required this.content,
-    required this.createdAt,
-    required this.updatedAt,
-    this.displayName,
-    this.avatarUrl,
-  });
+/// toJson emits only the insert payload (3 fields), so we keep manual
+/// fromJson/toJson rather than generating them.
+@freezed
+abstract class MomentComment with _$MomentComment {
+  const MomentComment._();
+
+  const factory MomentComment({
+    required String id,
+    required String momentId,
+    required String userId,
+    required String content,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    String? displayName,
+    String? avatarUrl,
+  }) = _MomentComment;
 
   factory MomentComment.fromJson(Map<String, dynamic> json) {
     return MomentComment(

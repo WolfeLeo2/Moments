@@ -1,62 +1,26 @@
-import 'package:equatable/equatable.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import '_model_converters.dart';
 
-/// Represents an emoji reaction on a moment
-class MomentReaction extends Equatable {
-  final String id;
-  final String momentId;
-  final String userId;
-  final String emoji;
-  final DateTime createdAt;
+part 'moment_reaction.freezed.dart';
+part 'moment_reaction.g.dart';
 
-  const MomentReaction({
-    required this.id,
-    required this.momentId,
-    required this.userId,
-    required this.emoji,
-    required this.createdAt,
-  });
+@freezed
+abstract class MomentReaction with _$MomentReaction {
+  @JsonSerializable(fieldRename: FieldRename.snake, explicitToJson: true)
+  const factory MomentReaction({
+    required String id,
+    required String momentId,
+    required String userId,
+    required String emoji,
+    @JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson)
+    required DateTime createdAt,
+  }) = _MomentReaction;
 
-  factory MomentReaction.fromJson(Map<String, dynamic> json) {
-    return MomentReaction(
-      id: json['id'] as String,
-      momentId: json['moment_id'] as String,
-      userId: json['user_id'] as String,
-      emoji: json['emoji'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'moment_id': momentId,
-      'user_id': userId,
-      'emoji': emoji,
-      'created_at': createdAt.toIso8601String(),
-    };
-  }
-
-  MomentReaction copyWith({
-    String? id,
-    String? momentId,
-    String? userId,
-    String? emoji,
-    DateTime? createdAt,
-  }) {
-    return MomentReaction(
-      id: id ?? this.id,
-      momentId: momentId ?? this.momentId,
-      userId: userId ?? this.userId,
-      emoji: emoji ?? this.emoji,
-      createdAt: createdAt ?? this.createdAt,
-    );
-  }
-
-  @override
-  List<Object?> get props => [id, momentId, userId, emoji, createdAt];
+  factory MomentReaction.fromJson(Map<String, dynamic> json) =>
+      _$MomentReactionFromJson(json);
 }
 
-/// Aggregated reaction count for display
+/// Aggregated reaction count for display — not a DB model, no serialization.
 class ReactionSummary {
   final String emoji;
   final int count;

@@ -1,87 +1,30 @@
-import 'package:equatable/equatable.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import '_model_converters.dart';
 
-/// Friendship status
-enum FriendshipStatus {
-  pending,
-  accepted,
-  rejected,
-  blocked;
+part 'friendship.freezed.dart';
+part 'friendship.g.dart';
 
-  static FriendshipStatus fromString(String value) {
-    return FriendshipStatus.values.firstWhere(
-      (e) => e.name == value,
-      orElse: () => FriendshipStatus.pending,
-    );
-  }
-}
+@JsonEnum()
+enum FriendshipStatus { pending, accepted, rejected, blocked }
 
-/// Friendship connection between users
-class Friendship extends Equatable {
-  final String id;
-  final String userId; // User who sent the request
-  final String friendId; // User who received the request
-  final FriendshipStatus status;
-  final DateTime requestedAt;
-  final DateTime? respondedAt;
-
-  const Friendship({
-    required this.id,
-    required this.userId,
-    required this.friendId,
-    required this.status,
-    required this.requestedAt,
-    this.respondedAt,
-  });
-
-  factory Friendship.fromJson(Map<String, dynamic> json) {
-    return Friendship(
-      id: json['id'] as String,
-      userId: json['user_id'] as String,
-      friendId: json['friend_id'] as String,
-      status: FriendshipStatus.fromString(json['status'] as String),
-      requestedAt: DateTime.parse(json['requested_at'] as String).toLocal(),
-      respondedAt: json['responded_at'] != null
-          ? DateTime.parse(json['responded_at'] as String).toLocal()
-          : null,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'user_id': userId,
-      'friend_id': friendId,
-      'status': status.name,
-      'requested_at': requestedAt.toIso8601String(),
-      'responded_at': respondedAt?.toIso8601String(),
-    };
-  }
-
-  Friendship copyWith({
-    String? id,
-    String? userId,
-    String? friendId,
-    FriendshipStatus? status,
-    DateTime? requestedAt,
+@freezed
+abstract class Friendship with _$Friendship {
+  @JsonSerializable(fieldRename: FieldRename.snake, explicitToJson: true)
+  const factory Friendship({
+    required String id,
+    required String userId,
+    required String friendId,
+    @JsonKey(unknownEnumValue: FriendshipStatus.pending)
+    required FriendshipStatus status,
+    @JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson)
+    required DateTime requestedAt,
+    @JsonKey(
+      fromJson: nullableLocalDateTimeFromJson,
+      toJson: nullableDateTimeToJson,
+    )
     DateTime? respondedAt,
-  }) {
-    return Friendship(
-      id: id ?? this.id,
-      userId: userId ?? this.userId,
-      friendId: friendId ?? this.friendId,
-      status: status ?? this.status,
-      requestedAt: requestedAt ?? this.requestedAt,
-      respondedAt: respondedAt ?? this.respondedAt,
-    );
-  }
+  }) = _Friendship;
 
-  @override
-  List<Object?> get props => [
-    id,
-    userId,
-    friendId,
-    status,
-    requestedAt,
-    respondedAt,
-  ];
+  factory Friendship.fromJson(Map<String, dynamic> json) =>
+      _$FriendshipFromJson(json);
 }

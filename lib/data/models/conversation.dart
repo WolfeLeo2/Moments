@@ -1,45 +1,20 @@
-import 'package:equatable/equatable.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import '_model_converters.dart';
 
-/// Conversation model
-class Conversation extends Equatable {
-  final String id;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+part 'conversation.freezed.dart';
+part 'conversation.g.dart';
 
-  const Conversation({
-    required this.id,
-    required this.createdAt,
-    required this.updatedAt,
-  });
+@freezed
+abstract class Conversation with _$Conversation {
+  @JsonSerializable(fieldRename: FieldRename.snake, explicitToJson: true)
+  const factory Conversation({
+    required String id,
+    @JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson)
+    required DateTime createdAt,
+    @JsonKey(fromJson: localDateTimeFromJson, toJson: dateTimeToJson)
+    required DateTime updatedAt,
+  }) = _Conversation;
 
-  factory Conversation.fromJson(Map<String, dynamic> json) {
-    return Conversation(
-      id: json['id'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
-      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
-    };
-  }
-
-  Conversation copyWith({
-    String? id,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return Conversation(
-      id: id ?? this.id,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
-  }
-
-  @override
-  List<Object?> get props => [id, createdAt, updatedAt];
+  factory Conversation.fromJson(Map<String, dynamic> json) =>
+      _$ConversationFromJson(json);
 }

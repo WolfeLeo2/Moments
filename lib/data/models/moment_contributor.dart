@@ -1,62 +1,44 @@
-import 'package:equatable/equatable.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-/// Contributor role (simplified: owner or contributor, both can view)
+part 'moment_contributor.freezed.dart';
+
 enum ContributorRole {
-  owner, // Created the group, can manage contributors
-  contributor; // Invited and accepted, can add moments
+  owner,
+  contributor;
 
-  static ContributorRole fromString(String value) {
-    return ContributorRole.values.firstWhere(
-      (e) => e.name == value,
-      orElse: () => ContributorRole.contributor,
-    );
-  }
+  static ContributorRole fromString(String value) =>
+      ContributorRole.values.firstWhere(
+        (e) => e.name == value,
+        orElse: () => ContributorRole.contributor,
+      );
 }
 
-/// Contributor to a shared moment
-class MomentContributor extends Equatable {
-  final String id;
-  final String momentId;
-  final String userId;
-  final ContributorRole role;
-  final DateTime invitedAt;
-  final DateTime? acceptedAt;
+@freezed
+abstract class MomentContributor with _$MomentContributor {
+  const MomentContributor._();
 
-  // Populated from join with profiles
-  final String? username;
-  final String? displayName;
-  final String? avatarUrl;
+  const factory MomentContributor({
+    required String id,
+    required String momentId,
+    required String userId,
+    required ContributorRole role,
+    required DateTime invitedAt,
+    DateTime? acceptedAt,
+    String? username,
+    String? displayName,
+    String? avatarUrl,
+    String? groupTitle,
+    String? inviterUsername,
+    String? inviterAvatarUrl,
+  }) = _MomentContributor;
 
-  // Populated for notifications
-  final String? groupTitle;
-  final String? inviterUsername;
-  final String? inviterAvatarUrl;
-
-  const MomentContributor({
-    required this.id,
-    required this.momentId,
-    required this.userId,
-    required this.role,
-    required this.invitedAt,
-    this.acceptedAt,
-    this.username,
-    this.displayName,
-    this.avatarUrl,
-    this.groupTitle,
-    this.inviterUsername,
-    this.inviterAvatarUrl,
-  });
-
-  bool get hasAccepted => acceptedAt != null;
-  bool get isPending => acceptedAt == null;
-  bool get isOwner => role == ContributorRole.owner;
-
+  /// Flat row — used by PowerSync and simple Supabase queries.
   factory MomentContributor.fromJson(Map<String, dynamic> json) {
-    // Handle nested profile data if present
+    // Also handles Supabase join responses where profiles/moment_groups
+    // are nested objects (Supabase embeds them under their table alias).
     final profile = json['profiles'] as Map<String, dynamic>?;
     final group = json['moment_groups'] as Map<String, dynamic>?;
     final inviter = json['inviter_profile'] as Map<String, dynamic>?;
-
     return MomentContributor(
       id: json['id'] as String,
       momentId: json['moment_id'] as String,
@@ -79,60 +61,16 @@ class MomentContributor extends Equatable {
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'moment_id': momentId,
-      'user_id': userId,
-      'role': role.name,
-      'invited_at': invitedAt.toIso8601String(),
-      'accepted_at': acceptedAt?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'moment_id': momentId,
+    'user_id': userId,
+    'role': role.name,
+    'invited_at': invitedAt.toIso8601String(),
+    'accepted_at': acceptedAt?.toIso8601String(),
+  };
 
-  MomentContributor copyWith({
-    String? id,
-    String? momentId,
-    String? userId,
-    ContributorRole? role,
-    DateTime? invitedAt,
-    DateTime? acceptedAt,
-    String? username,
-    String? displayName,
-    String? avatarUrl,
-    String? groupTitle,
-    String? inviterUsername,
-    String? inviterAvatarUrl,
-  }) {
-    return MomentContributor(
-      id: id ?? this.id,
-      momentId: momentId ?? this.momentId,
-      userId: userId ?? this.userId,
-      role: role ?? this.role,
-      invitedAt: invitedAt ?? this.invitedAt,
-      acceptedAt: acceptedAt ?? this.acceptedAt,
-      username: username ?? this.username,
-      displayName: displayName ?? this.displayName,
-      avatarUrl: avatarUrl ?? this.avatarUrl,
-      groupTitle: groupTitle ?? this.groupTitle,
-      inviterUsername: inviterUsername ?? this.inviterUsername,
-      inviterAvatarUrl: inviterAvatarUrl ?? this.inviterAvatarUrl,
-    );
-  }
-
-  @override
-  List<Object?> get props => [
-    id,
-    momentId,
-    userId,
-    role,
-    invitedAt,
-    acceptedAt,
-    username,
-    displayName,
-    avatarUrl,
-    groupTitle,
-    inviterUsername,
-    inviterAvatarUrl,
-  ];
+  bool get hasAccepted => acceptedAt != null;
+  bool get isPending => acceptedAt == null;
+  bool get isOwner => role == ContributorRole.owner;
 }
